@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 pub struct Config {
     pub release: ReleaseConfig,
+    pub github: GitHubConfig,
     pub files: Vec<VersionFileConfig>,
 }
 
@@ -16,6 +17,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             release: ReleaseConfig::default(),
+            github: GitHubConfig::default(),
             files: vec![VersionFileConfig::cargo_toml()],
         }
     }
@@ -49,6 +51,28 @@ impl Default for ReleaseConfig {
             merge_message: "chore(release): merge {tag}".to_string(),
             cleanup: true,
             latest: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct GitHubConfig {
+    pub target_repository: String,
+    pub source_repository: String,
+    pub source_tag_prefix: String,
+    pub source_tag_suffix: String,
+    pub generate_notes: bool,
+}
+
+impl Default for GitHubConfig {
+    fn default() -> Self {
+        Self {
+            target_repository: String::new(),
+            source_repository: String::new(),
+            source_tag_prefix: String::new(),
+            source_tag_suffix: String::new(),
+            generate_notes: true,
         }
     }
 }

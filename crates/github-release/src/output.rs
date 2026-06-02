@@ -14,6 +14,13 @@ pub fn print_plan(plan: &ReleasePlan) {
     println!("target branch:  {}", plan.target_branch);
     println!("release branch: {}", plan.release_branch);
     println!("prerelease:     {}", plan.prerelease);
+    if let Some(repository) = plan.github.target_repository.as_ref() {
+        println!("release repo:    {repository}");
+    }
+    if let Some(repository) = plan.github.source_repository.as_ref() {
+        println!("notes repo:      {repository}");
+        println!("notes tag:       {}", plan.github.source_tag);
+    }
 }
 
 pub fn write_github_outputs(plan: &ReleasePlan) -> Result<()> {
@@ -33,6 +40,13 @@ pub fn write_github_outputs(plan: &ReleasePlan) -> Result<()> {
     writeln!(file, "target_branch={}", plan.target_branch)?;
     writeln!(file, "release_branch={}", plan.release_branch)?;
     writeln!(file, "prerelease={}", plan.prerelease)?;
+    if let Some(repository) = plan.github.target_repository.as_ref() {
+        writeln!(file, "target_repository={repository}")?;
+    }
+    if let Some(repository) = plan.github.source_repository.as_ref() {
+        writeln!(file, "source_repository={repository}")?;
+        writeln!(file, "source_tag={}", plan.github.source_tag)?;
+    }
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-//! Pure release planning logic. This module resolves names, branches, and prerelease state without touching Git or GitHub.
+//! Pure release planning logic. This module resolves names, branches, repositories, and prerelease state without touching Git or GitHub.
 
 use anyhow::{Context, Result};
 use semver::Version;
@@ -17,6 +17,15 @@ pub struct ReleasePlan {
     pub prerelease: bool,
     pub commit_message: String,
     pub merge_message: String,
+    pub github: GitHubPlan,
+}
+
+#[derive(Clone, Debug)]
+pub struct GitHubPlan {
+    pub target_repository: Option<String>,
+    pub source_repository: Option<String>,
+    pub source_tag: String,
+    pub generate_notes: bool,
 }
 
 pub fn build_plan(
@@ -57,6 +66,17 @@ pub fn build_plan(
         PrereleaseMode::False => false,
     };
 
+    let target_repository = non_empty(&config.github.target_repository);
+    let source_repository = non_empty(&config.github.source_repository);
+    let source_tag = if source_repository.is_some() {
+        format!(
+            "{}{}{}",
+            config.github.source_tag_prefix, version_text, config.github.source_tag_suffix
+        )
+    } else {
+        tag.clone()
+    };
+
     Ok(ReleasePlan {
         version,
         version_text,
@@ -67,9 +87,24 @@ pub fn build_plan(
         prerelease,
         commit_message: render_template(&config.release.commit_message, &tag, clean_version),
         merge_message: render_template(&config.release.merge_message, &tag, clean_version),
+        github: GitHubPlan {
+            target_repository,
+            source_repository,
+            source_tag,
+            generate_notes: config.github.generate_notes,
+        },
     })
 }
 
 pub fn render_template(template: &str, tag: &str, version: &str) -> String {
     template.replace("{tag}", tag).replace("{version}", version)
+}
+
+fn non_empty(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }

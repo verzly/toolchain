@@ -270,6 +270,12 @@ Keep the release flow boring. The project should remain small enough that a seni
 
 New features should fit into the prepare, finalize, or abort lifecycle without hiding Git operations behind surprising behavior.
 
+## Distribution repositories
+
+`github-release` can publish a release into one repository while generating release notes from another repository. This is used by the Verzly toolchain: the source changes and pull requests live in `verzly/toolchain`, while the public executable assets are published from repositories such as `verzly/github-release` and `verzly/cargo-release`.
+
+When `source_repository` is configured, generated release notes are requested from that source repository. Pull request links in the final public release therefore point back to the repository where the source code and review history actually live.
+
 ## License
 
 `verzly/github-release` is released under the GNU Affero General Public License v3.0 only.
