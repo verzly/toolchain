@@ -1,0 +1,25 @@
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "github-release-v"
+tag_suffix = ""
+name_prefix = "github-release v"
+name_suffix = ""
+commit_message = "chore(release): prepare {tag}"
+merge_message = "chore(release): merge {tag}"
+cleanup = true
+latest = false
+
+[github]
+target_repository = ""
+source_repository = ""
+source_tag_prefix = ""
+source_tag_suffix = ""
+generate_notes = false
+
+[[files]]
+path = "crates/github-release/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"
+optional = false

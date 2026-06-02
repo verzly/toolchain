@@ -28,7 +28,12 @@ pub fn run(args: AbortArgs) -> Result<()> {
         );
     }
 
-    git::run(["push", "origin", "--delete", &branch], args.dry_run)?;
+    if git::remote_branch_exists(&branch) || args.dry_run {
+        git::run(["push", "origin", "--delete", &branch], args.dry_run)?;
+    } else {
+        println!("remote release branch does not exist: {branch}");
+    }
+
     if git::branch_exists(&branch) || args.dry_run {
         git::run(["branch", "-D", &branch], args.dry_run)?;
     }

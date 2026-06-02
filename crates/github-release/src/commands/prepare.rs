@@ -34,8 +34,11 @@ pub fn run(args: PrepareArgs) -> Result<()> {
 
     git::run(["fetch", "origin", &plan.target_branch], args.dry_run)?;
 
-    if git::branch_exists(&plan.release_branch) && !args.force_branch {
+    if (git::branch_exists(&plan.release_branch) || git::remote_branch_exists(&plan.release_branch)) && !args.force_branch {
         anyhow::bail!("release branch already exists: {}", plan.release_branch);
+    }
+    if git::tag_exists(&plan.tag) || git::remote_tag_exists(&plan.tag) {
+        anyhow::bail!("release tag already exists: {}", plan.tag);
     }
 
     git::run(["checkout", &plan.target_branch], args.dry_run)?;

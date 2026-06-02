@@ -20,8 +20,10 @@ pub enum Commands {
     Plan(PlanArgs),
     /// Create a release branch and update configured version files.
     Prepare(PrepareArgs),
-    /// Merge the release branch, tag it, publish the GitHub Release, and upload assets.
+    /// Merge the release branch and tag the source repository after artifacts were built successfully.
     Finalize(FinalizeArgs),
+    /// Publish a GitHub Release without preparing or merging a branch.
+    Publish(PublishArgs),
     /// Delete a temporary release branch after a failed build.
     Abort(AbortArgs),
 }
@@ -120,6 +122,33 @@ pub struct FinalizeArgs {
     /// Keep the release branch after success.
     #[arg(long, default_value_t = false)]
     pub keep_branch: bool,
+
+    /// Do not create a GitHub Release. Useful for source monorepo tags that are followed by a public distribution release.
+    #[arg(long, default_value_t = false)]
+    pub skip_github_release: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct PublishArgs {
+    /// Version to publish. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
+    #[arg(short, long)]
+    pub version: String,
+
+    /// Config path.
+    #[arg(short, long, default_value = "github-release.toml")]
+    pub config: PathBuf,
+
+    /// Directory containing release assets.
+    #[arg(long)]
+    pub assets: Option<PathBuf>,
+
+    /// Override prerelease handling.
+    #[arg(long, value_enum, default_value_t = PrereleaseMode::Auto)]
+    pub prerelease: PrereleaseMode,
+
+    /// Print commands without executing them.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug)]

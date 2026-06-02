@@ -64,11 +64,16 @@ impl Default for BuildConfig {
 pub struct ArtifactConfig {
     pub checksum: bool,
     pub manifest: bool,
+    pub name_template: String,
 }
 
 impl Default for ArtifactConfig {
     fn default() -> Self {
-        Self { checksum: true, manifest: true }
+        Self {
+            checksum: true,
+            manifest: true,
+            name_template: "{binary}-v{version}-{target}{ext}".to_string(),
+        }
     }
 }
 

@@ -16,9 +16,9 @@ The source stays in this repository. Public distribution repositories stay inten
 
 ## Projects
 
-`github-release` prepares source release branches, updates configured version files, finalizes successful builds into GitHub Releases, uploads assets, and aborts failed release branches cleanly.
+`github-release` owns release branches, version-file updates, source tags, public GitHub Releases, release notes, asset uploads, and failed-release cleanup.
 
-`cargo-release` builds Rust executable artifacts for multiple targets, with checksums and optional Docker or Podman isolation.
+`cargo-release` owns Rust executable artifact builds, target-specific artifact naming, manifests, checksums, and optional Docker or Podman isolation.
 
 `tauri-release` coordinates Tauri desktop and mobile release artifacts while keeping platform-specific build rules explicit.
 
@@ -30,7 +30,7 @@ The source stays in this repository. Public distribution repositories stay inten
 
 ## Repository model
 
-This repository is the source of truth for all Rust code, release workflows, release scripts, and crate-specific release configuration.
+This repository is the source of truth for Rust code, release workflows, and crate-specific release configuration.
 
 The public distribution repositories are separate repositories:
 
@@ -42,45 +42,60 @@ verzly/rust-cache
 verzly/android-signing
 ```
 
-Distribution repositories do not contain Rust source code, `Cargo.toml`, `CHANGELOG.md`, `VERSION`, `github-release.toml`, test workflows, or release workflows.
+Distribution repositories do not contain Rust source code, `Cargo.toml`, `CHANGELOG.md`, `VERSION`, release config, test workflows, or release workflows.
 
-There must be no `_repos/` or `distribution/` directory in `verzly/toolchain`. In handoff ZIP files, `_repos/` may appear next to `toolchain/` as a convenience export of the public distribution repositories. That sibling directory is not part of this repository.
+There must be no `_repos/`, `distribution/`, or orchestration `scripts/` directory in `verzly/toolchain`. In handoff ZIP files, `_repos/` may appear next to `toolchain/` as a convenience export of the public distribution repositories. That sibling directory is not part of this repository.
 
 ## Release model
 
-Each public tool has its own workflow in `.github/workflows/release-<tool>.yml`. Tools are released independently, and each crate has its own version in `crates/<tool>/Cargo.toml`.
+Each public tool has its own tiny workflow in `.github/workflows/release-<tool>.yml`. Those workflows delegate to the reusable `.github/workflows/_release-tool.yml` workflow.
+
+The reusable workflow intentionally calls the Rust tools directly instead of hiding release behavior in shell scripts:
+
+```text
+github-release prepare    # source branch + version update
+rust-cache run -- cargo   # format, clippy, test, and build cache routing
+cargo-release build       # executable assets, checksums, manifests
+github-release finalize   # merge source branch + source tag
+github-release publish    # public GitHub Release + uploaded assets
+```
 
 A release for one tool follows this lifecycle:
 
 ```text
 1. Trigger release-<tool>.yml with the target version.
-2. Create a source release branch in verzly/toolchain, such as release/cargo-release-v1.2.3.
-3. Update crates/<tool>/Cargo.toml on that source release branch.
-4. Run formatting, clippy, and tests from the source release branch.
-5. Build the selected executable on Linux, macOS, and Windows from that same branch.
-6. If tests or builds fail, delete the temporary source release branch.
-7. If builds succeed, merge the source release branch into master.
-8. Create a source tag in verzly/toolchain, such as cargo-release-v1.2.3.
-9. Clone the matching public distribution repository, such as verzly/cargo-release.
-10. Create the public distribution tag, such as v1.2.3.
-11. Publish the public GitHub Release and upload executable assets.
+2. github-release prepare creates release/<tool>-vX.Y.Z in verzly/toolchain.
+3. github-release prepare updates crates/<tool>/Cargo.toml on that branch.
+4. rust-cache runs formatting, clippy, and tests from that branch.
+5. cargo-release builds executable assets from that same branch.
+6. github-release abort deletes the temporary source branch if tests or builds fail.
+7. github-release finalize merges the source branch into master and creates <tool>-vX.Y.Z.
+8. github-release publish creates vX.Y.Z in the public distribution repository and uploads assets.
 ```
 
-The crate-specific distribution release configuration lives next to the tool source:
+The source release configuration lives here:
 
 ```text
-crates/github-release/github-release.toml
-crates/cargo-release/github-release.toml
-crates/tauri-release/github-release.toml
-crates/rust-cache/github-release.toml
-crates/android-signing/github-release.toml
+crates/<tool>/source-github-release.toml
+```
+
+The public distribution release configuration lives here:
+
+```text
+crates/<tool>/github-release.toml
+```
+
+The build configuration lives here:
+
+```text
+crates/<tool>/cargo-release.toml
 ```
 
 These files are not copied to distribution repositories.
 
 ## Release notes and PR links
 
-Pull requests and code review happen in `verzly/toolchain`, not in the distribution repositories. For that reason, distribution releases generate notes from the source repository tag.
+Pull requests and code review happen in `verzly/toolchain`, not in the distribution repositories. For that reason, public distribution releases generate notes from the source repository tag.
 
 Source tags use the tool name as a prefix:
 
@@ -105,20 +120,21 @@ This keeps monorepo tags unambiguous while giving public users the conventional 
 Run checks from the workspace root:
 
 ```sh
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
+cargo build --release -p rust-cache
+rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
+rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
+rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
 ```
 
 Useful local commands:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
+cargo run -p github-release -- plan --config crates/cargo-release/source-github-release.toml --version 1.2.3
 cargo run -p cargo-release -- plan --config crates/cargo-release/cargo-release.toml
 cargo run -p rust-cache -- doctor
 ```
 
-Keep the workspace plain and readable. Avoid build scripts, proc macros, and hidden global behavior unless there is a concrete reason.
+Keep the workspace plain and readable. Avoid build scripts, proc macros, hidden global behavior, and shell orchestration unless there is a concrete reason.
 
 ## Distribution repository contents
 
@@ -134,14 +150,7 @@ LICENSE
 
 Those directories exist only so the public repositories can be updated with less manual work. Do not commit `_repos/` into `verzly/toolchain`.
 
-For local/manual syncing from the handoff bundle, use:
-
-```sh
-DISTRIBUTION_REPO_CONTENT_ROOT=../_repos \
-  scripts/sync-repo-template.sh cargo-release ../cargo-release
-```
-
-The GitHub release workflows do not depend on that sibling directory. They publish release notes and executable assets to the already-existing distribution repositories.
+The GitHub release workflows do not depend on `_repos/`. They publish release notes and executable assets to the already-existing distribution repositories.
 
 ## Contributing
 

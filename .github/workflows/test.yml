@@ -10,28 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap cache helper
+        run: |
+          cargo build --release -p rust-cache
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
 
       - name: Format
-        run: cargo fmt --all -- --check
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --workspace --all-targets
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
 
   repository-model:
     name: Repository model
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Validate repository boundaries
         shell: bash
@@ -39,11 +41,14 @@ jobs:
           set -euo pipefail
           test ! -d "_repos"
           test ! -d "distribution"
+          test ! -d "scripts"
           for tool in github-release cargo-release tauri-release rust-cache android-signing; do
             test -f "crates/${tool}/Cargo.toml"
+            test -f "crates/${tool}/source-github-release.toml"
             test -f "crates/${tool}/github-release.toml"
-            grep -q "source_repository = \"verzly/toolchain\"" "crates/${tool}/github-release.toml"
+            test -f "crates/${tool}/cargo-release.toml"
             grep -q "target_repository = \"verzly/${tool}\"" "crates/${tool}/github-release.toml"
-            grep -q "source_tag_prefix = \"${tool}-v\"" "crates/${tool}/github-release.toml"
+            grep -q "source_repository = \"verzly/toolchain\"" "crates/${tool}/github-release.toml"
+            grep -q "tag_prefix = \"${tool}-v\"" "crates/${tool}/source-github-release.toml"
             grep -q "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
           done

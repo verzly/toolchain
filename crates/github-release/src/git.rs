@@ -82,6 +82,36 @@ pub fn branch_exists(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+pub fn tag_exists(name: &str) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", &format!("refs/tags/{name}")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+pub fn remote_branch_exists(name: &str) -> bool {
+    remote_ref_exists("--heads", name)
+}
+
+pub fn remote_tag_exists(name: &str) -> bool {
+    remote_ref_exists("--tags", name)
+}
+
+fn remote_ref_exists(kind: &str, name: &str) -> bool {
+    Command::new("git")
+        .args(["ls-remote", "--exit-code", kind, "origin", name])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 fn printable<S: AsRef<OsStr>>(args: &[S]) -> String {
     args.iter()
         .map(|arg| arg.as_ref().to_string_lossy())

@@ -46,6 +46,10 @@ pub struct BuildArgs {
     #[arg(short, long, default_value = "cargo-release.toml")]
     pub config: PathBuf,
 
+    /// Version used when naming release artifacts.
+    #[arg(short, long)]
+    pub version: Option<String>,
+
     /// Build only this target key.
     #[arg(long)]
     pub target: Option<String>,

@@ -4,7 +4,7 @@ This guide defines the intended architecture, repository boundaries, release mod
 
 ## Primary rule
 
-`verzly/toolchain` is the private Rust workspace. It contains source code, internal crate documentation, release workflows, release scripts, and release configuration.
+`verzly/toolchain` is the private Rust workspace. It contains source code, internal crate documentation, release workflows, and release configuration.
 
 The public distribution repositories are separate repositories. They are not subdirectories of `verzly/toolchain`.
 
@@ -17,7 +17,6 @@ toolchain.zip
 ├── toolchain/                         # The actual verzly/toolchain repository
 │   ├── .github/workflows/
 │   ├── crates/
-│   ├── scripts/
 │   ├── Cargo.toml
 │   ├── LICENSE
 │   ├── README.md
@@ -36,9 +35,10 @@ Incorrect repository layout:
 ```text
 verzly/toolchain/_repos/
 verzly/toolchain/distribution/
+verzly/toolchain/scripts/
 ```
 
-Never place `_repos/` or `distribution/` inside the actual `verzly/toolchain` repository.
+Do not add orchestration shell scripts for release behavior that belongs in `github-release`, `cargo-release`, or `rust-cache`.
 
 ## Tool to repository mapping
 
@@ -103,34 +103,41 @@ name = "cargo-release"
 version = "0.1.0"
 ```
 
-Do not use `version.workspace = true` for independently released public tools. The tools are released independently, so their versions must be independent.
-
-Shared workspace metadata may still be used for edition, license, repository URL, authors, lint policy, and dependency versions when appropriate.
+Do not use `version.workspace = true` for independently released public tools.
 
 ## Release configuration
 
-Each public tool owns one release config:
+Each public tool owns three important configs:
 
 ```text
-crates/github-release/github-release.toml
-crates/cargo-release/github-release.toml
-crates/tauri-release/github-release.toml
-crates/rust-cache/github-release.toml
-crates/android-signing/github-release.toml
+crates/<tool>/source-github-release.toml  # source branch, source tag, Cargo.toml version update
+crates/<tool>/github-release.toml         # public distribution release
+crates/<tool>/cargo-release.toml          # executable asset build
+```
+
+The source config must use a tool-prefixed source tag:
+
+```toml
+tag_prefix = "cargo-release-v"
+
+[[files]]
+path = "crates/cargo-release/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"
+```
+
+The distribution config must use the public repository and a clean public tag:
+
+```toml
+target_repository = "verzly/cargo-release"
+source_repository = "verzly/toolchain"
+source_tag_prefix = "cargo-release-v"
+tag_prefix = "v"
+files = []
 ```
 
 These configs must stay in the source repository and must not be copied to distribution repositories.
-
-The config should model two repositories:
-
-```toml
-source_repository = "verzly/toolchain"
-target_repository = "verzly/cargo-release"
-source_tag_prefix = "cargo-release-v"
-tag_prefix = "v"
-```
-
-The source tag identifies the monorepo tool. The public tag stays clean inside the public distribution repository.
 
 ## Release lifecycle
 
@@ -138,40 +145,21 @@ A release workflow must perform source release work before public distribution r
 
 Expected flow:
 
-1. Create a temporary source release branch in `verzly/toolchain`.
-2. Update `crates/<tool>/Cargo.toml` to the requested version on that branch.
-3. Run formatting, clippy, and tests from that branch.
-4. Build artifacts from that exact branch.
-5. If anything fails, delete the temporary source release branch.
-6. If everything succeeds, merge the branch into `master`.
-7. Create the source tag in `verzly/toolchain`, for example `cargo-release-v1.2.3`.
-8. Clone the target public repository.
-9. Run `github-release prepare` in the target public repository using the absolute config path from `crates/<tool>/github-release.toml`.
-10. Run `github-release finalize` in the target public repository with the executable assets.
-11. Create the public tag, for example `v1.2.3`.
-12. Publish the public GitHub Release.
+1. `github-release prepare` creates a temporary source release branch in `verzly/toolchain`.
+2. `github-release prepare` updates `crates/<tool>/Cargo.toml` to the requested version on that branch.
+3. `rust-cache run -- cargo fmt`, `clippy`, and `test` run from that exact branch.
+4. `cargo-release build` builds executable assets from that exact branch.
+5. `github-release abort` deletes the temporary source release branch if anything fails.
+6. `github-release finalize --skip-github-release` merges the branch into `master` and creates `<tool>-vX.Y.Z`.
+7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, and uploads assets.
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
-## Distribution file syncing
-
-CI releases do not require `_repos/` because `_repos/` is not part of `verzly/toolchain`.
-
-If local/manual syncing is needed from the handoff ZIP, use the helper script with an explicit external content root:
-
-```sh
-cd toolchain
-DISTRIBUTION_REPO_CONTENT_ROOT=../_repos \
-  scripts/sync-repo-template.sh cargo-release ../cargo-release
-```
-
-Do not make GitHub Actions depend on a sibling directory that cannot exist after checking out `verzly/toolchain` alone.
-
 ## CI expectations
 
-Release workflows expect a token that can push to both `verzly/toolchain` and the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.
+Release workflows expect a token that can push to `verzly/toolchain` and create releases in the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.
 
-Each public tool has its own workflow:
+Each public tool has its own small workflow:
 
 ```text
 .github/workflows/release-github-release.yml
@@ -181,11 +169,13 @@ Each public tool has its own workflow:
 .github/workflows/release-android-signing.yml
 ```
 
-There is one normal workspace test workflow:
+Those files should remain thin wrappers around the reusable workflow:
 
 ```text
-.github/workflows/test.yml
+.github/workflows/_release-tool.yml
 ```
+
+Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.
 
 Do not add test or release workflows to public distribution repositories.
 
@@ -228,51 +218,12 @@ The root `toolchain/README.md` is for maintainers. Crate-level READMEs are for i
 
 Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Release notes are generated from GitHub releases.
 
-## Validation checklist
+## Hard no list
 
-Before handing over a ZIP, verify:
+Do not add `_repos/`, `distribution/`, or release orchestration `scripts/` inside `verzly/toolchain`.
 
-```sh
-test -d toolchain
-test -d _repos
-test ! -d toolchain/_repos
-test ! -d toolchain/distribution
+Do not put source code in public distribution repositories.
 
-for tool in github-release cargo-release tauri-release rust-cache android-signing; do
-  test -f "toolchain/crates/${tool}/Cargo.toml"
-  test -f "toolchain/crates/${tool}/github-release.toml"
-  grep -q 'source_repository = "verzly/toolchain"' "toolchain/crates/${tool}/github-release.toml"
-  grep -q "target_repository = \"verzly/${tool}\"" "toolchain/crates/${tool}/github-release.toml"
+Do not make public distribution repositories responsible for testing, building, or releasing themselves.
 
-  test -f "_repos/${tool}/README.md"
-  test -f "_repos/${tool}/action.yml"
-  test -f "_repos/${tool}/LICENSE"
-  test ! -d "_repos/${tool}/.github"
-  test ! -f "_repos/${tool}/Cargo.toml"
-  test ! -d "_repos/${tool}/src"
-  test ! -f "_repos/${tool}/github-release.toml"
-done
-```
-
-Also run, when Rust is available:
-
-```sh
-cd toolchain
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
-```
-
-## Forbidden changes
-
-Do not add `_repos/` inside `verzly/toolchain`.
-
-Do not add `distribution/` inside `verzly/toolchain`.
-
-Do not add Rust source code to public distribution repositories.
-
-Do not publish public executable assets from `verzly/toolchain` for end users to consume. Public users should consume releases from the distribution repositories.
-
-Do not make public release notes point to distribution repositories when the merged pull requests live in `verzly/toolchain`.
-
-Do not use one global version for independently released public tools.
+Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.

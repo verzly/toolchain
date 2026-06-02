@@ -22,6 +22,7 @@ fn main() -> Result<()> {
         Commands::Plan(args) => commands::plan::run(args),
         Commands::Prepare(args) => commands::prepare::run(args),
         Commands::Finalize(args) => commands::finalize::run(args),
+        Commands::Publish(args) => commands::publish::run(args),
         Commands::Abort(args) => commands::abort::run(args),
     }
 }
