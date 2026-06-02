@@ -55,6 +55,22 @@ pub fn ensure_clean_worktree() -> Result<()> {
     Ok(())
 }
 
+pub fn has_staged_changes() -> Result<bool> {
+    let status = Command::new("git")
+        .args(["diff", "--cached", "--quiet"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .context("failed to check staged git changes")?;
+
+    match status.code() {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        _ => anyhow::bail!("git diff --cached --quiet failed"),
+    }
+}
+
 pub fn branch_exists(name: &str) -> bool {
     Command::new("git")
         .args(["rev-parse", "--verify", name])

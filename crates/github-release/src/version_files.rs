@@ -57,9 +57,8 @@ fn update_text(file: &VersionFileConfig, plan: &ReleasePlan) -> Result<()> {
     let raw = fs::read_to_string(&file.path)?;
     let replace = render_template(&file.replace, &plan.tag, &plan.version_text);
 
-    // VERSION files are usually the whole file. `{current}` means "replace the
-    // current trimmed contents" so distribution repositories do not need to keep
-    // their old version duplicated inside github-release.toml.
+    // `{current}` means "replace the current trimmed contents" for plain text
+    // files that intentionally store only the current release value.
     let search = if file.search == "{current}" {
         raw.trim().to_string()
     } else {

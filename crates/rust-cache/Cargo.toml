@@ -5,17 +5,13 @@ edition.workspace = true
 description = "Project-local cache routing helper for Rust and Tauri workspaces"
 license.workspace = true
 repository.workspace = true
-publish = false
 
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
-colored = "2.1"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = "0.8"
-
-[dependencies.verzly-core]
-path = "../verzly-core"
 
 [[bin]]
 name = "rust-cache"

@@ -2,16 +2,11 @@ name: Test
 
 on:
   push:
-    branches: [master]
   pull_request:
-    branches: [master]
-
-permissions:
-  contents: read
 
 jobs:
-  test:
-    name: Test workspace
+  rust:
+    name: Rust workspace
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +16,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Format check
+      - name: Format
         run: cargo fmt --all -- --check
 
       - name: Clippy
@@ -29,3 +24,26 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --all-targets
+
+  repository-model:
+    name: Repository model
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repository boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -d "_repos"
+          test ! -d "distribution"
+          for tool in github-release cargo-release tauri-release rust-cache android-signing; do
+            test -f "crates/${tool}/Cargo.toml"
+            test -f "crates/${tool}/github-release.toml"
+            grep -q "source_repository = \"verzly/toolchain\"" "crates/${tool}/github-release.toml"
+            grep -q "target_repository = \"verzly/${tool}\"" "crates/${tool}/github-release.toml"
+            grep -q "source_tag_prefix = \"${tool}-v\"" "crates/${tool}/github-release.toml"
+            grep -q "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
+          done

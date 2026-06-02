@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Build a single release asset for the current platform and place it in .release-assets/<tool>/.
-# Usage: scripts/build-release-asset.sh <tool> <version>
 set -euo pipefail
 
 TOOL="${1:?tool name is required}"
@@ -8,24 +6,27 @@ VERSION="${2:?version is required}"
 
 case "${RUNNER_OS:-$(uname -s)}" in
   Linux)
+    OS_NAME="Linux"
     EXT=""
     ARCH="$(uname -m)"
     case "${ARCH}" in
-      x86_64|amd64)   HOST="x86_64-unknown-linux-gnu" ;;
-      aarch64|arm64)  HOST="aarch64-unknown-linux-gnu" ;;
+      x86_64|amd64) HOST="x86_64-unknown-linux-gnu" ;;
+      aarch64|arm64) HOST="aarch64-unknown-linux-gnu" ;;
       *) echo "Unsupported Linux architecture: ${ARCH}" >&2; exit 1 ;;
     esac
     ;;
   macOS|Darwin)
+    OS_NAME="macOS"
     EXT=""
     ARCH="$(uname -m)"
     case "${ARCH}" in
-      x86_64|amd64)   HOST="x86_64-apple-darwin" ;;
-      aarch64|arm64)  HOST="aarch64-apple-darwin" ;;
+      x86_64|amd64) HOST="x86_64-apple-darwin" ;;
+      aarch64|arm64) HOST="aarch64-apple-darwin" ;;
       *) echo "Unsupported macOS architecture: ${ARCH}" >&2; exit 1 ;;
     esac
     ;;
   Windows*)
+    OS_NAME="Windows"
     EXT=".exe"
     ARCH="${PROCESSOR_ARCHITECTURE:-AMD64}"
     case "${ARCH}" in
@@ -40,29 +41,47 @@ case "${RUNNER_OS:-$(uname -s)}" in
     ;;
 esac
 
-ASSET_DIR=".release-assets/${TOOL}"
-mkdir -p "${ASSET_DIR}"
+CONFIG="${RUNNER_TEMP:-/tmp}/cargo-release-${TOOL}-${HOST}.toml"
+DIST="${RUNNER_TEMP:-/tmp}/dist-${TOOL}-${HOST}"
+mkdir -p "$(dirname "${CONFIG}")" "release-assets/${TOOL}"
 
-# Build the binary directly on the host runner.
-# cargo-release is not bootstrapped here because the release workflow already builds it
-# in CI when needed; this script keeps the build simple and auditable.
-cargo build --release -p "${TOOL}"
+cat > "${CONFIG}" <<EOF
+[project]
+root = "."
+binary = "${TOOL}"
 
-SOURCE="target/release/${TOOL}${EXT}"
-if [ ! -f "${SOURCE}" ]; then
-  echo "Expected binary not found: ${SOURCE}" >&2
-  exit 1
-fi
+[build]
+out_dir = "${DIST}"
+default_strategy = "host"
+container_engine = "podman"
 
-TARGET="${ASSET_DIR}/${TOOL}-v${VERSION}-${HOST}${EXT}"
+[artifacts]
+checksum = true
+manifest = true
+
+[targets.host]
+enabled = true
+triple = "${HOST}"
+strategy = "host"
+command = "cargo build --release -p ${TOOL}"
+artifacts = ["target/release/${TOOL}${EXT}"]
+EOF
+
+# cargo-release builds every public executable, including cargo-release itself.
+# The first binary is still bootstrapped with plain Cargo so the workflow can use its own builder afterwards.
+cargo build --release -p cargo-release
+"target/release/cargo-release${EXT}" build --config "${CONFIG}"
+
+SOURCE="${DIST}/host/${TOOL}${EXT}"
+TARGET="release-assets/${TOOL}/${TOOL}-v${VERSION}-${HOST}${EXT}"
 cp "${SOURCE}" "${TARGET}"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "${ASSET_DIR}" && sha256sum "$(basename "${TARGET}")" > "$(basename "${TARGET}").sha256")
+  (cd "$(dirname "${TARGET}")" && sha256sum "$(basename "${TARGET}")" > "$(basename "${TARGET}").sha256")
 elif command -v shasum >/dev/null 2>&1; then
-  (cd "${ASSET_DIR}" && shasum -a 256 "$(basename "${TARGET}")" > "$(basename "${TARGET}").sha256")
+  (cd "$(dirname "${TARGET}")" && shasum -a 256 "$(basename "${TARGET}")" > "$(basename "${TARGET}").sha256")
 else
   echo "No checksum command found; skipping checksum for ${TARGET}" >&2
 fi
 
-echo "Built: ${TARGET}"
+echo "Built ${TARGET} on ${OS_NAME} (${HOST})"

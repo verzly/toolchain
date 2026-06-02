@@ -42,11 +42,15 @@ pub fn run(args: PrepareArgs) -> Result<()> {
     git::run(["pull", "--ff-only", "origin", &plan.target_branch], args.dry_run)?;
     git::run(["checkout", "-B", &plan.release_branch], args.dry_run)?;
 
-// Version updates happen before the project build so downstream jobs build the exact release contents.
+    // Version updates happen before the project build so downstream jobs build the exact release contents.
     version_files::update_all(&config.files, &plan, args.dry_run)?;
 
     git::run(["add", "--all"], args.dry_run)?;
-    git::run(["commit", "-m", &plan.commit_message], args.dry_run)?;
+    if args.dry_run || git::has_staged_changes()? {
+        git::run(["commit", "-m", &plan.commit_message], args.dry_run)?;
+    } else {
+        println!("no configured version file changes to commit");
+    }
     git::run(["push", "--set-upstream", "origin", &plan.release_branch], args.dry_run)?;
 
     output::write_github_outputs(&plan)?;

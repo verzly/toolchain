@@ -1,0 +1,12 @@
+[build]
+out_dir = "dist"
+clean = true
+checksum = true
+manifest = true
+
+[targets.linux-x64]
+strategy = "host"
+command = "cargo build --release --locked"
+artifacts = [
+    "target/release/tauri-release",
+]

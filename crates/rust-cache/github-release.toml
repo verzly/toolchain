@@ -1,12 +1,12 @@
 [release]
 target_branch = "master"
 branch_prefix = "release/"
-tag_prefix = "rust-cache-v"
+tag_prefix = "v"
 tag_suffix = ""
 name_prefix = ""
 name_suffix = ""
-commit_message = "chore(release): prepare rust-cache {tag}"
-merge_message = "chore(release): merge rust-cache {tag}"
+commit_message = "chore(release): prepare {tag}"
+merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
 
@@ -14,10 +14,9 @@ latest = true
 target_repository = "verzly/rust-cache"
 source_repository = "verzly/toolchain"
 source_tag_prefix = "rust-cache-v"
+source_tag_suffix = ""
 generate_notes = true
 
-[[files]]
-path = "crates/rust-cache/Cargo.toml"
-kind = "toml"
-key = "package.version"
-value = "{version}"
+# Distribution repositories do not keep VERSION, CHANGELOG, or source files.
+# Public repository files are maintained outside verzly/toolchain; release config only publishes tags, notes, and assets.
+files = []
