@@ -1,0 +1,23 @@
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "android-signing-v"
+tag_suffix = ""
+name_prefix = ""
+name_suffix = ""
+commit_message = "chore(release): prepare android-signing {tag}"
+merge_message = "chore(release): merge android-signing {tag}"
+cleanup = true
+latest = true
+
+[github]
+target_repository = "verzly/android-signing"
+source_repository = "verzly/toolchain"
+source_tag_prefix = "android-signing-v"
+generate_notes = true
+
+[[files]]
+path = "crates/android-signing/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"

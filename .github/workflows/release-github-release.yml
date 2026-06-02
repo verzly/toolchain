@@ -1,0 +1,120 @@
+name: Release Github Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the leading v (e.g. 1.2.3 or 1.2.3-rc.1)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test workspace
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test
+        run: cargo test --workspace --all-targets
+
+  build:
+    name: Build on ${{ matrix.os }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release asset
+        shell: bash
+        run: scripts/build-release-asset.sh "github-release" "${{ inputs.version }}"
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-release-${{ matrix.os }}
+          path: .release-assets/github-release/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to verzly/github-release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout toolchain
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap release tools
+        run: cargo build --release -p github-release
+
+      - name: Add release tools to PATH
+        shell: bash
+        run: echo "${PWD}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Download executable assets
+        uses: actions/download-artifact@v4
+        with:
+          path: .downloaded-assets
+
+      - name: Collect assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .release-assets/github-release
+          find .downloaded-assets -type f -name "github-release-v${{ inputs.version }}-*" \
+            -exec cp {} .release-assets/github-release/ \;
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Create source tag for release notes
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git tag -a "github-release-v${VERSION}" -m "github-release v${VERSION}"
+          git push origin "github-release-v${VERSION}"
+
+      - name: Publish to distribution repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh repo clone verzly/github-release .distribution-repos/github-release
+          scripts/publish-distribution-repo.sh \
+            "github-release" \
+            "${VERSION}" \
+            ".release-assets" \
+            ".distribution-repos/github-release" \
+            "crates/github-release/github-release.toml"

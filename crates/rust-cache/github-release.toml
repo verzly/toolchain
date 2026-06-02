@@ -1,0 +1,23 @@
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "rust-cache-v"
+tag_suffix = ""
+name_prefix = ""
+name_suffix = ""
+commit_message = "chore(release): prepare rust-cache {tag}"
+merge_message = "chore(release): merge rust-cache {tag}"
+cleanup = true
+latest = true
+
+[github]
+target_repository = "verzly/rust-cache"
+source_repository = "verzly/toolchain"
+source_tag_prefix = "rust-cache-v"
+generate_notes = true
+
+[[files]]
+path = "crates/rust-cache/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"

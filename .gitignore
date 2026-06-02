@@ -1,6 +1,7 @@
 /target/
-/dist/
 /.cache/
 /.release-assets/
+/.downloaded-assets/
+/.distribution-repos/
 *.log
 .DS_Store

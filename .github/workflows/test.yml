@@ -2,11 +2,16 @@ name: Test
 
 on:
   push:
+    branches: [master]
   pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
 
 jobs:
-  rust:
-    name: Rust workspace
+  test:
+    name: Test workspace
     runs-on: ubuntu-latest
 
     steps:
@@ -16,7 +21,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Format
+      - name: Format check
         run: cargo fmt --all -- --check
 
       - name: Clippy
@@ -24,26 +29,3 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --all-targets
-
-  distribution-templates:
-    name: Distribution templates
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate distribution repositories
-        shell: bash
-        run: |
-          set -euo pipefail
-          for tool in github-release cargo-release tauri-release rust-cache android-signing; do
-            test -f "distribution/${tool}/README.md"
-            test -f "distribution/${tool}/action.yml"
-            test -f "distribution/${tool}/github-release.toml"
-            test -f "distribution/${tool}/VERSION"
-            test ! -d "distribution/${tool}/src"
-            test ! -f "distribution/${tool}/Cargo.toml"
-            grep -q "github.action_repository" "distribution/${tool}/action.yml"
-            grep -q "source_repository = \"verzly/toolchain\"" "distribution/${tool}/github-release.toml"
-          done

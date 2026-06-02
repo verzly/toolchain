@@ -1,0 +1,23 @@
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "github-release-v"
+tag_suffix = ""
+name_prefix = ""
+name_suffix = ""
+commit_message = "chore(release): prepare github-release {tag}"
+merge_message = "chore(release): merge github-release {tag}"
+cleanup = true
+latest = true
+
+[github]
+target_repository = "verzly/github-release"
+source_repository = "verzly/toolchain"
+source_tag_prefix = "github-release-v"
+generate_notes = true
+
+[[files]]
+path = "crates/github-release/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"
