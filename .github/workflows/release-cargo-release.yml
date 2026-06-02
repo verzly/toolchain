@@ -13,8 +13,8 @@ on:
         default: auto
         options:
           - auto
-          - true
-          - false
+          - "true"
+          - "false"
 
 jobs:
   release:
