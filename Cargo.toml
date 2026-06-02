@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/verzly-core",
+    "crates/github-release",
+    "crates/cargo-release",
+    "crates/tauri-release",
+    "crates/rust-cache",
+    "crates/android-signing",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/verzly/toolchain"

@@ -1,0 +1,46 @@
+[project]
+root = "."
+frontend_install = "pnpm install --frozen-lockfile"
+
+[build]
+out_dir = "dist"
+cache_dir = ".cache/tauri-release"
+default_strategy = "host"
+container_engine = "podman"
+
+[artifacts]
+checksum = true
+manifest = true
+
+[platforms.linux]
+enabled = true
+strategy = "container"
+image = "ghcr.io/verzly/tauri-release-linux:latest"
+command = "pnpm tauri build"
+artifacts = ["src-tauri/target/release/bundle/**/*.deb", "src-tauri/target/release/bundle/**/*.AppImage"]
+
+[platforms.windows]
+enabled = false
+strategy = "container"
+image = "ghcr.io/verzly/tauri-release-windows:latest"
+command = "pnpm tauri build"
+artifacts = ["src-tauri/target/release/bundle/**/*.msi", "src-tauri/target/release/bundle/**/*.exe"]
+
+[platforms.macos]
+enabled = false
+strategy = "host"
+command = "pnpm tauri build"
+artifacts = ["src-tauri/target/release/bundle/**/*.dmg", "src-tauri/target/release/bundle/**/*.app"]
+
+[platforms.android]
+enabled = false
+strategy = "container"
+image = "ghcr.io/verzly/tauri-release-android:latest"
+command = "pnpm tauri android build --apk --aab"
+artifacts = ["src-tauri/gen/android/app/build/outputs/**/*.apk", "src-tauri/gen/android/app/build/outputs/**/*.aab"]
+
+[platforms.ios]
+enabled = false
+strategy = "host"
+command = "pnpm tauri ios build"
+artifacts = ["src-tauri/gen/apple/build/**/*.ipa"]

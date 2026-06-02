@@ -1,0 +1,17 @@
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "v"
+tag_suffix = ""
+name_prefix = ""
+name_suffix = ""
+commit_message = "chore(release): prepare {tag}"
+merge_message = "chore(release): merge {tag}"
+cleanup = true
+latest = true
+
+[[files]]
+path = "Cargo.toml"
+kind = "toml"
+key = "workspace.package.version"
+value = "{version}"

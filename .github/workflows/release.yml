@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 1.2.3 or 1.2.3-rc.1.
+        required: true
+      target:
+        description: Optional cargo-release target. Leave empty to build every tool.
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release toolchain
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install local Verzly release tools
+        run: |
+          cargo install --path crates/github-release
+          cargo install --path crates/cargo-release
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare release branch
+        run: github-release prepare --config github-release.toml --version "${{ inputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build release artifacts
+        run: |
+          if [ -n "${{ inputs.target }}" ]; then
+            cargo-release build --config cargo-release.toml --target "${{ inputs.target }}"
+          else
+            cargo-release build --config cargo-release.toml
+          fi
+
+      - name: Publish GitHub Release
+        run: github-release finalize --config github-release.toml --version "${{ inputs.version }}" --assets dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
