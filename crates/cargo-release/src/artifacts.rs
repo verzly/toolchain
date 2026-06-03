@@ -138,3 +138,69 @@ pub fn prepare_out_dir(path: &Path) -> Result<()> {
     fs::create_dir_all(path)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cargo-release-{name}-{suffix}"));
+        std::fs::create_dir_all(&path).expect("create temp dir");
+        path
+    }
+
+    #[test]
+    fn collects_artifacts_and_writes_checksums() {
+        let root = temp_dir("collect");
+        let source_dir = root.join("artifacts");
+        let out_dir = root.join("dist");
+        std::fs::create_dir_all(&source_dir).expect("create source dir");
+        std::fs::write(source_dir.join("demo.bin"), b"release-binary").expect("write artifact");
+
+        let patterns = ["artifacts/*.bin".to_string()];
+        let records = collect(CollectRequest {
+            target_name: "linux-x64",
+            project_root: &root,
+            out_dir: &out_dir,
+            patterns: &patterns,
+            write_checksums: true,
+            binary: "demo",
+            version: "v1.2.3",
+            name_template: "{binary}-v{version}-{target}{ext}",
+        })
+        .expect("collect artifacts");
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].target, "linux-x64");
+        assert!(records[0].sha256.is_some());
+        assert!(out_dir.join("linux-x64/demo-v1.2.3-linux-x64.bin").exists());
+        assert!(out_dir
+            .join("linux-x64/demo-v1.2.3-linux-x64.bin.sha256")
+            .exists());
+    }
+
+    #[test]
+    fn fails_when_no_artifacts_match() {
+        let root = temp_dir("missing");
+        let patterns = ["artifacts/*.bin".to_string()];
+        let error = collect(CollectRequest {
+            target_name: "linux-x64",
+            project_root: &root,
+            out_dir: &root.join("dist"),
+            patterns: &patterns,
+            write_checksums: false,
+            binary: "demo",
+            version: "1.2.3",
+            name_template: "{original}",
+        })
+        .expect_err("missing artifacts must fail");
+
+        assert!(error.to_string().contains("no artifacts found"));
+    }
+}

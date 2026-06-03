@@ -257,6 +257,22 @@ If the local environment does not have Rust/Cargo, the agent must first try to u
 
 When the user provides a CI failure log, the agent must update the source exactly according to the failing check, re-run the relevant local checks when possible, and produce a new ZIP only after the checked state is internally consistent. Repeated CI failures from the same class, such as `cargo fmt --check`, mean the agent must broaden verification to the whole tree instead of patching only the last visible diff.
 
+## Testing expectations
+
+Every Rust crate must have meaningful tests. A green `cargo test --workspace --all-targets` must not mean only that the workspace compiles.
+
+Each crate should include tests for the behavior it owns:
+
+- `github-release`: release plan generation, SemVer validation, prerelease detection, tag/name rendering, version file updates, scoped release-note filtering, and destructive-operation safety rules.
+- `cargo-release`: config defaults, target selection, artifact discovery, artifact naming, checksum writing, manifest writing, and missing-artifact failures.
+- `tauri-release`: platform defaults, platform artifact discovery, checksum writing, output cleanup, and platform strategy behavior.
+- `rust-cache`: default config loading, explicit package cache paths, `CARGO_TARGET_DIR`, optional `CARGO_HOME`, optional `GRADLE_USER_HOME`, and clean/env/run planning behavior.
+- `android-signing`: base64 export, generated password shape, CLI defaults, GitHub env writing behavior, and secret redaction rules.
+
+Prefer unit tests for pure planning, config, path, and rendering behavior. Use integration-style tests only when command boundaries or filesystem behavior are the point of the test. Tests must avoid requiring Docker, Podman, Android SDK, Tauri, `gh`, or real signing keys unless the test is explicitly ignored or guarded.
+
+Do not remove tests to make CI pass. Fix the implementation or update the test when the desired behavior intentionally changes. Any new command, config field, release-note rule, or path-routing rule should include a test in the same change.
+
 ## CI expectations
 
 Release workflows expect a token that can push to `verzly/toolchain` and create releases in the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.

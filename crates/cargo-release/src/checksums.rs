@@ -22,3 +22,24 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 
     Ok(hex::encode(hasher.finalize()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn hashes_file_contents_with_sha256() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cargo-release-sha-{suffix}.txt"));
+        std::fs::write(&path, b"hello").expect("write file");
+
+        assert_eq!(
+            sha256_file(&path).expect("hash file"),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+    }
+}

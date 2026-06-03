@@ -1,6 +1,6 @@
 //! Builds the environment variable plan used by `run` and `env`. This is the core behavior of the tool.
 
-use crate::config::Config;
+use crate::config::{CacheConfig, Config};
 use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;
@@ -66,5 +66,36 @@ impl EnvPlan {
         for (key, value) in &self.values {
             println!("export {key}=\"{value}\"");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{CacheConfig, Config};
+    use std::path::PathBuf;
+
+    #[test]
+    fn builds_project_local_cache_environment() {
+        let config = Config {
+            cache: CacheConfig {
+                dir: PathBuf::from(".cache-test"),
+                package: "demo-package".to_string(),
+                redirect_cargo_home: true,
+                redirect_gradle: false,
+            },
+        };
+
+        let plan = EnvPlan::build(&config).expect("build env plan");
+
+        assert_eq!(plan.package, "demo-package");
+        assert!(plan.cache_root.ends_with(".cache-test"));
+        assert!(plan
+            .values
+            .get("CARGO_TARGET_DIR")
+            .expect("target dir")
+            .ends_with(".cache-test/rust/packages/demo-package/target"));
+        assert!(plan.values.contains_key("CARGO_HOME"));
+        assert!(!plan.values.contains_key("GRADLE_USER_HOME"));
     }
 }

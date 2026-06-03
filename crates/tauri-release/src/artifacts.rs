@@ -78,3 +78,51 @@ pub fn prepare_out_dir(path: &Path) -> Result<()> {
     fs::create_dir_all(path)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("tauri-release-{name}-{suffix}"));
+        std::fs::create_dir_all(&path).expect("create temp dir");
+        path
+    }
+
+    #[test]
+    fn collects_platform_artifacts_and_checksums() {
+        let root = temp_dir("collect");
+        let source_dir = root.join("src-tauri/target/release/bundle/appimage");
+        let out_dir = root.join("dist");
+        std::fs::create_dir_all(&source_dir).expect("create source dir");
+        std::fs::write(source_dir.join("demo.AppImage"), b"appimage").expect("write artifact");
+
+        let patterns = ["src-tauri/target/release/bundle/**/*.AppImage".to_string()];
+        let records =
+            collect("linux", &root, &out_dir, &patterns, true).expect("collect artifacts");
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].platform, "linux");
+        assert!(records[0].sha256.is_some());
+        assert!(out_dir.join("linux/demo.AppImage").exists());
+        assert!(out_dir.join("linux/demo.sha256").exists());
+    }
+
+    #[test]
+    fn prepare_out_dir_removes_existing_output() {
+        let dir = temp_dir("prepare");
+        let stale = dir.join("stale.txt");
+        std::fs::write(&stale, "old").expect("write stale file");
+
+        prepare_out_dir(&dir).expect("prepare output dir");
+
+        assert!(dir.exists());
+        assert!(!stale.exists());
+    }
+}

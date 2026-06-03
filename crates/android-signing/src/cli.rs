@@ -103,3 +103,28 @@ pub struct WriteGithubEnvArgs {
     #[arg(short, long, default_value = "release-key")]
     pub alias: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_generate_defaults() {
+        let cli = Cli::parse_from(["android-signing", "generate"]);
+
+        let Commands::Generate(args) = cli.command else {
+            panic!("expected generate command");
+        };
+
+        assert_eq!(args.output, PathBuf::from("android-release.jks"));
+        assert_eq!(args.alias, "release-key");
+        assert_eq!(args.store_type, "JKS");
+        assert_eq!(args.key_alg, "RSA");
+        assert_eq!(args.key_size, 2048);
+        assert_eq!(args.validity, 10000);
+        assert!(!args.force);
+        assert!(!args.dry_run);
+    }
+}

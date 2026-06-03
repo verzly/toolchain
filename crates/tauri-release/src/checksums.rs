@@ -22,3 +22,24 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 
     Ok(hex::encode(hasher.finalize()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn hashes_tauri_artifact_contents() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("tauri-release-sha-{suffix}.txt"));
+        std::fs::write(&path, b"tauri").expect("write file");
+
+        assert_eq!(
+            sha256_file(&path).expect("hash file"),
+            "238bc7b5d614886683a514ef66cbe5ff1771798bf05499486fcedee3cfed6175"
+        );
+    }
+}

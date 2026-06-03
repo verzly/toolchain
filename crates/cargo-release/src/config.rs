@@ -154,3 +154,42 @@ pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     fs::write(path, toml::to_string_pretty(&Config::default())?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_path(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!("cargo-release-{name}-{suffix}.toml"))
+    }
+
+    #[test]
+    fn default_config_is_explicit_and_portable() {
+        let config = Config::default();
+        let linux = config.targets.get("linux-x64").expect("linux target");
+
+        assert_eq!(config.project.binary, "my-tool");
+        assert_eq!(config.build.out_dir, PathBuf::from("dist"));
+        assert_eq!(config.build.container_engine, ContainerEngine::Podman);
+        assert_eq!(config.artifacts.name_template, "{binary}-v{version}-{target}{ext}");
+        assert_eq!(linux.strategy, Strategy::Host);
+        assert!(linux.artifacts[0].contains("target/x86_64-unknown-linux-gnu/release/my-tool"));
+    }
+
+    #[test]
+    fn write_default_config_refuses_to_overwrite_without_force() {
+        let path = temp_path("default");
+        write_default_config(&path, false).expect("write config");
+
+        let error = write_default_config(&path, false).expect_err("existing config must fail");
+        assert!(error.to_string().contains("config already exists"));
+
+        write_default_config(&path, true).expect("force overwrites config");
+    }
+}

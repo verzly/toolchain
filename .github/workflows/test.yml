@@ -59,4 +59,5 @@ jobs:
             grep -Fq "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
             grep -Fq "mode = \"scoped\"" "crates/${tool}/github-release.toml"
             grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
+            grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"
           done

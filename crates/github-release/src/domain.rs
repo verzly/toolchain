@@ -1,7 +1,7 @@
 //! Pure release planning logic. This module resolves names, branches, repositories, and prerelease state without touching Git or GitHub.
 
 use crate::cli::PrereleaseMode;
-use crate::config::{Config, NotesMode};
+use crate::config::{Config, GitHubConfig, NotesConfig, NotesMode, ReleaseConfig};
 use anyhow::{Context, Result};
 use semver::Version;
 
@@ -122,5 +122,84 @@ fn non_empty(value: &str) -> Option<String> {
         None
     } else {
         Some(trimmed.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::PrereleaseMode;
+    use crate::config::{Config, GitHubConfig, NotesConfig, NotesMode, ReleaseConfig};
+
+    fn config() -> Config {
+        Config {
+            release: ReleaseConfig {
+                tag_prefix: "tool-v".to_string(),
+                tag_suffix: "-dist".to_string(),
+                branch_prefix: "release/".to_string(),
+                commit_message: "release {tag} from {version}".to_string(),
+                merge_message: "merge {tag}".to_string(),
+                ..ReleaseConfig::default()
+            },
+            github: GitHubConfig {
+                source_repository: "verzly/toolchain".to_string(),
+                source_tag_prefix: "tool-v".to_string(),
+                notes: NotesConfig {
+                    mode: NotesMode::Scoped,
+                    include_scopes: vec!["tool".to_string(), "all".to_string()],
+                    include_paths: vec!["crates/tool/".to_string()],
+                },
+                ..GitHubConfig::default()
+            },
+            ..Config::default()
+        }
+    }
+
+    #[test]
+    fn builds_release_plan_with_prefixes_suffixes_and_source_tag() {
+        let plan = build_plan(&config(), "v1.2.3", None, None, None).expect("valid plan");
+
+        assert_eq!(plan.version_text, "1.2.3");
+        assert_eq!(plan.tag, "tool-v1.2.3-dist");
+        assert_eq!(plan.release_name, "tool-v1.2.3-dist");
+        assert_eq!(plan.release_branch, "release/tool-v1.2.3-dist");
+        assert_eq!(plan.github.source_tag, "tool-v1.2.3");
+        assert_eq!(plan.commit_message, "release tool-v1.2.3-dist from 1.2.3");
+        assert_eq!(plan.merge_message, "merge tool-v1.2.3-dist");
+    }
+
+    #[test]
+    fn detects_prerelease_automatically_and_accepts_overrides() {
+        let config = config();
+
+        let auto = build_plan(&config, "1.2.3-rc.1", None, None, None).expect("valid plan");
+        let forced_false = build_plan(
+            &config,
+            "1.2.3-rc.1",
+            None,
+            None,
+            Some(PrereleaseMode::False),
+        )
+        .expect("valid plan");
+        let forced_true = build_plan(
+            &config,
+            "1.2.3",
+            None,
+            None,
+            Some(PrereleaseMode::True),
+        )
+        .expect("valid plan");
+
+        assert!(auto.prerelease);
+        assert!(!forced_false.prerelease);
+        assert!(forced_true.prerelease);
+    }
+
+    #[test]
+    fn rejects_invalid_semver_versions() {
+        let error = build_plan(&config(), "not-a-version", None, None, None)
+            .expect_err("invalid versions must fail");
+
+        assert!(error.to_string().contains("invalid SemVer version"));
     }
 }

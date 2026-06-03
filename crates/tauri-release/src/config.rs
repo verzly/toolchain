@@ -167,3 +167,30 @@ pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     fs::write(path, toml::to_string_pretty(&Config::default())?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn default_config_separates_desktop_and_android_platforms() {
+        let config = Config::default();
+        let linux = config.platforms.get("linux").expect("linux platform");
+        let android = config.platforms.get("android").expect("android platform");
+
+        assert_eq!(config.build.out_dir, PathBuf::from("dist"));
+        assert_eq!(config.build.cache_dir, PathBuf::from(".cache/tauri-release"));
+        assert_eq!(linux.strategy, Strategy::Host);
+        assert!(linux.enabled);
+        assert_eq!(android.strategy, Strategy::Container);
+        assert!(!android.enabled);
+        assert!(android.command.contains("tauri android build"));
+    }
+
+    #[test]
+    fn container_engine_resolves_executable_name() {
+        assert_eq!(ContainerEngine::Docker.executable(), "docker");
+        assert_eq!(ContainerEngine::Podman.executable(), "podman");
+    }
+}

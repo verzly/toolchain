@@ -106,3 +106,21 @@ pub fn fingerprint(path: &Path, alias: &str, store_password: &str) -> Result<()>
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn encodes_keystore_as_base64() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("android-signing-keystore-{suffix}.jks"));
+        std::fs::write(&path, b"keystore").expect("write keystore");
+
+        assert_eq!(keystore_base64(&path).expect("encode keystore"), "a2V5c3RvcmU=");
+    }
+}

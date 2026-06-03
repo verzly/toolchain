@@ -352,3 +352,66 @@ fn collect_assets_recursive(dir: &Path, assets: &mut Vec<PathBuf>) -> Result<()>
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commit_scope_reads_conventional_commit_scope() {
+        assert_eq!(
+            commit_scope("feat(github-release): add notes"),
+            Some("github-release")
+        );
+        assert_eq!(
+            commit_scope("feat(github-release)!: change tags"),
+            Some("github-release")
+        );
+        assert_eq!(commit_scope("fix: unscoped change"), None);
+        assert_eq!(commit_scope("docs(readme) update missing colon"), None);
+    }
+
+    #[test]
+    fn commit_matching_accepts_scope_all_and_configured_paths() {
+        let include_scopes = ["cargo-release".to_string()];
+        let include_paths = ["crates/cargo-release/".to_string()];
+
+        let scoped = CommitEntry {
+            hash: "abc".to_string(),
+            subject: "fix(cargo-release): correct artifact name".to_string(),
+            paths: vec!["README.md".to_string()],
+        };
+        let all = CommitEntry {
+            hash: "def".to_string(),
+            subject: "chore(all): update release workflows".to_string(),
+            paths: vec![".github/workflows/test.yml".to_string()],
+        };
+        let path_matched = CommitEntry {
+            hash: "ghi".to_string(),
+            subject: "refactor: move helper".to_string(),
+            paths: vec!["./crates/cargo-release/src/artifacts.rs".to_string()],
+        };
+        let unrelated = CommitEntry {
+            hash: "jkl".to_string(),
+            subject: "docs(rust-cache): update README".to_string(),
+            paths: vec!["crates/rust-cache/README.md".to_string()],
+        };
+
+        assert!(commit_matches(&scoped, &include_scopes, &include_paths));
+        assert!(commit_matches(&all, &include_scopes, &include_paths));
+        assert!(commit_matches(&path_matched, &include_scopes, &include_paths));
+        assert!(!commit_matches(&unrelated, &include_scopes, &include_paths));
+    }
+
+    #[test]
+    fn normalizes_windows_and_relative_paths() {
+        assert_eq!(
+            normalize_path("./crates\\cargo-release\\src\\main.rs"),
+            "crates/cargo-release/src/main.rs"
+        );
+        assert_eq!(
+            normalize_path(" crates/cargo-release/README.md "),
+            "crates/cargo-release/README.md"
+        );
+    }
+}

@@ -10,3 +10,16 @@ pub fn random_password() -> String {
 pub fn prompt_password(label: &str) -> Result<String> {
     Ok(rpassword::prompt_password(format!("{label}: "))?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generates_alphanumeric_passwords_with_expected_length() {
+        let password = random_password();
+
+        assert_eq!(password.len(), 32);
+        assert!(password.chars().all(|character| character.is_ascii_alphanumeric()));
+    }
+}
