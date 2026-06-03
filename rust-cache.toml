@@ -1,0 +1,8 @@
+[cache]
+dir = ".cache"
+package = "toolchain"
+redirect_cargo_home = false
+redirect_gradle = true
+
+[cargo]
+target_dir = "rust/packages/{package}/target"

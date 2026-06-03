@@ -11,6 +11,7 @@ pub fn run(args: CommonArgs) -> Result<()> {
     println!("workspace: {}", plan.workspace_root.display());
     println!("package:   {}", plan.package);
     println!("cache:     {}", plan.cache_root.display());
+    println!("target:    {}", plan.cargo_target_dir.display());
     for (key, value) in &plan.values {
         println!("{key}: {value}");
     }

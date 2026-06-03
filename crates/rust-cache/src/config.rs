@@ -1,4 +1,4 @@
-//! Cache configuration. Defaults keep the cache project-local and avoid redirecting Cargo home unless requested.
+//! Cache configuration. Defaults keep build output project-local through native Cargo config.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 pub struct Config {
     pub cache: CacheConfig,
+    pub cargo: CargoConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -31,6 +32,20 @@ impl Default for CacheConfig {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct CargoConfig {
+    pub target_dir: String,
+}
+
+impl Default for CargoConfig {
+    fn default() -> Self {
+        Self {
+            target_dir: "rust/packages/{package}/target".to_string(),
+        }
+    }
+}
+
 pub fn load(path: &Path) -> Result<Config> {
     if !path.exists() {
         return Ok(Config::default());
@@ -46,6 +61,13 @@ pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     }
     fs::write(path, toml::to_string_pretty(&Config::default())?)?;
     Ok(())
+}
+
+pub fn ensure_config(path: &Path, force: bool) -> Result<Config> {
+    if !path.exists() || force {
+        write_default_config(path, true)?;
+    }
+    load(path)
 }
 
 #[cfg(test)]
@@ -70,6 +92,7 @@ mod tests {
         assert_eq!(config.cache.package, "auto");
         assert!(!config.cache.redirect_cargo_home);
         assert!(config.cache.redirect_gradle);
+        assert_eq!(config.cargo.target_dir, "rust/packages/{package}/target");
     }
 
     #[test]
@@ -81,5 +104,20 @@ mod tests {
         assert!(error.to_string().contains("config already exists"));
 
         write_default_config(&path, true).expect("force overwrite");
+    }
+
+    #[test]
+    fn ensure_config_uses_existing_config_without_overwriting() {
+        let path = temp_path("existing");
+        fs::write(
+            &path,
+            "[cache]\npackage = \"demo\"\n\n[cargo]\ntarget_dir = \"rust/{package}/target\"\n",
+        )
+        .expect("write config");
+
+        let config = ensure_config(&path, false).expect("load existing config");
+
+        assert_eq!(config.cache.package, "demo");
+        assert_eq!(config.cargo.target_dir, "rust/{package}/target");
     }
 }

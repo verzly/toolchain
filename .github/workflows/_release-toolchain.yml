@@ -33,7 +33,7 @@ jobs:
       - name: Bootstrap release tool
         run: |
           cargo build --release -p github-release
-          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
       - name: Publish toolchain release
         env:
