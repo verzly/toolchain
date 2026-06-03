@@ -50,7 +50,7 @@ Do not add orchestration shell scripts for release behavior that belongs in `git
 | `rust-cache` | `crates/rust-cache` | `verzly/rust-cache` | `rust-cache-vX.Y.Z` | `vX.Y.Z` |
 | `android-signing` | `crates/android-signing` | `verzly/android-signing` | `android-signing-vX.Y.Z` | `vX.Y.Z` |
 
-`verzly-core` is internal and must not have a public distribution repository.
+No shared `core` crate should exist by default. Add an internal shared crate only when multiple tools actively use the same behavior and the crate has a narrow, named responsibility. Do not create a vague `verzly-core` package just to hold miscellaneous helpers.
 
 ## Public distribution repositories
 

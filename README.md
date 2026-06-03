@@ -26,7 +26,6 @@ The source stays in this repository. Public distribution repositories stay inten
 
 `android-signing` generates, inspects, encodes, and exports Android release signing material for local and CI release builds.
 
-`verzly-core` contains shared helpers that should not drift between tools. It is internal and not distributed.
 
 ## Repository model
 
@@ -154,7 +153,7 @@ The GitHub release workflows do not depend on `_repos/`. They publish release no
 
 ## Contributing
 
-Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. `verzly-core` should reduce duplication without becoming a framework.
+Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. Do not add a shared “core” crate unless at least two tools actively use it and the shared API has a clear, stable boundary.
 
 Prefer incremental refactoring over rewrites. Every public-facing change must keep the source-only monorepo and source-free distribution repository model intact.
 
