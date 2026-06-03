@@ -1,4 +1,5 @@
 name: Release All
+run-name: Release all ${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -30,12 +31,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate release token and target repositories
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${REF_NAME}" != "master" ]; then
+            echo "::error::Release All must be run from master. Current ref: ${REF_NAME}"
+            exit 1
+          fi
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required before running Release All because the workflow publishes to separate public distribution repositories."
+            exit 1
+          fi
+
+          for repository in verzly/github-release verzly/cargo-release verzly/tauri-release verzly/rust-cache verzly/android-signing; do
+            permission="$(gh api "repos/${repository}" --jq '.permissions.push // .permissions.admin // false')"
+            if [ "${permission}" != "true" ]; then
+              echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${repository}."
+              exit 1
+            fi
+          done
+
       - name: Release tools in dependency order
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           VERSION: ${{ inputs.version }}
           PRERELEASE: ${{ inputs.prerelease }}
           REF_NAME: ${{ github.ref_name }}
+          PARENT_RUN_ID: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -51,29 +79,41 @@ jobs:
 
           for workflow in "${workflows[@]}"; do
             echo "::group::${workflow}"
-            echo "Dispatching ${workflow} for version ${VERSION} on ${REF_NAME}"
+            run_key="release-all-${PARENT_RUN_ID}-${workflow}-${VERSION}"
+            echo "Dispatching ${workflow} for version ${VERSION} on ${REF_NAME} (${run_key})"
+
             gh workflow run "${workflow}" \
+              --repo "${REPO}" \
               --ref "${REF_NAME}" \
               -f "version=${VERSION}" \
-              -f "prerelease=${PRERELEASE}"
+              -f "prerelease=${PRERELEASE}" \
+              -f "orchestrator=${run_key}"
 
-            # GitHub creates the workflow run asynchronously. Wait briefly, then watch
-            # the newest workflow_dispatch run for this workflow on the same branch.
-            sleep 8
-            run_id="$(gh run list \
-              --workflow "${workflow}" \
-              --branch "${REF_NAME}" \
-              --event workflow_dispatch \
-              --limit 1 \
-              --json databaseId \
-              --jq '.[0].databaseId')"
+            run_id=""
+            for _ in {1..30}; do
+              run_id="$(gh run list \
+                --repo "${REPO}" \
+                --workflow "${workflow}" \
+                --branch "${REF_NAME}" \
+                --event workflow_dispatch \
+                --limit 30 \
+                --json databaseId,displayTitle \
+                | jq -r --arg key "${run_key}" '.[] | select(.displayTitle | contains($key)) | .databaseId' \
+                | head -n 1)"
+
+              if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
+                break
+              fi
+
+              sleep 4
+            done
 
             if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
-              echo "Could not find dispatched run for ${workflow}." >&2
+              echo "::error::Could not find dispatched run for ${workflow} with key ${run_key}."
               exit 1
             fi
 
             echo "Watching ${workflow} run ${run_id}"
-            gh run watch "${run_id}" --exit-status
+            gh run watch "${run_id}" --repo "${REPO}" --exit-status
             echo "::endgroup::"
           done
