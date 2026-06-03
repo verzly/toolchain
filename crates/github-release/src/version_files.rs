@@ -157,8 +157,7 @@ mod tests {
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
         )
         .expect("write TOML");
-        std::fs::write(&json_path, "{\"package\":{\"version\":\"0.1.0\"}}")
-            .expect("write JSON");
+        std::fs::write(&json_path, "{\"package\":{\"version\":\"0.1.0\"}}").expect("write JSON");
         std::fs::write(&text_path, "0.1.0\n").expect("write text");
 
         let files = [

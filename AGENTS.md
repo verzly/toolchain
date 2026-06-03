@@ -422,3 +422,12 @@ Do not put source code in public distribution repositories.
 Do not make public distribution repositories responsible for testing, building, or releasing themselves.
 
 Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.
+
+### Workflow trigger policy
+
+Test workflows must never run twice for the same pull request update because of both `push` and `pull_request` triggers. Use `pull_request` for PR validation and restrict `push` validation to the default branch only. Keep an explicit `workflow_dispatch` trigger only when manual reruns are useful. Add `concurrency` with `cancel-in-progress: true` for test workflows so outdated runs do not continue after newer commits arrive.
+
+
+### Mandatory verification loop
+
+Do not hand off code with known unresolved `cargo fmt`, `cargo clippy`, or `cargo test` failures. If CI returns a concrete diff or error, apply that exact fix before producing the next ZIP.
