@@ -167,17 +167,25 @@ mod tests {
         let root = temp_dir("conflict");
         let workspace = workspace(root.clone());
         fs::create_dir_all(root.join(".cargo")).expect("create .cargo");
+        let config_path = root.join(".cargo/config.toml");
         fs::write(
-            root.join(".cargo/config.toml"),
-            "[build]\ntarget-dir = \"custom-target\"\n",
+            &config_path,
+            r#"[build]
+"target-dir" = "custom-target"
+"#,
         )
         .expect("write existing Cargo config");
 
-        let error = write_workspace_config_for(&Config::default(), &workspace, false)
-            .expect_err("conflicting config must fail");
-        assert!(error.to_string().contains("already configured"));
+        let result = write_workspace_config_for(&Config::default(), &workspace, false);
+        assert!(result.is_err(), "conflicting config must fail");
+        assert!(fs::read_to_string(&config_path)
+            .expect("read unchanged Cargo config")
+            .contains("custom-target"));
 
         write_workspace_config_for(&Config::default(), &workspace, true)
             .expect("force replaces target dir");
+        let updated = fs::read_to_string(config_path).expect("read updated Cargo config");
+        assert!(updated.contains(".cache/rust/packages/demo/target"));
+        assert!(!updated.contains("custom-target"));
     }
 }
