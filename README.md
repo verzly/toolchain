@@ -9,6 +9,8 @@ The source stays in this repository. Public distribution repositories stay inten
 - [Projects](#projects)
 - [Repository model](#repository-model)
 - [Release model](#release-model)
+- [Release all](#release-all)
+- [Toolchain release](#toolchain-release)
 - [Release notes and PR links](#release-notes-and-pr-links)
 - [Development](#development)
 - [Distribution repository contents](#distribution-repository-contents)
@@ -92,6 +94,37 @@ crates/<tool>/cargo-release.toml
 
 These files are not copied to distribution repositories.
 
+## Release all
+
+Use `.github/workflows/release-all.yml` when the same version should be released for every public tool and for the toolchain repository itself.
+
+The workflow is intentionally sequential. Each package release updates its own crate version, creates its own source tag, builds its own assets, and publishes to its own distribution repository before the next package starts. This avoids concurrent release branches racing to merge into `master`.
+
+Release order:
+
+```text
+github-release
+cargo-release
+tauri-release
+rust-cache
+android-signing
+toolchain
+```
+
+Trigger it with one version, for example `1.2.3`. Public package repositories receive `v1.2.3`; the source monorepo receives package-prefixed source tags such as `cargo-release-v1.2.3`; the final toolchain release receives `v1.2.3` in `verzly/toolchain`.
+
+## Toolchain release
+
+The toolchain repository also has its own release workflow: `.github/workflows/release-toolchain.yml`.
+
+A toolchain release does not upload executable assets. It publishes a GitHub Release in `verzly/toolchain` using the clean tag `vX.Y.Z` and regular mixed GitHub-generated notes from the source repository. This release is for maintainers and monorepo history, not for public executable distribution.
+
+The root config for this release is:
+
+```text
+github-release.toml
+```
+
 ## Release notes and PR links
 
 Pull requests and code review happen in `verzly/toolchain`, not in the distribution repositories. For that reason, public distribution releases generate notes from the source repository tag.
@@ -113,6 +146,21 @@ v1.2.3
 ```
 
 This keeps monorepo tags unambiguous while giving public users the conventional tag names they expect in each distribution repository.
+
+Package distribution releases use scoped release notes. A package release includes commits when either of these is true:
+
+```text
+1. The Conventional Commit or squash-merge title uses the package scope, for example `fix(cargo-release): ...`.
+2. The commit changes files under the configured package path, for example `crates/cargo-release/`.
+```
+
+Use the special scope `all` for changes that should appear in every package release note:
+
+```text
+chore(all): update shared release infrastructure
+```
+
+Use `toolchain`, `ci`, `docs`, `deps`, or `workspace` for source-repository maintenance changes that should appear in the toolchain release but not every package release.
 
 ## Development
 

@@ -1,3 +1,7 @@
+files = []
+# Distribution repositories do not contain source files or version files.
+# This config is used by `github-release publish` from verzly/toolchain.
+
 [release]
 target_branch = "master"
 branch_prefix = "release/"
@@ -17,6 +21,7 @@ source_tag_prefix = "rust-cache-v"
 source_tag_suffix = ""
 generate_notes = true
 
-# Distribution repositories do not contain source files or version files.
-# This config is used by `github-release publish` from verzly/toolchain.
-files = []
+[github.notes]
+mode = "scoped"
+include_scopes = ["rust-cache", "all"]
+include_paths = ["crates/rust-cache/"]

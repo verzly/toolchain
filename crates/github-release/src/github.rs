@@ -1,5 +1,6 @@
 //! GitHub CLI integration. The project uses `gh` instead of a custom API client so authentication matches local and CI usage.
 
+use crate::config::NotesMode;
 use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -79,15 +80,14 @@ fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBu
             "Generated release notes would be requested from `{source_repository}` for `{}`.",
             plan.github.source_tag
         )
+    } else if plan.github.notes.mode == NotesMode::Scoped {
+        generate_scoped_notes_from_git(plan)
+            .unwrap_or_else(|error| {
+                fallback_notes(source_repository, &plan.github.source_tag, &error.to_string())
+            })
     } else {
         generate_notes_from_source(source_repository, &plan.github.source_tag).unwrap_or_else(
-            |error| {
-                fallback_notes(
-                    source_repository,
-                    &plan.github.source_tag,
-                    &error.to_string(),
-                )
-            },
+            |error| fallback_notes(source_repository, &plan.github.source_tag, &error.to_string()),
         )
     };
 
@@ -127,6 +127,164 @@ fn generate_notes_from_source(repository: &str, tag: &str) -> Result<String> {
     let notes: GeneratedNotes = serde_json::from_slice(&output.stdout)
         .context("failed to parse generated release notes response")?;
     Ok(notes.body.unwrap_or_default())
+}
+
+#[derive(Clone, Debug)]
+struct CommitEntry {
+    hash: String,
+    subject: String,
+    paths: Vec<String>,
+}
+
+fn generate_scoped_notes_from_git(plan: &ReleasePlan) -> Result<String> {
+    let previous_tag = previous_source_tag(plan)?;
+    let range = previous_tag
+        .as_ref()
+        .map(|tag| format!("{tag}..{}", plan.github.source_tag))
+        .unwrap_or_else(|| plan.github.source_tag.clone());
+    let commits = commits_in_range(&range)?;
+    let include_scopes = normalized_values(&plan.github.notes.include_scopes);
+    let include_paths = normalized_paths(&plan.github.notes.include_paths);
+
+    let mut included = Vec::new();
+    for commit in commits {
+        if commit_matches(&commit, &include_scopes, &include_paths) {
+            included.push(commit);
+        }
+    }
+
+    let mut body = String::new();
+    body.push_str("## What's changed\n\n");
+
+    if included.is_empty() {
+        body.push_str("No package-specific changes were detected for this release.\n");
+    } else {
+        for commit in included {
+            let short_hash = commit.hash.chars().take(7).collect::<String>();
+            body.push_str(&format!("- {} (`{short_hash}`)\n", commit.subject));
+        }
+    }
+
+    body.push_str("\n");
+    if let Some(previous_tag) = previous_tag {
+        body.push_str(&format!(
+            "Compared source tags: `{previous_tag}` → `{}`.\n",
+            plan.github.source_tag
+        ));
+    } else {
+        body.push_str(&format!(
+            "Compared source tag: `{}`. No earlier matching source tag was found.\n",
+            plan.github.source_tag
+        ));
+    }
+
+    Ok(body)
+}
+
+fn previous_source_tag(plan: &ReleasePlan) -> Result<Option<String>> {
+    let pattern = format!(
+        "{}*{}",
+        plan.github.source_tag_prefix, plan.github.source_tag_suffix
+    );
+    let output = git_output(["tag", "--list", &pattern, "--sort=-creatordate"])?;
+    Ok(output
+        .lines()
+        .map(str::trim)
+        .filter(|tag| !tag.is_empty())
+        .find(|tag| *tag != plan.github.source_tag)
+        .map(ToOwned::to_owned))
+}
+
+fn commits_in_range(range: &str) -> Result<Vec<CommitEntry>> {
+    let output = git_output(["log", "--format=%H%x1f%s", range])?;
+    let mut commits = Vec::new();
+
+    for line in output.lines() {
+        let Some((hash, subject)) = line.split_once('\u{1f}') else {
+            continue;
+        };
+        commits.push(CommitEntry {
+            hash: hash.to_string(),
+            subject: subject.to_string(),
+            paths: commit_paths(hash)?,
+        });
+    }
+
+    Ok(commits)
+}
+
+fn commit_paths(hash: &str) -> Result<Vec<String>> {
+    let output = git_output(["show", "--format=", "--name-only", "--no-renames", hash])?;
+    Ok(output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+fn commit_matches(
+    commit: &CommitEntry,
+    include_scopes: &[String],
+    include_paths: &[String],
+) -> bool {
+    if let Some(scope) = commit_scope(&commit.subject) {
+        let normalized = scope.to_ascii_lowercase();
+        if normalized == "all" || include_scopes.iter().any(|scope| scope == &normalized) {
+            return true;
+        }
+    }
+
+    commit.paths.iter().any(|path| {
+        let normalized = normalize_path(path);
+        include_paths.iter().any(|prefix| normalized.starts_with(prefix))
+    })
+}
+
+fn commit_scope(subject: &str) -> Option<&str> {
+    let open = subject.find('(')?;
+    let close = subject[open + 1..].find(')')? + open + 1;
+    let suffix = subject.get(close + 1..)?;
+    if suffix.starts_with(':') || suffix.starts_with("!:") {
+        Some(&subject[open + 1..close])
+    } else {
+        None
+    }
+}
+
+fn normalized_values(values: &[String]) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn normalized_paths(paths: &[String]) -> Vec<String> {
+    paths
+        .iter()
+        .map(|path| normalize_path(path))
+        .filter(|path| !path.is_empty())
+        .collect()
+}
+
+fn normalize_path(path: &str) -> String {
+    path.trim().trim_start_matches("./").replace('\\', "/")
+}
+
+fn git_output<const N: usize>(args: [&str; N]) -> Result<String> {
+    let output = Command::new("git")
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .context("failed to run git command")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("git command failed: {stderr}");
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 fn fallback_notes(repository: &str, tag: &str, error: &str) -> String {

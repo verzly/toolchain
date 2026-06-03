@@ -49,6 +49,7 @@ Do not add orchestration shell scripts for release behavior that belongs in `git
 | `tauri-release` | `crates/tauri-release` | `verzly/tauri-release` | `tauri-release-vX.Y.Z` | `vX.Y.Z` |
 | `rust-cache` | `crates/rust-cache` | `verzly/rust-cache` | `rust-cache-vX.Y.Z` | `vX.Y.Z` |
 | `android-signing` | `crates/android-signing` | `verzly/android-signing` | `android-signing-vX.Y.Z` | `vX.Y.Z` |
+| `toolchain` | repository root | `verzly/toolchain` | `vX.Y.Z` | `vX.Y.Z` |
 
 Do not add a vague shared `verzly-core` crate by default. Shared internal crates are allowed only when multiple tools actively use the same behavior and the crate has a narrow, descriptive responsibility.
 
@@ -115,6 +116,12 @@ crates/<tool>/github-release.toml         # public distribution release
 crates/<tool>/cargo-release.toml          # executable asset build
 ```
 
+The toolchain repository itself owns one root release config:
+
+```text
+github-release.toml                       # toolchain tag + GitHub Release, no assets
+```
+
 The source config must use a tool-prefixed source tag:
 
 ```toml
@@ -130,11 +137,20 @@ value = "{version}"
 The distribution config must use the public repository and a clean public tag:
 
 ```toml
+files = []
+
+[release]
+tag_prefix = "v"
+
+[github]
 target_repository = "verzly/cargo-release"
 source_repository = "verzly/toolchain"
 source_tag_prefix = "cargo-release-v"
-tag_prefix = "v"
-files = []
+
+[github.notes]
+mode = "scoped"
+include_scopes = ["cargo-release", "all"]
+include_paths = ["crates/cargo-release/"]
 ```
 
 These configs must stay in the source repository and must not be copied to distribution repositories.
@@ -154,6 +170,41 @@ Expected flow:
 7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, and uploads assets.
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
+
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should call the reusable workflows sequentially, not in parallel, to avoid concurrent source release branches racing to merge into `master`.
+
+A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
+
+## Commit and PR title scopes for release notes
+
+Package-specific release notes depend on consistent Conventional Commit scopes. AI agents and maintainers must use these scopes in commit messages and PR titles, especially when squash-merging PRs:
+
+```text
+feat(github-release): add scoped release notes
+fix(cargo-release): correct artifact naming
+docs(tauri-release): expand Android build documentation
+chore(rust-cache): simplify workspace detection
+fix(android-signing): avoid printing signing passwords
+```
+
+Use `all` only when a change should appear in every public package release note:
+
+```text
+chore(all): update shared release workflow behavior
+```
+
+Use source-maintenance scopes for changes that should appear in the toolchain release but should not be copied into every package's public release notes:
+
+```text
+ci(toolchain): tighten repository model checks
+docs(toolchain): clarify monorepo release policy
+chore(deps): update Rust dependencies
+refactor(workspace): remove unused shared crate
+```
+
+If a PR changes multiple packages in a meaningful user-facing way, prefer splitting it by package. If it must stay together, use `all` only when every package release should mention the change.
+
+Package public release notes include a commit when either the commit/PR title has the package scope or the changed files are under the package path configured in `crates/<tool>/github-release.toml`. The root toolchain release can contain mixed PRs and commits.
 
 ## Dependency maintenance
 
@@ -224,6 +275,14 @@ Those files should remain thin wrappers around the reusable workflow:
 
 ```text
 .github/workflows/_release-tool.yml
+```
+
+The repository must also contain these maintainer workflows:
+
+```text
+.github/workflows/release-toolchain.yml       # publish the private/source repo release, no assets
+.github/workflows/_release-toolchain.yml      # reusable toolchain release workflow
+.github/workflows/release-all.yml             # sequentially release all public tools and then toolchain
 ```
 
 Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.

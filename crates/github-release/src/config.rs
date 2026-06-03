@@ -63,6 +63,7 @@ pub struct GitHubConfig {
     pub source_tag_prefix: String,
     pub source_tag_suffix: String,
     pub generate_notes: bool,
+    pub notes: NotesConfig,
 }
 
 impl Default for GitHubConfig {
@@ -73,8 +74,25 @@ impl Default for GitHubConfig {
             source_tag_prefix: String::new(),
             source_tag_suffix: String::new(),
             generate_notes: true,
+            notes: NotesConfig::default(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct NotesConfig {
+    pub mode: NotesMode,
+    pub include_scopes: Vec<String>,
+    pub include_paths: Vec<String>,
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum NotesMode {
+    #[default]
+    Github,
+    Scoped,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

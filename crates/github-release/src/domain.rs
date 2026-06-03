@@ -1,7 +1,7 @@
 //! Pure release planning logic. This module resolves names, branches, repositories, and prerelease state without touching Git or GitHub.
 
 use crate::cli::PrereleaseMode;
-use crate::config::Config;
+use crate::config::{Config, NotesMode};
 use anyhow::{Context, Result};
 use semver::Version;
 
@@ -24,7 +24,17 @@ pub struct GitHubPlan {
     pub target_repository: Option<String>,
     pub source_repository: Option<String>,
     pub source_tag: String,
+    pub source_tag_prefix: String,
+    pub source_tag_suffix: String,
     pub generate_notes: bool,
+    pub notes: NotesPlan,
+}
+
+#[derive(Clone, Debug)]
+pub struct NotesPlan {
+    pub mode: NotesMode,
+    pub include_scopes: Vec<String>,
+    pub include_paths: Vec<String>,
 }
 
 pub fn build_plan(
@@ -90,7 +100,14 @@ pub fn build_plan(
             target_repository,
             source_repository,
             source_tag,
+            source_tag_prefix: config.github.source_tag_prefix.clone(),
+            source_tag_suffix: config.github.source_tag_suffix.clone(),
             generate_notes: config.github.generate_notes,
+            notes: NotesPlan {
+                mode: config.github.notes.mode,
+                include_scopes: config.github.notes.include_scopes.clone(),
+                include_paths: config.github.notes.include_paths.clone(),
+            },
         },
     })
 }

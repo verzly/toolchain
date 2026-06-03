@@ -1,0 +1,45 @@
+name: Release Toolchain
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      prerelease:
+        required: false
+        type: string
+        default: auto
+    secrets:
+      DISTRIBUTION_REPO_TOKEN:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish toolchain release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap release tool
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Publish toolchain release
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+        run: >-
+          github-release publish
+          --config github-release.toml
+          --version "${{ inputs.version }}"
+          --prerelease "${{ inputs.prerelease }}"
