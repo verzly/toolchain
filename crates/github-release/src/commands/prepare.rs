@@ -10,7 +10,7 @@ use anyhow::Result;
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.
 pub fn run(args: PrepareArgs) -> Result<()> {
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config)?.source_view();
     let mut plan = domain::build_plan(
         &config,
         &args.version,

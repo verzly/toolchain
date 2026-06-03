@@ -4,7 +4,7 @@ This guide defines the intended architecture, repository boundaries, release mod
 
 ## Primary rule
 
-`verzly/toolchain` is the private Rust workspace. It contains source code, internal crate documentation, release workflows, and release configuration.
+`verzly/toolchain` is the private Rust workspace. It contains source code, release workflows, and release configuration. Crate-level README files are intentionally not used; internal context belongs in the root README and this guide.
 
 The public distribution repositories are separate repositories. They are not subdirectories of `verzly/toolchain`.
 
@@ -108,39 +108,29 @@ Do not use `version.workspace = true` for independently released public tools.
 
 ## Release configuration
 
-Each public tool owns three important configs:
+Each public tool owns two important configs:
 
 ```text
-crates/<tool>/source-github-release.toml  # source branch, source tag, Cargo.toml version update
-crates/<tool>/github-release.toml         # public distribution release
-crates/<tool>/cargo-release.toml          # executable asset build
+crates/<tool>/github-release.toml  # source branch/tag + Cargo.toml version update + public distribution release
+crates/<tool>/cargo-release.toml   # executable asset build
 ```
 
 The toolchain repository itself owns one root release config:
 
 ```text
-github-release.toml                       # toolchain tag + GitHub Release, no assets
+github-release.toml                # toolchain tag + GitHub Release, no assets
 ```
 
-The source config must use a tool-prefixed source tag:
+Do not add `source-github-release.toml`. One `github-release.toml` per crate is enough. It must contain both release contexts:
 
 ```toml
-tag_prefix = "cargo-release-v"
-
-[[files]]
-path = "crates/cargo-release/Cargo.toml"
-kind = "toml"
-key = "package.version"
-value = "{version}"
-```
-
-The distribution config must use the public repository and a clean public tag:
-
-```toml
-files = []
-
 [release]
 tag_prefix = "v"
+
+[source_release]
+tag_prefix = "cargo-release-v"
+name_prefix = "cargo-release v"
+latest = false
 
 [github]
 target_repository = "verzly/cargo-release"
@@ -151,7 +141,15 @@ source_tag_prefix = "cargo-release-v"
 mode = "scoped"
 include_scopes = ["cargo-release", "all"]
 include_paths = ["crates/cargo-release/"]
+
+[[files]]
+path = "crates/cargo-release/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"
 ```
+
+`github-release` must not guess or auto-discover version files in this monorepo. Every file that needs a version bump must be listed in `[[files]]`. Prepare/finalize commands use `[source_release]` and `[[files]]`; publish uses `[release]` and `[github]`.
 
 These configs must stay in the source repository and must not be copied to distribution repositories.
 
@@ -340,9 +338,7 @@ Prefer explicit allowlists for generated artifact paths and uploaded files.
 
 Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must use a structured multi-level menu with planned main sections and subsections, not a single flat list. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
 
-The public README can be longer than the crate README. The public README is the product documentation for the distribution repository; the crate README is internal developer context.
-
-The root `toolchain/README.md` is for maintainers. Crate-level READMEs are for internal development. Public distribution READMEs live outside the project in the handoff `_repos/` export.
+The public README is the product documentation for the distribution repository. The root `toolchain/README.md` is for maintainers. Do not add crate-level READMEs; public distribution READMEs live outside the project in the handoff `_repos/` export.
 
 Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Release notes are generated from GitHub releases.
 
@@ -388,7 +384,7 @@ Required public README content:
 6. `Configuration`, when the tool has a TOML config, including a realistic example and a field table.
 7. `Practical workflows`, with real copy-pasteable workflows for common situations.
 8. `Reference`, with troubleshooting, release artifacts, and operational/security notes.
-9. `Contributing`, explaining that source changes happen in `verzly/toolchain`.
+9. `Contributing`, limited to 2-3 short sentences that point readers to `CONTRIBUTING.md` and explain that source changes happen in `verzly/toolchain`.
 10. `License`, after contributing, omitted from the menu.
 
 Rules for argument documentation:
@@ -408,6 +404,7 @@ Tone and structure:
 - Keep documentation clear for first-time users and useful for senior developers.
 - Avoid marketing filler, emojis, and vague claims.
 - Do not expose private implementation details except where needed to explain the public distribution repository boundary or source release-note origin.
+- Do not add extra contribution policy, development process, code of conduct, governance, support, or maintainer sections to README files. Keep contribution details in `CONTRIBUTING.md`; the README should only contain the short `Contributing` pointer section.
 
 ## Hard no list
 

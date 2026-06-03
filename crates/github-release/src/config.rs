@@ -9,14 +9,37 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 pub struct Config {
     pub release: ReleaseConfig,
+    pub source_release: Option<ReleaseConfig>,
     pub github: GitHubConfig,
     pub files: Vec<VersionFileConfig>,
+}
+
+impl Config {
+    /// Returns the view used by prepare/finalize/abort commands in a monorepo release.
+    ///
+    /// The regular `[release]` section describes the public distribution release. The optional
+    /// `[source_release]` section describes the source repository branch/tag that is created before
+    /// assets are built. When `[source_release]` is omitted, the public release settings are reused
+    /// for backwards-compatible single-repository projects.
+    pub fn source_view(&self) -> Self {
+        let mut config = self.clone();
+        if let Some(source_release) = self.source_release.clone() {
+            config.release = source_release;
+            config.github = GitHubConfig {
+                generate_notes: false,
+                ..GitHubConfig::default()
+            };
+            config.source_release = None;
+        }
+        config
+    }
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             release: ReleaseConfig::default(),
+            source_release: None,
             github: GitHubConfig::default(),
             files: vec![VersionFileConfig::cargo_toml()],
         }
@@ -159,4 +182,67 @@ pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     let raw = toml::to_string_pretty(&config).context("failed to serialize default config")?;
     fs::write(path, raw).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_view_uses_source_release_without_distribution_github_settings() {
+        let config = Config {
+            release: ReleaseConfig {
+                tag_prefix: "v".to_string(),
+                latest: true,
+                ..ReleaseConfig::default()
+            },
+            source_release: Some(ReleaseConfig {
+                tag_prefix: "cargo-release-v".to_string(),
+                name_prefix: "cargo-release v".to_string(),
+                latest: false,
+                ..ReleaseConfig::default()
+            }),
+            github: GitHubConfig {
+                target_repository: "verzly/cargo-release".to_string(),
+                source_repository: "verzly/toolchain".to_string(),
+                generate_notes: true,
+                ..GitHubConfig::default()
+            },
+            files: vec![VersionFileConfig {
+                path: PathBuf::from("crates/cargo-release/Cargo.toml"),
+                ..VersionFileConfig::cargo_toml()
+            }],
+        };
+
+        let source = config.source_view();
+
+        assert_eq!(source.release.tag_prefix, "cargo-release-v");
+        assert_eq!(source.release.name_prefix, "cargo-release v");
+        assert!(!source.release.latest);
+        assert!(source.github.target_repository.is_empty());
+        assert!(source.github.source_repository.is_empty());
+        assert!(!source.github.generate_notes);
+        assert_eq!(
+            source.files[0].path,
+            PathBuf::from("crates/cargo-release/Cargo.toml")
+        );
+    }
+
+    #[test]
+    fn source_view_keeps_distribution_settings_when_no_source_release_exists() {
+        let config = Config {
+            github: GitHubConfig {
+                target_repository: "verzly/example".to_string(),
+                generate_notes: true,
+                ..GitHubConfig::default()
+            },
+            ..Config::default()
+        };
+
+        let source = config.source_view();
+
+        assert_eq!(source.release.tag_prefix, "v");
+        assert_eq!(source.github.target_repository, "verzly/example");
+        assert!(source.github.generate_notes);
+    }
 }

@@ -1,6 +1,7 @@
-files = []
-# Distribution repositories do not contain source files or version files.
-# This config is used by `github-release publish` from verzly/toolchain.
+# Release config for `tauri-release`.
+# The same file is used for both phases:
+# - prepare/finalize read `[source_release]` and update `[[files]]` in verzly/toolchain.
+# - publish reads `[release]` and creates the public release in verzly/tauri-release.
 
 [release]
 target_branch = "master"
@@ -14,6 +15,18 @@ merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
 
+[source_release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "tauri-release-v"
+tag_suffix = ""
+name_prefix = "tauri-release v"
+name_suffix = ""
+commit_message = "chore(release): prepare {tag}"
+merge_message = "chore(release): merge {tag}"
+cleanup = true
+latest = false
+
 [github]
 target_repository = "verzly/tauri-release"
 source_repository = "verzly/toolchain"
@@ -25,3 +38,10 @@ generate_notes = true
 mode = "scoped"
 include_scopes = ["tauri-release", "all"]
 include_paths = ["crates/tauri-release/"]
+
+[[files]]
+path = "crates/tauri-release/Cargo.toml"
+kind = "toml"
+key = "package.version"
+value = "{version}"
+optional = false
