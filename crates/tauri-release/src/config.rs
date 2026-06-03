@@ -128,31 +128,21 @@ impl Default for PlatformConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Strategy {
     Auto,
+    #[default]
     Host,
     Container,
 }
 
-impl Default for Strategy {
-    fn default() -> Self {
-        Self::Host
-    }
-}
-
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ContainerEngine {
     Docker,
+    #[default]
     Podman,
-}
-
-impl Default for ContainerEngine {
-    fn default() -> Self {
-        Self::Podman
-    }
 }
 
 impl ContainerEngine {

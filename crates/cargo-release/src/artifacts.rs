@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Serialize)]
 pub struct ArtifactRecord {
     pub target: String,

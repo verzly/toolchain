@@ -117,18 +117,13 @@ impl Default for VersionFileConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum VersionFileKind {
     Toml,
     Json,
+    #[default]
     Text,
-}
-
-impl Default for VersionFileKind {
-    fn default() -> Self {
-        Self::Text
-    }
 }
 
 pub fn load(path: &Path) -> Result<Config> {

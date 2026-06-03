@@ -6,6 +6,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct Manifest {
     pub tool: &'static str,

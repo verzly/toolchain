@@ -40,6 +40,10 @@ pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bo
         args.push("--prerelease".to_string());
     }
 
+    if !plan.latest {
+        args.push("--latest=false".to_string());
+    }
+
     run_gh(&args, dry_run)?;
 
     if let Some(dir) = assets_dir {

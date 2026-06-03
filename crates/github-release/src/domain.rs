@@ -7,13 +7,13 @@ use semver::Version;
 
 #[derive(Clone, Debug)]
 pub struct ReleasePlan {
-    pub version: Version,
     pub version_text: String,
     pub tag: String,
     pub release_name: String,
     pub target_branch: String,
     pub release_branch: String,
     pub prerelease: bool,
+    pub latest: bool,
     pub commit_message: String,
     pub merge_message: String,
     pub github: GitHubPlan,
@@ -77,13 +77,13 @@ pub fn build_plan(
     };
 
     Ok(ReleasePlan {
-        version,
         version_text,
         tag: tag.clone(),
         release_name,
         target_branch,
         release_branch,
         prerelease,
+        latest: config.release.latest,
         commit_message: render_template(&config.release.commit_message, &tag, clean_version),
         merge_message: render_template(&config.release.merge_message, &tag, clean_version),
         github: GitHubPlan {
