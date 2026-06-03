@@ -9,6 +9,7 @@ The source stays in this repository. Public distribution repositories stay inten
 - [Release model](#release-model)
 - [Release all](#release-all)
 - [Toolchain release](#toolchain-release)
+- [Release authentication](#release-authentication)
 - [Release notes and PR links](#release-notes-and-pr-links)
 - [Development](#development)
 - [Distribution repository contents](#distribution-repository-contents)
@@ -95,7 +96,7 @@ These files are not copied to distribution repositories.
 
 Use `.github/workflows/release-all.yml` when the same version should be released for every public tool and for the toolchain repository itself.
 
-The workflow is intentionally sequential. Each package release updates its own crate version, creates its own source tag, builds its own assets, and publishes to its own distribution repository before the next package starts. This avoids concurrent release branches racing to merge into `master`.
+The workflow is intentionally a dispatcher with one visible job. It starts the existing per-tool release workflows one after another, watches each dispatched run, and stops on the first failure. This keeps the Release All graph readable while preserving the safer sequential release order.
 
 Release order:
 
@@ -121,6 +122,12 @@ The root config for this release is:
 ```text
 github-release.toml
 ```
+
+## Release authentication
+
+Release workflows use the built-in `GITHUB_TOKEN` for operations in `verzly/toolchain` by default. This avoids requiring a custom token just to run the workflow.
+
+Publishing into separate distribution repositories still needs a token that has write access to those repositories. For that case, define `DISTRIBUTION_REPO_TOKEN` as a repository or organization secret. Public repository visibility only makes the repositories readable; it does not allow anonymous release creation or asset upload.
 
 ## Release notes and PR links
 

@@ -12,7 +12,7 @@ on:
         default: auto
     secrets:
       DISTRIBUTION_REPO_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Publish toolchain release
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
         run: >-
           github-release publish
           --config github-release.toml
