@@ -50,24 +50,23 @@ pub fn run(args: BuildArgs) -> Result<()> {
         }
 
         if !args.dry_run {
-            records.extend(artifacts::collect(
-                name,
-                &project_root,
-                &out_dir,
-                &target.artifacts,
-                config.artifacts.checksum,
-                &config.project.binary,
+            records.extend(artifacts::collect(artifacts::CollectRequest {
+                target_name: name,
+                project_root: &project_root,
+                out_dir: &out_dir,
+                patterns: &target.artifacts,
+                write_checksums: config.artifacts.checksum,
+                binary: &config.project.binary,
                 version,
-                &config.artifacts.name_template,
-            )?);
+                name_template: &config.artifacts.name_template,
+            })?);
         }
     }
 
-    if args.target.is_some() && !matched_target {
-        anyhow::bail!(
-            "unknown or disabled release target: {}",
-            args.target.as_ref().unwrap()
-        );
+    if let Some(selected_target) = args.target.as_ref() {
+        if !matched_target {
+            anyhow::bail!("unknown or disabled release target: {selected_target}");
+        }
     }
 
     if !args.dry_run && config.artifacts.manifest {

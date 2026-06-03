@@ -212,13 +212,78 @@ Prefer explicit allowlists for generated artifact paths and uploaded files.
 
 ## Documentation expectations
 
-Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
+Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must use a structured multi-level menu with planned main sections and subsections, not a single flat list. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
 
 The public README can be longer than the crate README. The public README is the product documentation for the distribution repository; the crate README is internal developer context.
 
 The root `toolchain/README.md` is for maintainers. Crate-level READMEs are for internal development. Public distribution READMEs live outside the project in the handoff `_repos/` export.
 
 Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Release notes are generated from GitHub releases.
+
+## README writing standard
+
+Public distribution README files must follow the structured, readable style used by `verzly/mise-php`. The navigation must be intentionally grouped into main sections and subsections. Do not write a single flat list of every heading.
+
+Use this default structure for public distribution repositories:
+
+```markdown
+## Contents
+
+- [Overview](#overview)
+  - [Why this exists](#why-this-exists)
+  - [How it works](#how-it-works)
+  - [Use cases](#use-cases)
+- [Get started](#get-started)
+  - [GitHub Action](#github-action)
+- [Usage](#usage)
+  - [Action inputs](#action-inputs)
+  - [Action outputs](#action-outputs)
+  - [CLI usage](#cli-usage)
+  - [CLI commands and arguments](#cli-commands-and-arguments)
+- [Configuration](#configuration)
+- [Practical workflows](#practical-workflows)
+  - [Practical release/build/cache/signing workflows](#practical-workflows)
+- [Reference](#reference)
+  - [Troubleshooting](#troubleshooting)
+  - [Release artifacts](#release-artifacts)
+  - [Operational notes](#operational-notes)
+- [Contributing](#contributing)
+```
+
+If a tool does not have a TOML configuration file, omit the `Configuration` group. If a tool has security-specific behavior, replace `Operational notes` with `Security notes`.
+
+The README must include a `License` section at the end, but the internal menu must intentionally omit it. This matches the preferred README convention: the license is present in the document, but it is not part of the navigation menu.
+
+Required public README content:
+
+1. A short product introduction after the title.
+2. A repository-boundary paragraph explaining that the public repository is a distribution surface and source lives in `verzly/toolchain`.
+3. `Overview`, with `Why this exists`, `How it works`, and `Use cases`.
+4. `Get started`, with a minimal GitHub Action example and an install-only example when useful.
+5. `Usage`, with every GitHub Action input, every GitHub Action output, CLI usage examples, every CLI command, and every CLI argument.
+6. `Configuration`, when the tool has a TOML config, including a realistic example and a field table.
+7. `Practical workflows`, with real copy-pasteable workflows for common situations.
+8. `Reference`, with troubleshooting, release artifacts, and operational/security notes.
+9. `Contributing`, explaining that source changes happen in `verzly/toolchain`.
+10. `License`, after contributing, omitted from the menu.
+
+Rules for argument documentation:
+
+- Every GitHub Action input must document required status, default, accepted values, and purpose.
+- Every GitHub Action output must document value and purpose.
+- Every CLI command must have at least one example.
+- Every CLI argument must document required status, default, accepted values, and purpose.
+- Boolean workflow/action values should be documented as strings when GitHub Actions treats them as strings, for example `"true"` and `"false"`.
+- Config fields must document accepted values and why the field exists, not only repeat the field name.
+
+Tone and structure:
+
+- Write natural professional English.
+- Prefer concrete examples over abstract claims.
+- Explain why the tool exists before explaining every flag.
+- Keep documentation clear for first-time users and useful for senior developers.
+- Avoid marketing filler, emojis, and vague claims.
+- Do not expose private implementation details except where needed to explain the public distribution repository boundary or source release-note origin.
 
 ## Hard no list
 

@@ -16,29 +16,36 @@ pub struct ArtifactRecord {
     pub sha256: Option<String>,
 }
 
-pub fn collect(
-    target_name: &str,
-    project_root: &Path,
-    out_dir: &Path,
-    patterns: &[String],
-    write_checksums: bool,
-    binary: &str,
-    version: &str,
-    name_template: &str,
-) -> Result<Vec<ArtifactRecord>> {
-    let target_out = out_dir.join(target_name);
+pub struct CollectRequest<'a> {
+    pub target_name: &'a str,
+    pub project_root: &'a Path,
+    pub out_dir: &'a Path,
+    pub patterns: &'a [String],
+    pub write_checksums: bool,
+    pub binary: &'a str,
+    pub version: &'a str,
+    pub name_template: &'a str,
+}
+
+pub fn collect(request: CollectRequest<'_>) -> Result<Vec<ArtifactRecord>> {
+    let target_out = request.out_dir.join(request.target_name);
     fs::create_dir_all(&target_out)?;
 
     let mut records = Vec::new();
-    for pattern in patterns {
-        let full_pattern = resolve_artifact_pattern(project_root, pattern);
+    for pattern in request.patterns {
+        let full_pattern = resolve_artifact_pattern(request.project_root, pattern);
         for entry in glob(&full_pattern.display().to_string()).context("invalid artifact glob")? {
             let source = entry?;
             if !source.is_file() {
                 continue;
             }
-            let file_name =
-                rendered_artifact_name(&source, target_name, binary, version, name_template)?;
+            let file_name = rendered_artifact_name(
+                &source,
+                request.target_name,
+                request.binary,
+                request.version,
+                request.name_template,
+            )?;
             let output = target_out.join(&file_name);
             fs::copy(&source, &output).with_context(|| {
                 format!(
@@ -47,7 +54,7 @@ pub fn collect(
                     output.display()
                 )
             })?;
-            let sha256 = if write_checksums {
+            let sha256 = if request.write_checksums {
                 let hash = checksums::sha256_file(&output)?;
                 let checksum_path = output.with_file_name(format!("{file_name}.sha256"));
                 fs::write(checksum_path, format!("{hash}  {}\n", file_name))?;
@@ -56,7 +63,7 @@ pub fn collect(
                 None
             };
             records.push(ArtifactRecord {
-                target: target_name.to_string(),
+                target: request.target_name.to_string(),
                 source: source.display().to_string(),
                 output: output.display().to_string(),
                 sha256,
@@ -65,7 +72,7 @@ pub fn collect(
     }
 
     if records.is_empty() {
-        anyhow::bail!("no artifacts found for target {target_name}");
+        anyhow::bail!("no artifacts found for target {}", request.target_name);
     }
 
     Ok(records)
