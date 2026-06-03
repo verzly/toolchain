@@ -153,7 +153,7 @@ The GitHub release workflows do not depend on `_repos/`. They publish release no
 
 ## Contributing
 
-Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. Do not add a shared “core” crate unless at least two tools actively use it and the shared API has a clear, stable boundary.
+Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. Shared helper crates should only be introduced when at least two tools actively use the same narrowly named behavior.
 
 Prefer incremental refactoring over rewrites. Every public-facing change must keep the source-only monorepo and source-free distribution repository model intact.
 

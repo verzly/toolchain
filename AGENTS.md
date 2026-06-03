@@ -50,7 +50,7 @@ Do not add orchestration shell scripts for release behavior that belongs in `git
 | `rust-cache` | `crates/rust-cache` | `verzly/rust-cache` | `rust-cache-vX.Y.Z` | `vX.Y.Z` |
 | `android-signing` | `crates/android-signing` | `verzly/android-signing` | `android-signing-vX.Y.Z` | `vX.Y.Z` |
 
-No shared `core` crate should exist by default. Add an internal shared crate only when multiple tools actively use the same behavior and the crate has a narrow, named responsibility. Do not create a vague `verzly-core` package just to hold miscellaneous helpers.
+Do not add a vague shared `verzly-core` crate by default. Shared internal crates are allowed only when multiple tools actively use the same behavior and the crate has a narrow, descriptive responsibility.
 
 ## Public distribution repositories
 
@@ -155,6 +155,22 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
+## Dependency maintenance
+
+Dependency upgrades must be intentional and separate from formatting, workflow, and README-only changes.
+
+Use compatible patch/minor updates freely when they do not require source changes. Treat major version changes as code changes: update the source, check migration notes, and run the full CI locally or in GitHub Actions.
+
+Do not keep unused dependencies. If a dependency is not used by the source code, remove it instead of upgrading it.
+
+When upgrading common dependencies across the workspace, prefer one dedicated commit such as:
+
+```text
+chore(deps): update Rust dependencies
+```
+
+Record any required source migration in the commit body.
+
 ## CI expectations
 
 Release workflows expect a token that can push to `verzly/toolchain` and create releases in the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.
@@ -178,23 +194,6 @@ Those files should remain thin wrappers around the reusable workflow:
 Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.
 
 Do not add test or release workflows to public distribution repositories.
-
-
-## Dependency update policy
-
-Do not bundle dependency major-version upgrades into formatting, Clippy, README, or release-workflow fixes. Keep dependency upgrades in a separate commit so failures are easy to isolate.
-
-When Cargo reports messages such as `available: v3.x`, treat them as upgrade opportunities, not automatic fixes. Cargo is already selecting the newest semver-compatible version allowed by the manifest. For example, a dependency declared as `colored = "2.1"` may resolve to `2.2.x`; moving to `colored = "3"` is a major upgrade and must be reviewed separately.
-
-Before bumping direct dependencies to a new major version:
-
-1. Check the crate changelog or migration notes.
-2. Update code intentionally, not mechanically.
-3. Run `cargo update`, `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.
-4. Keep transitive dependency updates out of `Cargo.toml` unless the crate is used directly.
-5. Prefer conservative dependency ranges for public release tools unless a new version fixes a bug, security issue, or needed feature.
-
-Do not add dependencies just to silence Clippy. Fix the code instead.
 
 ## Rust architecture expectations
 
