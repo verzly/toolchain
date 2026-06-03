@@ -152,8 +152,11 @@ mod tests {
         let json_path = dir.join("package.json");
         let text_path = dir.join("VERSION");
 
-        std::fs::write(&toml_path, "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n")
-            .expect("write TOML");
+        std::fs::write(
+            &toml_path,
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write TOML");
         std::fs::write(&json_path, "{\"package\":{\"version\":\"0.1.0\"}}")
             .expect("write JSON");
         std::fs::write(&text_path, "0.1.0\n").expect("write text");
@@ -172,7 +175,10 @@ mod tests {
         assert!(std::fs::read_to_string(&json_path)
             .expect("read JSON")
             .contains("\"version\": \"1.2.3\""));
-        assert_eq!(std::fs::read_to_string(&text_path).expect("read text"), "v1.2.3\n");
+        assert_eq!(
+            std::fs::read_to_string(&text_path).expect("read text"),
+            "v1.2.3\n"
+        );
     }
 
     #[test]
