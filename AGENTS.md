@@ -332,7 +332,7 @@ Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Releas
 
 ## README writing standard
 
-Public distribution README files must follow the structured, readable style used by `verzly/mise-php`. The navigation must appear directly after the introduction without a separate `## Contents` heading. It must be intentionally grouped into main sections and subsections. Do not write a single flat list of every heading.
+Public distribution README files must follow a structured, readable documentation style. The navigation must appear directly after the introduction without a separate `## Contents` heading. It must be intentionally grouped into main sections and subsections, and it must describe the reader journey instead of mirroring every heading mechanically. Do not write a single flat list of every heading.
 
 Use this default structure for public distribution repositories:
 
