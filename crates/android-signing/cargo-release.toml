@@ -17,25 +17,25 @@ enabled = true
 triple = "x86_64-unknown-linux-gnu"
 strategy = "host"
 command = "cargo build --release -p android-signing"
-artifacts = ["target/release/android-signing"]
+artifacts = [".cache/rust/packages/toolchain/target/release/android-signing"]
 
 [targets.macos-x64]
 enabled = true
 triple = "x86_64-apple-darwin"
 strategy = "host"
 command = "cargo build --release -p android-signing"
-artifacts = ["target/release/android-signing"]
+artifacts = [".cache/rust/packages/toolchain/target/release/android-signing"]
 
 [targets.macos-arm64]
 enabled = true
 triple = "aarch64-apple-darwin"
 strategy = "host"
 command = "cargo build --release -p android-signing"
-artifacts = ["target/release/android-signing"]
+artifacts = [".cache/rust/packages/toolchain/target/release/android-signing"]
 
 [targets.windows-x64]
 enabled = true
 triple = "x86_64-pc-windows-msvc"
 strategy = "host"
 command = "cargo build --release -p android-signing"
-artifacts = ["target/release/android-signing.exe"]
+artifacts = [".cache/rust/packages/toolchain/target/release/android-signing.exe"]

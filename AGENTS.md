@@ -153,6 +153,21 @@ value = "{version}"
 
 These configs must stay in the source repository and must not be copied to distribution repositories.
 
+
+## Cargo cache policy
+
+The workspace must keep native Cargo build output under `.cache` without requiring wrapper commands. The committed config is:
+
+```toml
+# .cargo/config.toml
+[build]
+target-dir = ".cache/rust/packages/toolchain/target"
+```
+
+The root `rust-cache.toml` is the policy source used by `rust-cache init` to generate or repair that Cargo config. Do not put `rust-cache.toml` inside `crates/rust-cache/`; this is a workspace-level policy, not a crate-local fixture. Workflows should call plain `cargo fmt`, `cargo clippy`, `cargo test`, and `cargo build`; do not wrap normal Cargo commands in `rust-cache run`.
+
+`rust-cache run` and `rust-cache env` are reserved for environment-only cache values that Cargo cannot read from `.cargo/config.toml`, such as optional `CARGO_HOME` and `GRADLE_USER_HOME` routing.
+
 ## Release lifecycle
 
 A release workflow must perform source release work before public distribution release work.
@@ -161,7 +176,7 @@ Expected flow:
 
 1. `github-release prepare` creates a temporary source release branch in `verzly/toolchain`.
 2. `github-release prepare` updates `crates/<tool>/Cargo.toml` to the requested version on that branch.
-3. `rust-cache run -- cargo fmt`, `clippy`, and `test` run from that exact branch.
+3. Plain `cargo fmt`, `cargo clippy`, and `cargo test` run from that exact branch. Native `.cargo/config.toml` routing keeps build output under `.cache`.
 4. `cargo-release build` builds executable assets from that exact branch.
 5. `github-release abort` deletes the temporary source release branch if anything fails.
 6. `github-release finalize --skip-github-release` merges the branch into `master` and creates `<tool>-vX.Y.Z`.
@@ -264,7 +279,7 @@ Each crate should include tests for the behavior it owns:
 - `github-release`: release plan generation, SemVer validation, prerelease detection, tag/name rendering, version file updates, scoped release-note filtering, and destructive-operation safety rules.
 - `cargo-release`: config defaults, target selection, artifact discovery, artifact naming, checksum writing, manifest writing, and missing-artifact failures.
 - `tauri-release`: platform defaults, platform artifact discovery, checksum writing, output cleanup, and platform strategy behavior.
-- `rust-cache`: default config loading, explicit package cache paths, `CARGO_TARGET_DIR`, optional `CARGO_HOME`, optional `GRADLE_USER_HOME`, and clean/env/run planning behavior.
+- `rust-cache`: default config loading, native `.cargo/config.toml` generation, explicit package cache paths, conflict-safe target-dir updates, optional `CARGO_HOME`, optional `GRADLE_USER_HOME`, and clean/env/run planning behavior.
 - `android-signing`: base64 export, generated password shape, CLI defaults, GitHub env writing behavior, and secret redaction rules.
 
 Prefer unit tests for pure planning, config, path, and rendering behavior. Use integration-style tests only when command boundaries or filesystem behavior are the point of the test. Tests must avoid requiring Docker, Podman, Android SDK, Tauri, `gh`, or real signing keys unless the test is explicitly ignored or guarded.

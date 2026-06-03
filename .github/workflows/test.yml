@@ -23,19 +23,14 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap cache helper
-        run: |
-          cargo build --release -p rust-cache
-          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
-
       - name: Format
-        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
+        run: cargo test --workspace --all-targets
 
   repository-model:
     name: Repository model
@@ -52,6 +47,12 @@ jobs:
           test ! -d "distribution"
           test ! -d "scripts"
           test -f "github-release.toml"
+          test -f "rust-cache.toml"
+          test -f ".cargo/config.toml"
+          test ! -f "crates/rust-cache/rust-cache.toml"
+          grep -Fq 'target-dir = ".cache/rust/packages/toolchain/target"' ".cargo/config.toml"
+          grep -Fq 'target_dir = "rust/packages/{package}/target"' "rust-cache.toml"
+          ! grep -R -Fq "rust-cache run" ".github/workflows"
           test -f ".github/workflows/_release-toolchain.yml"
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"

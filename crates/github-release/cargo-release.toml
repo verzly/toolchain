@@ -17,25 +17,25 @@ enabled = true
 triple = "x86_64-unknown-linux-gnu"
 strategy = "host"
 command = "cargo build --release -p github-release"
-artifacts = ["target/release/github-release"]
+artifacts = [".cache/rust/packages/toolchain/target/release/github-release"]
 
 [targets.macos-x64]
 enabled = true
 triple = "x86_64-apple-darwin"
 strategy = "host"
 command = "cargo build --release -p github-release"
-artifacts = ["target/release/github-release"]
+artifacts = [".cache/rust/packages/toolchain/target/release/github-release"]
 
 [targets.macos-arm64]
 enabled = true
 triple = "aarch64-apple-darwin"
 strategy = "host"
 command = "cargo build --release -p github-release"
-artifacts = ["target/release/github-release"]
+artifacts = [".cache/rust/packages/toolchain/target/release/github-release"]
 
 [targets.windows-x64]
 enabled = true
 triple = "x86_64-pc-windows-msvc"
 strategy = "host"
 command = "cargo build --release -p github-release"
-artifacts = ["target/release/github-release.exe"]
+artifacts = [".cache/rust/packages/toolchain/target/release/github-release.exe"]

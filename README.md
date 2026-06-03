@@ -22,7 +22,7 @@ The source stays in this repository. Public distribution repositories stay inten
 
 `tauri-release` coordinates Tauri desktop and mobile release artifacts while keeping platform-specific build rules explicit.
 
-`rust-cache` redirects Rust and Tauri build cache output into a workspace-local cache directory so generated files stay predictable and easy to remove.
+`rust-cache` configures native Cargo target directories and optional environment-based cache paths so regular `cargo` commands keep generated files inside the workspace cache.
 
 `android-signing` generates, inspects, encodes, and exports Android release signing material for local and CI release builds.
 
@@ -53,7 +53,7 @@ The reusable workflow intentionally calls the Rust tools directly instead of hid
 
 ```text
 github-release prepare    # source branch + version update
-rust-cache run -- cargo   # format, clippy, test, and build cache routing
+cargo fmt/clippy/test     # plain Cargo commands, routed by .cargo/config.toml
 cargo-release build       # executable assets, checksums, manifests
 github-release finalize   # merge source branch + source tag
 github-release publish    # public GitHub Release + uploaded assets
@@ -65,7 +65,7 @@ A release for one tool follows this lifecycle:
 1. Trigger release-<tool>.yml with the target version.
 2. github-release prepare creates release/<tool>-vX.Y.Z in verzly/toolchain.
 3. github-release prepare updates crates/<tool>/Cargo.toml on that branch.
-4. rust-cache runs formatting, clippy, and tests from that branch.
+4. Plain Cargo formatting, clippy, and tests run from that branch using the checked-in `.cargo/config.toml`.
 5. cargo-release builds executable assets from that same branch.
 6. github-release abort deletes the temporary source branch if tests or builds fail.
 7. github-release finalize merges the source branch into master and creates <tool>-vX.Y.Z.
@@ -161,13 +161,12 @@ Use `toolchain`, `ci`, `docs`, `deps`, or `workspace` for source-repository main
 
 ## Development
 
-Run checks from the workspace root:
+Run checks from the workspace root. The checked-in `.cargo/config.toml` routes normal Cargo build output to `.cache/rust/packages/toolchain/target`, so no wrapper command is needed:
 
 ```sh
-cargo build --release -p rust-cache
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-targets
 ```
 
 Useful local commands:
@@ -176,6 +175,7 @@ Useful local commands:
 cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
 cargo run -p cargo-release -- plan --config crates/cargo-release/cargo-release.toml
 cargo run -p rust-cache -- doctor
+cargo run -p rust-cache -- init
 ```
 
 Keep the workspace plain and readable. Avoid build scripts, proc macros, hidden global behavior, and shell orchestration unless there is a concrete reason.

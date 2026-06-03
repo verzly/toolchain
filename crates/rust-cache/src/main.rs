@@ -1,5 +1,6 @@
 //! Application entry point. Keep command dispatch separate from workspace detection and environment planning.
 
+mod cargo_config;
 mod cli;
 mod commands;
 mod config;
