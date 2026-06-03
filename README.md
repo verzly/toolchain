@@ -29,7 +29,7 @@ The source stays in this repository. Public distribution repositories stay inten
 
 ## Repository model
 
-This repository is the source of truth for Rust code, release workflows, and crate-specific release configuration.
+This repository is the source of truth for Rust code, release workflows, and crate-specific release configuration. Crates do not carry their own README files; internal documentation belongs in this root README and AGENTS.md, while public user documentation lives in the distribution repositories.
 
 The public distribution repositories are separate repositories:
 
@@ -72,17 +72,16 @@ A release for one tool follows this lifecycle:
 8. github-release publish creates vX.Y.Z in the public distribution repository and uploads assets.
 ```
 
-The source release configuration lives here:
-
-```text
-crates/<tool>/source-github-release.toml
-```
-
-The public distribution release configuration lives here:
+Each public tool has one release configuration file:
 
 ```text
 crates/<tool>/github-release.toml
 ```
+
+This one file contains both release contexts. The `[source_release]` section controls the temporary source branch and the package-prefixed source tag in `verzly/toolchain`. The `[release]` section controls the clean public `vX.Y.Z` GitHub Release in the distribution repository.
+
+Version files are still explicit. `github-release` does not scan the workspace and guess which `Cargo.toml` belongs to a crate. Every crate config lists its own manifest under `[[files]]`, for example `crates/cargo-release/Cargo.toml`.
+
 
 The build configuration lives here:
 
@@ -174,7 +173,7 @@ rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --worksp
 Useful local commands:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/source-github-release.toml --version 1.2.3
+cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
 cargo run -p cargo-release -- plan --config crates/cargo-release/cargo-release.toml
 cargo run -p rust-cache -- doctor
 ```
@@ -199,9 +198,7 @@ The GitHub release workflows do not depend on `_repos/`. They publish release no
 
 ## Contributing
 
-Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. Shared helper crates should only be introduced when at least two tools actively use the same narrowly named behavior.
-
-Prefer incremental refactoring over rewrites. Every public-facing change must keep the source-only monorepo and source-free distribution repository model intact.
+Contribution guidelines live in [CONTRIBUTING.md](CONTRIBUTING.md). Source changes happen in `verzly/toolchain`; public distribution repositories are generated release surfaces and should not receive source changes directly.
 
 ## License
 

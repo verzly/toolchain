@@ -10,7 +10,7 @@ use anyhow::Result;
 // Finalize is intentionally ordered from safest to most public operation:
 // merge first, then tag, then optionally publish a GitHub Release from that tag.
 pub fn run(args: FinalizeArgs) -> Result<()> {
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config)?.source_view();
     let plan = domain::build_plan(
         &config,
         &args.version,

@@ -393,8 +393,8 @@ mod tests {
         };
         let unrelated = CommitEntry {
             hash: "jkl".to_string(),
-            subject: "docs(rust-cache): update README".to_string(),
-            paths: vec!["crates/rust-cache/README.md".to_string()],
+            subject: "fix(rust-cache): update env planning".to_string(),
+            paths: vec!["crates/rust-cache/src/main.rs".to_string()],
         };
 
         assert!(commit_matches(&scoped, &include_scopes, &include_paths));
@@ -414,8 +414,8 @@ mod tests {
             "crates/cargo-release/src/main.rs"
         );
         assert_eq!(
-            normalize_path(" crates/cargo-release/README.md "),
-            "crates/cargo-release/README.md"
+            normalize_path(" crates/cargo-release/src/main.rs "),
+            "crates/cargo-release/src/main.rs"
         );
     }
 }

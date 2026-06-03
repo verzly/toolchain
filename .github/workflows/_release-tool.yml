@@ -50,7 +50,7 @@ jobs:
         id: prepare
         run: >-
           github-release prepare
-          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
 
   test:
@@ -155,7 +155,7 @@ jobs:
       - name: Delete source release branch
         run: >-
           github-release abort
-          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
 
   finalize_source:
@@ -190,7 +190,7 @@ jobs:
         id: finalize
         run: >-
           github-release finalize
-          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
           --skip-github-release
 
