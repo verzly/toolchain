@@ -7,7 +7,6 @@ use crate::git;
 use crate::github;
 use crate::output;
 use anyhow::Result;
-
 // Finalize is intentionally ordered from safest to most public operation:
 // merge first, then tag, then optionally publish a GitHub Release from that tag.
 pub fn run(args: FinalizeArgs) -> Result<()> {
@@ -35,7 +34,10 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
     git::run(["fetch", "origin", &plan.target_branch], args.dry_run)?;
     git::run(["fetch", "origin", &release_refspec], args.dry_run)?;
     git::run(["checkout", &plan.target_branch], args.dry_run)?;
-    git::run(["pull", "--ff-only", "origin", &plan.target_branch], args.dry_run)?;
+    git::run(
+        ["pull", "--ff-only", "origin", &plan.target_branch],
+        args.dry_run,
+    )?;
     git::run(
         [
             "merge",

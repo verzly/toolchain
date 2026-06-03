@@ -167,8 +167,8 @@ fn collect_assets(dir: &Path) -> Result<Vec<PathBuf>> {
 fn collect_assets_recursive(dir: &Path, assets: &mut Vec<PathBuf>) -> Result<()> {
     // cargo-release groups artifacts by target under dist/. GitHub Releases use
     // the file name as the asset name, so nested target folders are safe here.
-    for entry in std::fs::read_dir(dir)
-        .with_context(|| format!("failed to read {}", dir.display()))?
+    for entry in
+        std::fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?
     {
         let path = entry?.path();
         if path.is_dir() {

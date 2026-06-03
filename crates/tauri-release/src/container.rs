@@ -4,8 +4,6 @@ use crate::config::{ContainerEngine, PlatformConfig};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-
 // Tauri platform builds are not equally portable; container use is explicit per platform.
 pub fn run(
     engine: ContainerEngine,

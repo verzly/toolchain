@@ -5,8 +5,6 @@ use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-
-
 // The plan is built before the command runs so contributors can inspect paths without side effects.
 #[derive(Clone, Debug)]
 pub struct EnvPlan {

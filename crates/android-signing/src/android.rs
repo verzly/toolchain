@@ -5,7 +5,6 @@ use base64::Engine;
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
-
 // Android signing keys are long-lived; generation refuses to overwrite unless the caller opts in.
 pub fn keytool_available() -> bool {
     Command::new("keytool")

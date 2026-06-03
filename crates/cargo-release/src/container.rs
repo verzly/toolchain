@@ -4,8 +4,6 @@ use crate::config::{ContainerEngine, TargetConfig};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-
 // Container execution mounts the repository at a stable path so target commands stay portable.
 pub fn run(
     engine: ContainerEngine,

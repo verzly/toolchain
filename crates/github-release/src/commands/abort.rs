@@ -5,8 +5,6 @@ use crate::config;
 use crate::domain;
 use crate::git;
 use anyhow::Result;
-
-
 // Abort may delete a branch, so the branch name is validated before any destructive git command runs.
 pub fn run(args: AbortArgs) -> Result<()> {
     let config = config::load(&args.config)?;
@@ -18,7 +16,7 @@ pub fn run(args: AbortArgs) -> Result<()> {
         anyhow::bail!("provide --version or --release-branch");
     };
 
-// Abort can delete a remote branch, so the configured release prefix is a hard safety rail by default.
+    // Abort can delete a remote branch, so the configured release prefix is a hard safety rail by default.
     if !args.allow_any_branch && !branch.starts_with(&config.release.branch_prefix) {
         anyhow::bail!(
             "refusing to delete branch outside release prefix: {} (prefix: {})",

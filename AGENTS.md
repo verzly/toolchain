@@ -212,7 +212,9 @@ Prefer explicit allowlists for generated artifact paths and uploaded files.
 
 ## Documentation expectations
 
-Public README files should be human, concise, and usage-oriented. They should explain what the tool does, when to use it, and show practical GitHub Actions examples.
+Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
+
+The public README can be longer than the crate README. The public README is the product documentation for the distribution repository; the crate README is internal developer context.
 
 The root `toolchain/README.md` is for maintainers. Crate-level READMEs are for internal development. Public distribution READMEs live outside the project in the handoff `_repos/` export.
 

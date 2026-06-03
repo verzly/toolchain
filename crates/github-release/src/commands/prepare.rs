@@ -7,7 +7,6 @@ use crate::git;
 use crate::output;
 use crate::version_files;
 use anyhow::Result;
-
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.
 pub fn run(args: PrepareArgs) -> Result<()> {
