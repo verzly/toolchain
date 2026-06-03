@@ -1,14 +1,12 @@
 //! Implements the prepare phase: create the temporary branch, apply version changes, and stop before the project-specific build starts.
 
-use anyhow::Result;
-
 use crate::cli::PrepareArgs;
 use crate::config;
 use crate::domain;
 use crate::git;
 use crate::output;
 use crate::version_files;
-
+use anyhow::Result;
 
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.
@@ -34,7 +32,10 @@ pub fn run(args: PrepareArgs) -> Result<()> {
 
     git::run(["fetch", "origin", &plan.target_branch], args.dry_run)?;
 
-    if (git::branch_exists(&plan.release_branch) || git::remote_branch_exists(&plan.release_branch)) && !args.force_branch {
+    if (git::branch_exists(&plan.release_branch)
+        || git::remote_branch_exists(&plan.release_branch))
+        && !args.force_branch
+    {
         anyhow::bail!("release branch already exists: {}", plan.release_branch);
     }
     if git::tag_exists(&plan.tag) || git::remote_tag_exists(&plan.tag) {

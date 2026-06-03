@@ -1,12 +1,11 @@
 //! GitHub CLI integration. The project uses `gh` instead of a custom API client so authentication matches local and CI usage.
 
+use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-
-use crate::domain::ReleasePlan;
 
 pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bool) -> Result<()> {
     let notes_file = if plan.github.generate_notes && plan.github.source_repository.is_some() {
@@ -46,7 +45,11 @@ pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bo
     if let Some(dir) = assets_dir {
         let assets = collect_assets(dir)?;
         if !assets.is_empty() {
-            let mut upload_args = vec!["release".to_string(), "upload".to_string(), plan.tag.clone()];
+            let mut upload_args = vec![
+                "release".to_string(),
+                "upload".to_string(),
+                plan.tag.clone(),
+            ];
             if let Some(repository) = plan.github.target_repository.as_ref() {
                 upload_args.push("--repo".to_string());
                 upload_args.push(repository.clone());
@@ -74,18 +77,23 @@ fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBu
         )
     } else {
         generate_notes_from_source(source_repository, &plan.github.source_tag)
-            .unwrap_or_else(|error| fallback_notes(source_repository, &plan.github.source_tag, &error.to_string()))
+            .unwrap_or_else(|error| {
+                fallback_notes(source_repository, &plan.github.source_tag, &error.to_string())
+            })
     };
 
     let mut body = String::new();
     body.push_str(&generated);
     body.push_str("\n\n---\n\n");
     body.push_str(&format!(
-        "Source changes for this release are maintained in `{source_repository}`. Pull request links in these notes intentionally point to that source repository, even when the release itself is published from a distribution repository.\n"
+        "Source changes for this release are maintained in `{source_repository}`. \
+Pull request links in these notes intentionally point to that source repository, \
+ even when the release itself is published from a distribution repository.\n"
     ));
 
     let path = std::env::temp_dir().join(format!("github-release-{}-notes.md", plan.tag));
-    fs::write(&path, body).with_context(|| format!("failed to write release notes file {}", path.display()))?;
+    fs::write(&path, body)
+        .with_context(|| format!("failed to write release notes file {}", path.display()))?;
     Ok(path)
 }
 
@@ -116,7 +124,8 @@ fn fallback_notes(repository: &str, tag: &str, error: &str) -> String {
     // External release notes are a convenience, not a reason to block publishing.
     // The fallback keeps the public release honest when the source repository is private or GitHub cannot generate notes.
     format!(
-        "What's changed\n\nRelease notes could not be generated automatically from `{repository}` for `{tag}`.\n\nReason: {error}\n"
+        "What's changed\n\nRelease notes could not be generated automatically from \
+`{repository}` for `{tag}`.\n\nReason: {error}\n"
     )
 }
 
@@ -153,7 +162,9 @@ fn collect_assets(dir: &Path) -> Result<Vec<PathBuf>> {
 fn collect_assets_recursive(dir: &Path, assets: &mut Vec<PathBuf>) -> Result<()> {
     // cargo-release groups artifacts by target under dist/. GitHub Releases use
     // the file name as the asset name, so nested target folders are safe here.
-    for entry in std::fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))? {
+    for entry in
+        std::fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?
+    {
         let path = entry?.path();
         if path.is_dir() {
             collect_assets_recursive(&path, assets)?;

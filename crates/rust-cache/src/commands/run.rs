@@ -1,11 +1,10 @@
 //! Runs a user command with the planned cache environment. The tool should not interpret the command itself.
 
-use anyhow::{Context, Result};
-use std::process::{Command, Stdio};
-
 use crate::cli::RunArgs;
 use crate::config;
 use crate::env_plan::EnvPlan;
+use anyhow::{Context, Result};
+use std::process::{Command, Stdio};
 
 pub fn run(args: RunArgs) -> Result<()> {
     let config = config::load(&args.config)?;

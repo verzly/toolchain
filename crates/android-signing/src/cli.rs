@@ -44,7 +44,10 @@ pub struct GenerateArgs {
     #[arg(long, default_value_t = 10000)]
     pub validity: u32,
 
-    #[arg(long, default_value = "CN=Android Release, OU=Release, O=Unknown, L=Unknown, ST=Unknown, C=US")]
+    #[arg(
+        long,
+        default_value = "CN=Android Release, OU=Release, O=Unknown, L=Unknown, ST=Unknown, C=US"
+    )]
     pub dname: String,
 
     #[arg(long)]

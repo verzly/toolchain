@@ -6,7 +6,6 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-
 // Android signing keys are long-lived; generation refuses to overwrite unless the caller opts in.
 pub fn keytool_available() -> bool {
     Command::new("keytool")
@@ -57,10 +56,17 @@ pub fn generate_keystore(args: GenerateKeystore<'_>, dry_run: bool) -> Result<()
         args.key_password.to_string(),
     ];
 
-// Never print raw passwords in dry-run output. Contributors should be able to debug commands safely.
+    // Never print raw passwords in dry-run output. Contributors should be able to debug commands safely.
     if dry_run {
-        println!("keytool -genkeypair -v -keystore {} -storetype {} -alias {} -keyalg {} -keysize {} -validity {} -dname <hidden> -storepass <hidden> -keypass <hidden>",
-            args.output.display(), args.store_type, args.alias, args.key_alg, args.key_size, args.validity);
+        println!(
+            "keytool -genkeypair -v -keystore {} -storetype {} -alias {} -keyalg {} -keysize {} -validity {} -dname <hidden> -storepass <hidden> -keypass <hidden>",
+            args.output.display(),
+            args.store_type,
+            args.alias,
+            args.key_alg,
+            args.key_size,
+            args.validity
+        );
         return Ok(());
     }
 

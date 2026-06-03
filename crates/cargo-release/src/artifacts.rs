@@ -1,12 +1,11 @@
 //! Artifact discovery and copying. Build commands produce files; this module decides what becomes part of `dist/`.
 
+use crate::checksums;
 use anyhow::{Context, Result};
 use glob::glob;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-use crate::checksums;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ArtifactRecord {
@@ -37,7 +36,8 @@ pub fn collect(
             if !source.is_file() {
                 continue;
             }
-            let file_name = rendered_artifact_name(&source, target_name, binary, version, name_template)?;
+            let file_name =
+                rendered_artifact_name(&source, target_name, binary, version, name_template)?;
             let output = target_out.join(&file_name);
             fs::copy(&source, &output).with_context(|| {
                 format!("failed to copy {} to {}", source.display(), output.display())
