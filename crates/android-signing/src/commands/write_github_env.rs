@@ -1,12 +1,11 @@
 //! Writes non-password CI values to `$GITHUB_ENV`. Passwords stay outside this command intentionally.
 
+use crate::android;
+use crate::cli::WriteGithubEnvArgs;
 use anyhow::{Context, Result};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
-
-use crate::android;
-use crate::cli::WriteGithubEnvArgs;
 
 pub fn run(args: WriteGithubEnvArgs) -> Result<()> {
     let path = env::var("GITHUB_ENV").context("GITHUB_ENV is not set")?;

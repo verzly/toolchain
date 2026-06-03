@@ -1,11 +1,10 @@
 //! Implements the failure cleanup phase. Branch deletion is guarded because this command can remove remote refs.
 
-use anyhow::Result;
-
 use crate::cli::AbortArgs;
 use crate::config;
 use crate::domain;
 use crate::git;
+use anyhow::Result;
 
 
 // Abort may delete a branch, so the branch name is validated before any destructive git command runs.

@@ -1,12 +1,11 @@
 //! GitHub CLI integration. The project uses `gh` instead of a custom API client so authentication matches local and CI usage.
 
+use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-
-use crate::domain::ReleasePlan;
 
 pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bool) -> Result<()> {
     let notes_file = if plan.github.generate_notes && plan.github.source_repository.is_some() {
@@ -92,7 +91,9 @@ fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBu
     body.push_str(&generated);
     body.push_str("\n\n---\n\n");
     body.push_str(&format!(
-        "Source changes for this release are maintained in `{source_repository}`. Pull request links in these notes intentionally point to that source repository, even when the release itself is published from a distribution repository.\n"
+        "Source changes for this release are maintained in `{source_repository}`. Pull request links in \
+         these notes intentionally point to that source repository, even when the release itself is \
+         published from a distribution repository.\n"
     ));
 
     let path = std::env::temp_dir().join(format!("github-release-{}-notes.md", plan.tag));
@@ -128,7 +129,8 @@ fn fallback_notes(repository: &str, tag: &str, error: &str) -> String {
     // External release notes are a convenience, not a reason to block publishing.
     // The fallback keeps the public release honest when the source repository is private or GitHub cannot generate notes.
     format!(
-        "What's changed\n\nRelease notes could not be generated automatically from `{repository}` for `{tag}`.\n\nReason: {error}\n"
+        "What's changed\n\nRelease notes could not be generated automatically from `{repository}` for \
+         `{tag}`.\n\nReason: {error}\n"
     )
 }
 

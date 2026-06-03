@@ -1,11 +1,10 @@
 //! Machine-readable release manifest writer. This helps CI consume outputs without scraping logs.
 
+use crate::artifacts::ArtifactRecord;
 use anyhow::Result;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-
-use crate::artifacts::ArtifactRecord;
 
 #[derive(Debug, Serialize)]
 pub struct Manifest {

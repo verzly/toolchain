@@ -1,10 +1,9 @@
 //! Docker/Podman command construction for platforms where containers are realistic. Apple targets stay host-first by design.
 
+use crate::config::{ContainerEngine, PlatformConfig};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-use crate::config::{ContainerEngine, PlatformConfig};
 
 
 // Tauri platform builds are not equally portable; container use is explicit per platform.

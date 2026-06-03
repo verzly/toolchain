@@ -1,9 +1,9 @@
 //! Prints detected paths and environment decisions to help contributors understand why a cache path was chosen.
 
-use anyhow::Result;
 use crate::cli::CommonArgs;
 use crate::config;
 use crate::env_plan::EnvPlan;
+use anyhow::Result;
 
 pub fn run(args: CommonArgs) -> Result<()> {
     let config = config::load(&args.config)?;

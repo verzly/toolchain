@@ -1,13 +1,12 @@
 //! Implements the prepare phase: create the temporary branch, apply version changes, and stop before the project-specific build starts.
 
-use anyhow::Result;
-
 use crate::cli::PrepareArgs;
 use crate::config;
 use crate::domain;
 use crate::git;
 use crate::output;
 use crate::version_files;
+use anyhow::Result;
 
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.

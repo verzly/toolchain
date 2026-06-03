@@ -1,13 +1,12 @@
 //! Implements the source success phase after artifacts already exist. This command merges and tags; publishing can be skipped.
 
-use anyhow::Result;
-
 use crate::cli::FinalizeArgs;
 use crate::config;
 use crate::domain;
 use crate::git;
 use crate::github;
 use crate::output;
+use anyhow::Result;
 
 // Finalize is intentionally ordered from safest to most public operation:
 // merge first, then tag, then optionally publish a GitHub Release from that tag.

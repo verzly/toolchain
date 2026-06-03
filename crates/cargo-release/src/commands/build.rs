@@ -1,12 +1,12 @@
 //! Build command orchestration. This is intentionally thin: plan, execute, collect, then write release metadata.
 
-use anyhow::Result;
 use crate::artifacts;
 use crate::cli::BuildArgs;
 use crate::config::{self, Strategy};
 use crate::container;
 use crate::manifest;
 use crate::process;
+use anyhow::Result;
 
 pub fn run(args: BuildArgs) -> Result<()> {
     let config = config::load(&args.config)?;
@@ -38,8 +38,15 @@ pub fn run(args: BuildArgs) -> Result<()> {
 
         println!("building {name} ({strategy:?})");
         match strategy {
-            Strategy::Host | Strategy::Auto => process::shell(&target.command, &target.env, args.dry_run)?,
-            Strategy::Container => container::run(config.build.container_engine, &project_root, target, args.dry_run)?,
+            Strategy::Host | Strategy::Auto => {
+                process::shell(&target.command, &target.env, args.dry_run)?
+            }
+            Strategy::Container => container::run(
+                config.build.container_engine,
+                &project_root,
+                target,
+                args.dry_run,
+            )?,
         }
 
         if !args.dry_run {

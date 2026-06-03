@@ -59,7 +59,8 @@ pub fn generate_keystore(args: GenerateKeystore<'_>, dry_run: bool) -> Result<()
     // Never print raw passwords in dry-run output. Contributors should be able to debug commands safely.
     if dry_run {
         println!(
-            "keytool -genkeypair -v -keystore {} -storetype {} -alias {} -keyalg {} -keysize {} -validity {} -dname <hidden> -storepass <hidden> -keypass <hidden>",
+            "keytool -genkeypair -v -keystore {} -storetype {} -alias {} -keyalg {} \
+             -keysize {} -validity {} -dname <hidden> -storepass <hidden> -keypass <hidden>",
             args.output.display(),
             args.store_type,
             args.alias,

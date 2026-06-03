@@ -1,12 +1,11 @@
 //! Artifact discovery and copying. Build commands produce files; this module decides what becomes part of `dist/`.
 
+use crate::checksums;
 use anyhow::{Context, Result};
 use glob::glob;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-use crate::checksums;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ArtifactRecord {

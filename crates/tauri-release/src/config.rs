@@ -165,8 +165,8 @@ impl ContainerEngine {
 }
 
 pub fn load(path: &Path) -> Result<Config> {
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let raw =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 

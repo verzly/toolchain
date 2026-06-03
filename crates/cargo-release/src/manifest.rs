@@ -1,11 +1,10 @@
 //! Release manifest writer. The manifest records what was built without trying to replace human release notes.
 
+use crate::artifacts::ArtifactRecord;
 use anyhow::Result;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-
-use crate::artifacts::ArtifactRecord;
 
 #[derive(Debug, Serialize)]
 pub struct Manifest {

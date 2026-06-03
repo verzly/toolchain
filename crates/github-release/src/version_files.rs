@@ -1,11 +1,10 @@
 //! Version file updates for TOML, JSON, and plain text files. Commands decide when to call this; this module decides how values are written.
 
+use crate::config::{VersionFileConfig, VersionFileKind};
+use crate::domain::{render_template, ReleasePlan};
 use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use std::fs;
-
-use crate::config::{VersionFileConfig, VersionFileKind};
-use crate::domain::{render_template, ReleasePlan};
 
 pub fn update_all(files: &[VersionFileConfig], plan: &ReleasePlan, dry_run: bool) -> Result<()> {
     for file in files {
