@@ -5,18 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub cache: CacheConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            cache: CacheConfig::default(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

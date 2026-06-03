@@ -179,6 +179,23 @@ Do not reintroduce large shell scripts for release orchestration. If a workflow 
 
 Do not add test or release workflows to public distribution repositories.
 
+
+## Dependency update policy
+
+Do not bundle dependency major-version upgrades into formatting, Clippy, README, or release-workflow fixes. Keep dependency upgrades in a separate commit so failures are easy to isolate.
+
+When Cargo reports messages such as `available: v3.x`, treat them as upgrade opportunities, not automatic fixes. Cargo is already selecting the newest semver-compatible version allowed by the manifest. For example, a dependency declared as `colored = "2.1"` may resolve to `2.2.x`; moving to `colored = "3"` is a major upgrade and must be reviewed separately.
+
+Before bumping direct dependencies to a new major version:
+
+1. Check the crate changelog or migration notes.
+2. Update code intentionally, not mechanically.
+3. Run `cargo update`, `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.
+4. Keep transitive dependency updates out of `Cargo.toml` unless the crate is used directly.
+5. Prefer conservative dependency ranges for public release tools unless a new version fixes a bug, security issue, or needed feature.
+
+Do not add dependencies just to silence Clippy. Fix the code instead.
+
 ## Rust architecture expectations
 
 Prefer small, explicit modules over abstract frameworks.
