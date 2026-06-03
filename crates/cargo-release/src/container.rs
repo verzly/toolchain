@@ -1,9 +1,11 @@
 //! Docker/Podman command construction. Container isolation is an execution strategy, not part of target planning.
 
-use crate::config::{ContainerEngine, TargetConfig};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
+
+use crate::config::{ContainerEngine, TargetConfig};
+
 
 // Container execution mounts the repository at a stable path so target commands stay portable.
 pub fn run(

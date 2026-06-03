@@ -1,9 +1,10 @@
 //! Pure release planning logic. This module resolves names, branches, repositories, and prerelease state without touching Git or GitHub.
 
-use crate::cli::PrereleaseMode;
-use crate::config::Config;
 use anyhow::{Context, Result};
 use semver::Version;
+
+use crate::cli::PrereleaseMode;
+use crate::config::Config;
 
 #[derive(Clone, Debug)]
 pub struct ReleasePlan {

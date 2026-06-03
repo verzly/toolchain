@@ -18,7 +18,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         let mut targets = BTreeMap::new();
-        targets.insert("linux-x64".to_string(), TargetConfig::linux_default("my-tool"));
+        targets.insert(
+            "linux-x64".to_string(),
+            TargetConfig::linux_default("my-tool"),
+        );
         Self {
             project: ProjectConfig::default(),
             build: BuildConfig::default(),
@@ -37,7 +40,10 @@ pub struct ProjectConfig {
 
 impl Default for ProjectConfig {
     fn default() -> Self {
-        Self { root: PathBuf::from("."), binary: "my-tool".to_string() }
+        Self {
+            root: PathBuf::from("."),
+            binary: "my-tool".to_string(),
+        }
     }
 }
 
@@ -118,7 +124,9 @@ pub enum Strategy {
 }
 
 impl Default for Strategy {
-    fn default() -> Self { Self::Host }
+    fn default() -> Self {
+        Self::Host
+    }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -129,7 +137,9 @@ pub enum ContainerEngine {
 }
 
 impl Default for ContainerEngine {
-    fn default() -> Self { Self::Podman }
+    fn default() -> Self {
+        Self::Podman
+    }
 }
 
 impl ContainerEngine {
@@ -142,8 +152,8 @@ impl ContainerEngine {
 }
 
 pub fn load(path: &Path) -> Result<Config> {
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 

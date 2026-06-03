@@ -1,10 +1,11 @@
 //! Human-readable and CI output helpers. GitHub Actions output writing stays here instead of being duplicated by commands.
 
-use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
+
+use crate::domain::ReleasePlan;
 
 pub fn print_plan(plan: &ReleasePlan) {
     println!("version:        {}", plan.version_text);

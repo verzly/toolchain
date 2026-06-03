@@ -1,10 +1,11 @@
 //! Version file updates for TOML, JSON, and plain text files. Commands decide when to call this; this module decides how values are written.
 
-use crate::config::{VersionFileConfig, VersionFileKind};
-use crate::domain::{render_template, ReleasePlan};
 use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use std::fs;
+
+use crate::config::{VersionFileConfig, VersionFileKind};
+use crate::domain::{render_template, ReleasePlan};
 
 pub fn update_all(files: &[VersionFileConfig], plan: &ReleasePlan, dry_run: bool) -> Result<()> {
     for file in files {
@@ -12,7 +13,10 @@ pub fn update_all(files: &[VersionFileConfig], plan: &ReleasePlan, dry_run: bool
             if file.optional {
                 continue;
             }
-            anyhow::bail!("configured version file does not exist: {}", file.path.display());
+            anyhow::bail!(
+                "configured version file does not exist: {}",
+                file.path.display()
+            );
         }
 
         let rendered = render_value(file, plan);
@@ -48,7 +52,10 @@ fn update_json(file: &VersionFileConfig, value: &str) -> Result<()> {
     let raw = fs::read_to_string(&file.path)?;
     let mut data: JsonValue = serde_json::from_str(&raw)?;
     set_json_value(&mut data, &file.key, value)?;
-    fs::write(&file.path, format!("{}\n", serde_json::to_string_pretty(&data)?))?;
+    fs::write(
+        &file.path,
+        format!("{}\n", serde_json::to_string_pretty(&data)?),
+    )?;
     Ok(())
 }
 

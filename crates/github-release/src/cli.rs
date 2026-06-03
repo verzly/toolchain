@@ -6,7 +6,11 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "github-release")]
 #[command(bin_name = "github-release")]
-#[command(author, version, about = "Reusable GitHub release branch and publishing orchestrator")]
+#[command(
+    author,
+    version,
+    about = "Reusable GitHub release branch and publishing orchestrator"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

@@ -34,9 +34,15 @@ pub fn detect() -> Result<Workspace> {
         return Ok(workspace);
     }
     if let Some(root) = git_root() {
-        return Ok(Workspace { root, package: None });
+        return Ok(Workspace {
+            root,
+            package: None,
+        });
     }
-    Ok(Workspace { root: std::env::current_dir()?, package: None })
+    Ok(Workspace {
+        root: std::env::current_dir()?,
+        package: None,
+    })
 }
 
 fn from_cargo_metadata() -> Result<Option<Workspace>> {
@@ -45,17 +51,29 @@ fn from_cargo_metadata() -> Result<Option<Workspace>> {
         .stdin(Stdio::null())
         .output();
 
-    let Ok(output) = output else { return Ok(None); };
-    if !output.status.success() { return Ok(None); }
+    let Ok(output) = output else {
+        return Ok(None);
+    };
+    if !output.status.success() {
+        return Ok(None);
+    }
 
     let metadata: CargoMetadata = serde_json::from_slice(&output.stdout)?;
     let package = metadata
         .resolve
         .and_then(|resolve| resolve.root)
-        .and_then(|id| metadata.packages.into_iter().find(|package| package.id == id))
+        .and_then(|id| {
+            metadata
+                .packages
+                .into_iter()
+                .find(|package| package.id == id)
+        })
         .map(|package| package.name);
 
-    Ok(Some(Workspace { root: metadata.workspace_root, package }))
+    Ok(Some(Workspace {
+        root: metadata.workspace_root,
+        package,
+    }))
 }
 
 fn git_root() -> Option<PathBuf> {
@@ -64,7 +82,13 @@ fn git_root() -> Option<PathBuf> {
         .stdin(Stdio::null())
         .output()
         .ok()?;
-    if !output.status.success() { return None; }
+    if !output.status.success() {
+        return None;
+    }
     let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if root.is_empty() { None } else { Some(PathBuf::from(root)) }
+    if root.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(root))
+    }
 }

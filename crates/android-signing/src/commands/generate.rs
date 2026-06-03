@@ -1,9 +1,10 @@
 //! Generates a release keystore. This command is careful about existing files because signing keys are long-lived.
 
+use anyhow::Result;
+
 use crate::android::{self, GenerateKeystore};
 use crate::cli::GenerateArgs;
 use crate::secrets;
-use anyhow::Result;
 
 pub fn run(args: GenerateArgs) -> Result<()> {
     // Overwriting a keystore can break updates for already released Android apps, so it is opt-in.
@@ -14,7 +15,8 @@ pub fn run(args: GenerateArgs) -> Result<()> {
     let store_password = if args.generate_passwords {
         secrets::random_password()
     } else {
-        args.store_password.unwrap_or(secrets::prompt_password("Keystore password")?)
+        args.store_password
+            .unwrap_or(secrets::prompt_password("Keystore password")?)
     };
 
     let key_password = if args.generate_passwords {
@@ -45,7 +47,10 @@ pub fn run(args: GenerateArgs) -> Result<()> {
     }
 
     if args.print_base64 && !args.dry_run {
-        println!("ANDROID_KEYSTORE_BASE64={}", android::keystore_base64(&args.output)?);
+        println!(
+            "ANDROID_KEYSTORE_BASE64={}",
+            android::keystore_base64(&args.output)?
+        );
     }
 
     Ok(())

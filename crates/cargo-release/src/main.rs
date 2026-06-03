@@ -9,9 +9,10 @@ mod container;
 mod manifest;
 mod process;
 
-use crate::cli::{Cli, Commands};
 use anyhow::Result;
 use clap::Parser;
+
+use crate::cli::{Cli, Commands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

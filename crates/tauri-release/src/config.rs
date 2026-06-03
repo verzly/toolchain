@@ -38,7 +38,10 @@ pub struct ProjectConfig {
 
 impl Default for ProjectConfig {
     fn default() -> Self {
-        Self { root: PathBuf::from("."), frontend_install: None }
+        Self {
+            root: PathBuf::from("."),
+            frontend_install: None,
+        }
     }
 }
 
@@ -70,7 +73,12 @@ pub struct ArtifactConfig {
 }
 
 impl Default for ArtifactConfig {
-    fn default() -> Self { Self { checksum: true, manifest: true } }
+    fn default() -> Self {
+        Self {
+            checksum: true,
+            manifest: true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -115,32 +123,57 @@ impl PlatformConfig {
 }
 
 impl Default for PlatformConfig {
-    fn default() -> Self { Self::linux_default() }
+    fn default() -> Self {
+        Self::linux_default()
+    }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
-pub enum Strategy { Auto, Host, Container }
-impl Default for Strategy { fn default() -> Self { Self::Host } }
+pub enum Strategy {
+    Auto,
+    Host,
+    Container,
+}
+
+impl Default for Strategy {
+    fn default() -> Self {
+        Self::Host
+    }
+}
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
-pub enum ContainerEngine { Docker, Podman }
-impl Default for ContainerEngine { fn default() -> Self { Self::Podman } }
+pub enum ContainerEngine {
+    Docker,
+    Podman,
+}
+
+impl Default for ContainerEngine {
+    fn default() -> Self {
+        Self::Podman
+    }
+}
+
 impl ContainerEngine {
     pub fn executable(self) -> &'static str {
-        match self { Self::Docker => "docker", Self::Podman => "podman" }
+        match self {
+            Self::Docker => "docker",
+            Self::Podman => "podman",
+        }
     }
 }
 
 pub fn load(path: &Path) -> Result<Config> {
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
-    if path.exists() && !force { anyhow::bail!("config already exists: {}", path.display()); }
+    if path.exists() && !force {
+        anyhow::bail!("config already exists: {}", path.display());
+    }
     fs::write(path, toml::to_string_pretty(&Config::default())?)?;
     Ok(())
 }

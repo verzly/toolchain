@@ -11,7 +11,9 @@ pub fn run(args: CommonArgs) -> Result<()> {
     println!(
         "{}: {}",
         config.build.container_engine.executable(),
-        available_text(process::available(config.build.container_engine.executable()))
+        available_text(process::available(
+            config.build.container_engine.executable()
+        ))
     );
     for (name, target) in &config.targets {
         if target.enabled && target.strategy == Strategy::Container && target.image.is_none() {

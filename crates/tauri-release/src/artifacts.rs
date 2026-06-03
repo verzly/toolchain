@@ -1,11 +1,12 @@
 //! Artifact collection for desktop bundles and mobile outputs. Patterns are configured instead of hard-coded.
 
-use crate::checksums;
 use anyhow::{Context, Result};
 use glob::glob;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::checksums;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ArtifactRecord {
@@ -38,14 +39,15 @@ pub fn collect(
                 .context("artifact path has no file name")?;
             let output = platform_out.join(file_name);
             fs::copy(&source, &output).with_context(|| {
-                format!("failed to copy {} to {}", source.display(), output.display())
+                format!(
+                    "failed to copy {} to {}",
+                    source.display(),
+                    output.display()
+                )
             })?;
             let sha256 = if write_checksums {
                 let hash = checksums::sha256_file(&output)?;
-                fs::write(
-                    output.with_extension("sha256"),
-                    format!("{hash}  {}\n", file_name.to_string_lossy()),
-                )?;
+                fs::write(output.with_extension("sha256"), format!("{hash}  {}\n", file_name.to_string_lossy()))?;
                 Some(hash)
             } else {
                 None

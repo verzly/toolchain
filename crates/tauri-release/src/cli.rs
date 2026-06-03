@@ -6,7 +6,11 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "tauri-release")]
 #[command(bin_name = "tauri-release")]
-#[command(author, version, about = "Release builder for Tauri desktop and mobile artifacts")]
+#[command(
+    author,
+    version,
+    about = "Release builder for Tauri desktop and mobile artifacts"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

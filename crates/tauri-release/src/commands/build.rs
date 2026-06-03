@@ -1,12 +1,12 @@
 //! Build command orchestration for enabled platforms. The command coordinates work; platform behavior stays in config.
 
+use anyhow::Result;
 use crate::artifacts;
 use crate::cli::BuildArgs;
 use crate::config::{self, Strategy};
 use crate::container;
 use crate::manifest;
 use crate::process;
-use anyhow::Result;
 
 pub fn run(args: BuildArgs) -> Result<()> {
     let config = config::load(&args.config)?;
@@ -42,15 +42,8 @@ pub fn run(args: BuildArgs) -> Result<()> {
 
         println!("building {name} ({strategy:?})");
         match strategy {
-            Strategy::Host | Strategy::Auto => {
-                process::shell(&platform.command, &platform.env, args.dry_run)?
-            }
-            Strategy::Container => container::run(
-                config.build.container_engine,
-                &project_root,
-                platform,
-                args.dry_run,
-            )?,
+            Strategy::Host | Strategy::Auto => process::shell(&platform.command, &platform.env, args.dry_run)?,
+            Strategy::Container => container::run(config.build.container_engine, &project_root, platform, args.dry_run)?,
         }
 
         if !args.dry_run {

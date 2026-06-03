@@ -1,10 +1,12 @@
 //! Builds the environment variable plan used by `run` and `env`. This is the core behavior of the tool.
 
-use crate::config::Config;
-use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use crate::config::Config;
+use crate::workspace;
+
 
 // The plan is built before the command runs so contributors can inspect paths without side effects.
 #[derive(Clone, Debug)]
@@ -36,18 +38,31 @@ impl EnvPlan {
         if config.cache.redirect_cargo_home {
             values.insert(
                 "CARGO_HOME".to_string(),
-                cache_root.join("rust").join("cargo-home").display().to_string(),
+                cache_root
+                    .join("rust")
+                    .join("cargo-home")
+                    .display()
+                    .to_string(),
             );
         }
 
         if config.cache.redirect_gradle {
             values.insert(
                 "GRADLE_USER_HOME".to_string(),
-                cache_root.join("android").join("gradle").display().to_string(),
+                cache_root
+                    .join("android")
+                    .join("gradle")
+                    .display()
+                    .to_string(),
             );
         }
 
-        Ok(Self { workspace_root: workspace.root, package, cache_root, values })
+        Ok(Self {
+            workspace_root: workspace.root,
+            package,
+            cache_root,
+            values,
+        })
     }
 
     pub fn print_exports(&self) {

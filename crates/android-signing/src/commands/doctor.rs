@@ -4,6 +4,13 @@ use crate::android;
 use anyhow::Result;
 
 pub fn run() -> Result<()> {
-    println!("keytool: {}", if android::keytool_available() { "ok" } else { "missing" });
+    println!(
+        "keytool: {}",
+        if android::keytool_available() {
+            "ok"
+        } else {
+            "missing"
+        }
+    );
     Ok(())
 }

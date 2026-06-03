@@ -6,7 +6,11 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "cargo-release")]
 #[command(bin_name = "cargo-release")]
-#[command(author, version, about = "Container-aware release builder for Rust executable artifacts")]
+#[command(
+    author,
+    version,
+    about = "Container-aware release builder for Rust executable artifacts"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

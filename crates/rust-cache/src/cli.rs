@@ -6,11 +6,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "rust-cache")]
 #[command(bin_name = "rust-cache")]
-#[command(
-    author,
-    version,
-    about = "Project-local cache routing helper for Rust and Tauri workspaces"
-)]
+#[command(author, version, about = "Project-local cache routing helper for Rust and Tauri workspaces")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

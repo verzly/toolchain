@@ -12,7 +12,11 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Self { Self { cache: CacheConfig::default() } }
+    fn default() -> Self {
+        Self {
+            cache: CacheConfig::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -39,13 +43,15 @@ pub fn load(path: &Path) -> Result<Config> {
     if !path.exists() {
         return Ok(Config::default());
     }
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
-    if path.exists() && !force { anyhow::bail!("config already exists: {}", path.display()); }
+    if path.exists() && !force {
+        anyhow::bail!("config already exists: {}", path.display());
+    }
     fs::write(path, toml::to_string_pretty(&Config::default())?)?;
     Ok(())
 }

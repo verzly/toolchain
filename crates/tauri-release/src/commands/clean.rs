@@ -1,9 +1,9 @@
 //! Clean command for generated release output and configured cache directories.
 
-use crate::cli::CommonArgs;
-use crate::config;
 use anyhow::Result;
 use std::fs;
+use crate::cli::CommonArgs;
+use crate::config;
 
 pub fn run(args: CommonArgs) -> Result<()> {
     let config = config::load(&args.config)?;

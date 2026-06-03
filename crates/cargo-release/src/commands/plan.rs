@@ -1,8 +1,8 @@
 //! Planning command for reviewing target configuration before any build process starts.
 
+use anyhow::Result;
 use crate::cli::CommonArgs;
 use crate::config;
-use anyhow::Result;
 
 pub fn run(args: CommonArgs) -> Result<()> {
     let config = config::load(&args.config)?;

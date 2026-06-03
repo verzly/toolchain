@@ -1,12 +1,13 @@
 //! Implements the source success phase after artifacts already exist. This command merges and tags; publishing can be skipped.
 
+use anyhow::Result;
+
 use crate::cli::FinalizeArgs;
 use crate::config;
 use crate::domain;
 use crate::git;
 use crate::github;
 use crate::output;
-use anyhow::Result;
 
 // Finalize is intentionally ordered from safest to most public operation:
 // merge first, then tag, then optionally publish a GitHub Release from that tag.
@@ -37,11 +38,20 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
     git::run(["checkout", &plan.target_branch], args.dry_run)?;
     git::run(["pull", "--ff-only", "origin", &plan.target_branch], args.dry_run)?;
     git::run(
-        ["merge", "--no-ff", &remote_release_branch, "-m", &plan.merge_message],
+        [
+            "merge",
+            "--no-ff",
+            &remote_release_branch,
+            "-m",
+            &plan.merge_message,
+        ],
         args.dry_run,
     )?;
     git::run(["push", "origin", &plan.target_branch], args.dry_run)?;
-    git::run(["tag", "-a", &plan.tag, "-m", &plan.release_name], args.dry_run)?;
+    git::run(
+        ["tag", "-a", &plan.tag, "-m", &plan.release_name],
+        args.dry_run,
+    )?;
     git::run(["push", "origin", &plan.tag], args.dry_run)?;
 
     // Publishing is intentionally last: by this point the target branch and tag already represent the release.
@@ -52,7 +62,10 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
     }
 
     if config.release.cleanup && !args.keep_branch {
-        git::run(["push", "origin", "--delete", &plan.release_branch], args.dry_run)?;
+        git::run(
+            ["push", "origin", "--delete", &plan.release_branch],
+            args.dry_run,
+        )?;
         if git::branch_exists(&plan.release_branch) || args.dry_run {
             git::run(["branch", "-D", &plan.release_branch], args.dry_run)?;
         }
