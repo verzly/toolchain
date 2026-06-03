@@ -49,3 +49,31 @@ pub struct RunArgs {
     #[arg(last = true, required = true)]
     pub command: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_run_command_after_separator() {
+        let cli = Cli::parse_from([
+            "rust-cache",
+            "run",
+            "--config",
+            "cache.toml",
+            "--",
+            "cargo",
+            "test",
+            "--workspace",
+        ]);
+
+        let Commands::Run(args) = cli.command else {
+            panic!("expected run command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("cache.toml"));
+        assert_eq!(args.command, vec!["cargo", "test", "--workspace"]);
+    }
+}

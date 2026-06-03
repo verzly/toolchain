@@ -61,3 +61,34 @@ pub struct BuildArgs {
     #[arg(long, default_value_t = false)]
     pub dry_run: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_build_options() {
+        let cli = Cli::parse_from([
+            "cargo-release",
+            "build",
+            "--config",
+            "release.toml",
+            "--version",
+            "1.2.3",
+            "--target",
+            "linux-x64",
+            "--dry-run",
+        ]);
+
+        let Commands::Build(args) = cli.command else {
+            panic!("expected build command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("release.toml"));
+        assert_eq!(args.version.as_deref(), Some("1.2.3"));
+        assert_eq!(args.target.as_deref(), Some("linux-x64"));
+        assert!(args.dry_run);
+    }
+}

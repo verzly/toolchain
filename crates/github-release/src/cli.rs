@@ -184,3 +184,37 @@ pub enum PrereleaseMode {
     True,
     False,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_publish_options() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "publish",
+            "--version",
+            "1.2.3-rc.1",
+            "--config",
+            "release.toml",
+            "--assets",
+            "dist",
+            "--prerelease",
+            "true",
+            "--dry-run",
+        ]);
+
+        let Commands::Publish(args) = cli.command else {
+            panic!("expected publish command");
+        };
+
+        assert_eq!(args.version, "1.2.3-rc.1");
+        assert_eq!(args.config, PathBuf::from("release.toml"));
+        assert_eq!(args.assets, Some(PathBuf::from("dist")));
+        assert_eq!(args.prerelease, PrereleaseMode::True);
+        assert!(args.dry_run);
+    }
+}

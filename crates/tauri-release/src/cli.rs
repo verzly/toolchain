@@ -57,3 +57,31 @@ pub struct BuildArgs {
     #[arg(long, default_value_t = false)]
     pub dry_run: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_build_platform_options() {
+        let cli = Cli::parse_from([
+            "tauri-release",
+            "build",
+            "--config",
+            "tauri-release.toml",
+            "--platform",
+            "android",
+            "--dry-run",
+        ]);
+
+        let Commands::Build(args) = cli.command else {
+            panic!("expected build command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("tauri-release.toml"));
+        assert_eq!(args.platform.as_deref(), Some("android"));
+        assert!(args.dry_run);
+    }
+}
