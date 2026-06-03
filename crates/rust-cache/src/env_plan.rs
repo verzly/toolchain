@@ -1,6 +1,6 @@
 //! Builds the environment variable plan used by `run` and `env`. This is the core behavior of the tool.
 
-use crate::config::{CacheConfig, Config};
+use crate::config::Config;
 use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;

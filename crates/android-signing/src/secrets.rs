@@ -20,8 +20,6 @@ mod tests {
         let password = random_password();
 
         assert_eq!(password.len(), 32);
-        assert!(password
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric()));
+        assert!(password.chars().all(|character| character.is_ascii_alphanumeric()));
     }
 }

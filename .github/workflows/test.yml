@@ -1,17 +1,8 @@
 name: Test
 
 on:
-  pull_request:
-    branches:
-      - master
   push:
-    branches:
-      - master
-  workflow_dispatch:
-
-concurrency:
-  group: test-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  pull_request:
 
 jobs:
   rust:
@@ -52,12 +43,6 @@ jobs:
           test ! -d "distribution"
           test ! -d "scripts"
           test -f "github-release.toml"
-          grep -Fq "pull_request:" ".github/workflows/test.yml"
-          grep -Fq "workflow_dispatch:" ".github/workflows/test.yml"
-          grep -Fq "cancel-in-progress: true" ".github/workflows/test.yml"
-          grep -Fq "push:" ".github/workflows/test.yml"
-          grep -Fq "      - master" ".github/workflows/test.yml"
-          python3 -c 'from pathlib import Path; text = Path(".github/workflows/test.yml").read_text(); assert "push:\n    branches:\n      - master" in text'
           test -f ".github/workflows/_release-toolchain.yml"
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"

@@ -121,9 +121,6 @@ mod tests {
         let path = std::env::temp_dir().join(format!("android-signing-keystore-{suffix}.jks"));
         std::fs::write(&path, b"keystore").expect("write keystore");
 
-        assert_eq!(
-            keystore_base64(&path).expect("encode keystore"),
-            "a2V5c3RvcmU="
-        );
+        assert_eq!(keystore_base64(&path).expect("encode keystore"), "a2V5c3RvcmU=");
     }
 }

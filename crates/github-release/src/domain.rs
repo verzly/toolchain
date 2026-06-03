@@ -1,7 +1,7 @@
 //! Pure release planning logic. This module resolves names, branches, repositories, and prerelease state without touching Git or GitHub.
 
 use crate::cli::PrereleaseMode;
-use crate::config::{Config, NotesMode};
+use crate::config::{Config, GitHubConfig, NotesConfig, NotesMode, ReleaseConfig};
 use anyhow::{Context, Result};
 use semver::Version;
 
@@ -181,8 +181,14 @@ mod tests {
             Some(PrereleaseMode::False),
         )
         .expect("valid plan");
-        let forced_true = build_plan(&config, "1.2.3", None, None, Some(PrereleaseMode::True))
-            .expect("valid plan");
+        let forced_true = build_plan(
+            &config,
+            "1.2.3",
+            None,
+            None,
+            Some(PrereleaseMode::True),
+        )
+        .expect("valid plan");
 
         assert!(auto.prerelease);
         assert!(!forced_false.prerelease);

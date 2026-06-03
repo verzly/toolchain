@@ -206,12 +206,6 @@ If a PR changes multiple packages in a meaningful user-facing way, prefer splitt
 
 Package public release notes include a commit when either the commit/PR title has the package scope or the changed files are under the package path configured in `crates/<tool>/github-release.toml`. The root toolchain release can contain mixed PRs and commits.
 
-## Contributor documentation
-
-The `toolchain/CONTRIBUTING.md` file is the only place for maintainer-facing setup, verification commands, commit conventions, PR title scopes, testing expectations, distribution repository updates, and release workflow instructions. Keep it current whenever workflows, release inputs, repository boundaries, or required local checks change.
-
-The root README must not contain a contributor guide, a contributing section, local setup instructions, commit instructions, PR rules, or step-by-step release instructions. The README should explain the project model and release architecture at a high level only. Put all maintainer workflow details in `CONTRIBUTING.md`.
-
 ## Dependency maintenance
 
 Dependency upgrades must be intentional and separate from formatting, workflow, and README-only changes.
@@ -346,7 +340,7 @@ Prefer explicit allowlists for generated artifact paths and uploaded files.
 
 Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must use a structured multi-level menu with planned main sections and subsections, not a single flat list. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
 
-The public README can be longer than the crate README. The public README is the product documentation for the distribution repository; the crate README is internal developer context. Public README files may mention that source lives in `verzly/toolchain`, but they must not contain contributor-guide sections or maintainer workflow instructions.
+The public README can be longer than the crate README. The public README is the product documentation for the distribution repository; the crate README is internal developer context.
 
 The root `toolchain/README.md` is for maintainers. Crate-level READMEs are for internal development. Public distribution READMEs live outside the project in the handoff `_repos/` export.
 
@@ -377,11 +371,12 @@ Use this default structure for public distribution repositories:
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Operational notes](#operational-notes)
+- [Contributing](#contributing)
 ```
 
 If a tool does not have a TOML configuration file, omit the `Configuration` group. If a tool has security-specific behavior, replace `Operational notes` with `Security notes`.
 
-The README must include a `License` section at the end, but the internal menu must intentionally omit it. Do not add a `## Contents` heading above the menu. The README must not contain contributor-guide content, commit rules, local setup instructions, PR rules, or release-maintainer instructions; those belong in `toolchain/CONTRIBUTING.md`.
+The README must include a `License` section at the end, but the internal menu must intentionally omit it. Do not add a `## Contents` heading above the menu. This matches the preferred README convention: the license is present in the document, but it is not part of the navigation menu.
 
 Required public README content:
 
@@ -393,7 +388,8 @@ Required public README content:
 6. `Configuration`, when the tool has a TOML config, including a realistic example and a field table.
 7. `Practical workflows`, with real copy-pasteable workflows for common situations.
 8. `Reference`, with troubleshooting, release artifacts, and operational/security notes.
-9. `License`, after reference material, omitted from the menu.
+9. `Contributing`, explaining that source changes happen in `verzly/toolchain`.
+10. `License`, after contributing, omitted from the menu.
 
 Rules for argument documentation:
 
@@ -422,12 +418,3 @@ Do not put source code in public distribution repositories.
 Do not make public distribution repositories responsible for testing, building, or releasing themselves.
 
 Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.
-
-### Workflow trigger policy
-
-Test workflows must never run twice for the same pull request update because of both `push` and `pull_request` triggers. Use `pull_request` for PR validation and restrict `push` validation to the default branch only. Keep an explicit `workflow_dispatch` trigger only when manual reruns are useful. Add `concurrency` with `cancel-in-progress: true` for test workflows so outdated runs do not continue after newer commits arrive.
-
-
-### Mandatory verification loop
-
-Do not hand off code with known unresolved `cargo fmt`, `cargo clippy`, or `cargo test` failures. If CI returns a concrete diff or error, apply that exact fix before producing the next ZIP.

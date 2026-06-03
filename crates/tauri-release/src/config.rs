@@ -180,10 +180,7 @@ mod tests {
         let android = config.platforms.get("android").expect("android platform");
 
         assert_eq!(config.build.out_dir, PathBuf::from("dist"));
-        assert_eq!(
-            config.build.cache_dir,
-            PathBuf::from(".cache/tauri-release")
-        );
+        assert_eq!(config.build.cache_dir, PathBuf::from(".cache/tauri-release"));
         assert_eq!(linux.strategy, Strategy::Host);
         assert!(linux.enabled);
         assert_eq!(android.strategy, Strategy::Container);
