@@ -97,8 +97,9 @@ fn read_existing_config(path: &Path) -> Result<Value> {
 
     let raw = fs::read_to_string(path)
         .with_context(|| format!("failed to read Cargo config {}", path.display()))?;
-    raw.parse::<Value>()
-        .with_context(|| format!("failed to parse Cargo config {}", path.display()))
+    let table = toml::from_str::<Table>(&raw)
+        .with_context(|| format!("failed to parse Cargo config {}", path.display()))?;
+    Ok(Value::Table(table))
 }
 
 fn normalize_path(path: &Path) -> String {
