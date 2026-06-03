@@ -1,0 +1,5 @@
+[cache]
+dir = ".cache"
+package = "auto"
+redirect_cargo_home = false
+redirect_gradle = true

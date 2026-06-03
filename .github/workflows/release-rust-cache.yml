@@ -1,0 +1,27 @@
+name: Release Rust Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v. Examples: 1.2.3, 1.2.3-rc.1"
+        required: true
+      prerelease:
+        description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - "true"
+          - "false"
+
+jobs:
+  release:
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: rust-cache
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

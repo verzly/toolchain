@@ -1,0 +1,41 @@
+[project]
+root = "."
+binary = "rust-cache"
+
+[build]
+out_dir = "dist/rust-cache"
+default_strategy = "host"
+container_engine = "podman"
+
+[artifacts]
+checksum = true
+manifest = true
+name_template = "{binary}-v{version}-{target}{ext}"
+
+[targets.linux-x64]
+enabled = true
+triple = "x86_64-unknown-linux-gnu"
+strategy = "host"
+command = "cargo build --release -p rust-cache"
+artifacts = ["target/release/rust-cache"]
+
+[targets.macos-x64]
+enabled = true
+triple = "x86_64-apple-darwin"
+strategy = "host"
+command = "cargo build --release -p rust-cache"
+artifacts = ["target/release/rust-cache"]
+
+[targets.macos-arm64]
+enabled = true
+triple = "aarch64-apple-darwin"
+strategy = "host"
+command = "cargo build --release -p rust-cache"
+artifacts = ["target/release/rust-cache"]
+
+[targets.windows-x64]
+enabled = true
+triple = "x86_64-pc-windows-msvc"
+strategy = "host"
+command = "cargo build --release -p rust-cache"
+artifacts = ["target/release/rust-cache.exe"]

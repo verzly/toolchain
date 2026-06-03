@@ -1,0 +1,22 @@
+[package]
+name = "tauri-release"
+version = "0.1.0"
+edition.workspace = true
+description = "Release builder for Tauri desktop and mobile artifacts"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+glob = "0.3"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+toml = "1.1"
+walkdir = "2.5"
+
+[[bin]]
+name = "tauri-release"
+path = "src/main.rs"

@@ -1,0 +1,76 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap cache helper
+        run: |
+          cargo build --release -p rust-cache
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Format
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
+
+      - name: Clippy
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
+
+  repository-model:
+    name: Repository model
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate repository boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -d "_repos"
+          test ! -d "distribution"
+          test ! -d "scripts"
+          test -f "github-release.toml"
+          test -f ".github/workflows/_release-toolchain.yml"
+          test -f ".github/workflows/release-toolchain.yml"
+          test -f ".github/workflows/release-all.yml"
+          grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
+          grep -Fq "tag_prefix = \"v\"" "github-release.toml"
+          for tool in github-release cargo-release tauri-release rust-cache android-signing; do
+            test -f "crates/${tool}/Cargo.toml"
+            test -f "crates/${tool}/source-github-release.toml"
+            test -f "crates/${tool}/github-release.toml"
+            test -f "crates/${tool}/cargo-release.toml"
+            grep -Fq "target_repository = \"verzly/${tool}\"" "crates/${tool}/github-release.toml"
+            grep -Fq "source_repository = \"verzly/toolchain\"" "crates/${tool}/github-release.toml"
+            grep -Fq "tag_prefix = \"${tool}-v\"" "crates/${tool}/source-github-release.toml"
+            grep -Fq "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
+            grep -Fq "mode = \"scoped\"" "crates/${tool}/github-release.toml"
+            grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
+            grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"
+          done

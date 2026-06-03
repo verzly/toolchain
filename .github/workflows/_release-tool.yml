@@ -1,0 +1,230 @@
+name: Release Tool
+
+on:
+  workflow_call:
+    inputs:
+      tool:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      prerelease:
+        required: false
+        type: string
+        default: auto
+    secrets:
+      DISTRIBUTION_REPO_TOKEN:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare_source:
+    name: Prepare source
+    runs-on: ubuntu-latest
+    outputs:
+      release_branch: ${{ steps.prepare.outputs.release_branch }}
+      source_tag: ${{ steps.prepare.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Git
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap release tools
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Prepare source release
+        id: prepare
+        run: >-
+          github-release prepare
+          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --version "${{ inputs.version }}"
+
+  test:
+    name: Test source
+    needs: prepare_source
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare_source.outputs.release_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap cache helper
+        run: |
+          cargo build --release -p rust-cache
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Check formatting
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run tests
+        run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
+
+  build:
+    name: Build ${{ inputs.tool }} for ${{ matrix.target }}
+    needs:
+      - prepare_source
+      - test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-13
+            target: macos-x64
+          - os: macos-14
+            target: macos-arm64
+          - os: windows-latest
+            target: windows-x64
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare_source.outputs.release_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap release tools
+        shell: bash
+        run: |
+          cargo build --release -p cargo-release -p rust-cache
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Build executable assets
+        shell: bash
+        run: >-
+          rust-cache run --config crates/rust-cache/rust-cache.toml --
+          cargo-release build
+          --config "crates/${{ inputs.tool }}/cargo-release.toml"
+          --version "${{ inputs.version }}"
+          --target "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.tool }}-${{ matrix.target }}
+          path: dist/${{ inputs.tool }}/**/*
+          if-no-files-found: error
+
+  abort_source:
+    name: Abort source
+    needs:
+      - prepare_source
+      - test
+      - build
+    if: ${{ always() && needs.prepare_source.result == 'success' && (needs.test.result == 'failure' || needs.test.result == 'cancelled' || needs.build.result == 'failure' || needs.build.result == 'cancelled') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap release tool
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Delete source release branch
+        run: >-
+          github-release abort
+          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --version "${{ inputs.version }}"
+
+  finalize_source:
+    name: Finalize source
+    needs:
+      - prepare_source
+      - build
+    runs-on: ubuntu-latest
+    outputs:
+      source_tag: ${{ steps.finalize.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare_source.outputs.release_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Git
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap release tool
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - name: Merge and tag source release
+        id: finalize
+        run: >-
+          github-release finalize
+          --config "crates/${{ inputs.tool }}/source-github-release.toml"
+          --version "${{ inputs.version }}"
+          --skip-github-release
+
+  publish_distribution:
+    name: Publish distribution
+    needs:
+      - finalize_source
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap release tool
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/target/release" >> "${GITHUB_PATH}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded-assets
+
+      - name: Publish public release
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+        run: >-
+          github-release publish
+          --config "crates/${{ inputs.tool }}/github-release.toml"
+          --version "${{ inputs.version }}"
+          --assets downloaded-assets
+          --prerelease "${{ inputs.prerelease }}"

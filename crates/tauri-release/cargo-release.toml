@@ -1,0 +1,41 @@
+[project]
+root = "."
+binary = "tauri-release"
+
+[build]
+out_dir = "dist/tauri-release"
+default_strategy = "host"
+container_engine = "podman"
+
+[artifacts]
+checksum = true
+manifest = true
+name_template = "{binary}-v{version}-{target}{ext}"
+
+[targets.linux-x64]
+enabled = true
+triple = "x86_64-unknown-linux-gnu"
+strategy = "host"
+command = "cargo build --release -p tauri-release"
+artifacts = ["target/release/tauri-release"]
+
+[targets.macos-x64]
+enabled = true
+triple = "x86_64-apple-darwin"
+strategy = "host"
+command = "cargo build --release -p tauri-release"
+artifacts = ["target/release/tauri-release"]
+
+[targets.macos-arm64]
+enabled = true
+triple = "aarch64-apple-darwin"
+strategy = "host"
+command = "cargo build --release -p tauri-release"
+artifacts = ["target/release/tauri-release"]
+
+[targets.windows-x64]
+enabled = true
+triple = "x86_64-pc-windows-msvc"
+strategy = "host"
+command = "cargo build --release -p tauri-release"
+artifacts = ["target/release/tauri-release.exe"]

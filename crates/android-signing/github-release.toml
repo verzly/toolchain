@@ -1,0 +1,27 @@
+files = []
+# Distribution repositories do not contain source files or version files.
+# This config is used by `github-release publish` from verzly/toolchain.
+
+[release]
+target_branch = "master"
+branch_prefix = "release/"
+tag_prefix = "v"
+tag_suffix = ""
+name_prefix = ""
+name_suffix = ""
+commit_message = "chore(release): prepare {tag}"
+merge_message = "chore(release): merge {tag}"
+cleanup = true
+latest = true
+
+[github]
+target_repository = "verzly/android-signing"
+source_repository = "verzly/toolchain"
+source_tag_prefix = "android-signing-v"
+source_tag_suffix = ""
+generate_notes = true
+
+[github.notes]
+mode = "scoped"
+include_scopes = ["android-signing", "all"]
+include_paths = ["crates/android-signing/"]

@@ -1,0 +1,82 @@
+name: Release All
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release for every public tool and the toolchain release, without the leading v."
+        required: true
+      prerelease:
+        description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - "true"
+          - "false"
+
+jobs:
+  github-release:
+    name: Release github-release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: github-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+  cargo-release:
+    name: Release cargo-release
+    needs: github-release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: cargo-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+  tauri-release:
+    name: Release tauri-release
+    needs: cargo-release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: tauri-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+  rust-cache:
+    name: Release rust-cache
+    needs: tauri-release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: rust-cache
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+  android-signing:
+    name: Release android-signing
+    needs: rust-cache
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: android-signing
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
+  toolchain:
+    name: Release toolchain
+    needs: android-signing
+    uses: ./.github/workflows/_release-toolchain.yml
+    with:
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
