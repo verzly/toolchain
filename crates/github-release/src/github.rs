@@ -81,13 +81,22 @@ fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBu
             plan.github.source_tag
         )
     } else if plan.github.notes.mode == NotesMode::Scoped {
-        generate_scoped_notes_from_git(plan)
-            .unwrap_or_else(|error| {
-                fallback_notes(source_repository, &plan.github.source_tag, &error.to_string())
-            })
+        generate_scoped_notes_from_git(plan).unwrap_or_else(|error| {
+            fallback_notes(
+                source_repository,
+                &plan.github.source_tag,
+                &error.to_string(),
+            )
+        })
     } else {
         generate_notes_from_source(source_repository, &plan.github.source_tag).unwrap_or_else(
-            |error| fallback_notes(source_repository, &plan.github.source_tag, &error.to_string()),
+            |error| {
+                fallback_notes(
+                    source_repository,
+                    &plan.github.source_tag,
+                    &error.to_string(),
+                )
+            },
         )
     };
 
@@ -237,7 +246,9 @@ fn commit_matches(
 
     commit.paths.iter().any(|path| {
         let normalized = normalize_path(path);
-        include_paths.iter().any(|prefix| normalized.starts_with(prefix))
+        include_paths
+            .iter()
+            .any(|prefix| normalized.starts_with(prefix))
     })
 }
 

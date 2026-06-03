@@ -332,13 +332,11 @@ Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Releas
 
 ## README writing standard
 
-Public distribution README files must follow the structured, readable style used by `verzly/mise-php`. The navigation must be intentionally grouped into main sections and subsections. Do not write a single flat list of every heading.
+Public distribution README files must follow the structured, readable style used by `verzly/mise-php`. The navigation must appear directly after the introduction without a separate `## Contents` heading. It must be intentionally grouped into main sections and subsections. Do not write a single flat list of every heading.
 
 Use this default structure for public distribution repositories:
 
 ```markdown
-## Contents
-
 - [Overview](#overview)
   - [Why this exists](#why-this-exists)
   - [How it works](#how-it-works)
@@ -362,7 +360,7 @@ Use this default structure for public distribution repositories:
 
 If a tool does not have a TOML configuration file, omit the `Configuration` group. If a tool has security-specific behavior, replace `Operational notes` with `Security notes`.
 
-The README must include a `License` section at the end, but the internal menu must intentionally omit it. This matches the preferred README convention: the license is present in the document, but it is not part of the navigation menu.
+The README must include a `License` section at the end, but the internal menu must intentionally omit it. Do not add a `## Contents` heading above the menu. This matches the preferred README convention: the license is present in the document, but it is not part of the navigation menu.
 
 Required public README content:
 

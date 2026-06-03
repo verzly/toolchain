@@ -4,8 +4,6 @@ Verzly Toolchain is the private source workspace for the release tools that buil
 
 The source stays in this repository. Public distribution repositories stay intentionally small: each one contains only a `README.md`, an `action.yml`, a `LICENSE`, and executable assets published through GitHub Releases.
 
-## Contents
-
 - [Projects](#projects)
 - [Repository model](#repository-model)
 - [Release model](#release-model)
