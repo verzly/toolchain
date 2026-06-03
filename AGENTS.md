@@ -171,6 +171,41 @@ chore(deps): update Rust dependencies
 
 Record any required source migration in the commit body.
 
+
+## Mandatory verification loop
+
+Before returning a modified ZIP, an AI agent must verify the result and continue editing until the relevant checks pass. Do not rely on visual inspection when a deterministic check is available.
+
+For Rust source changes, run these checks from `toolchain/` whenever the environment provides Rust/Cargo:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+For workflow, configuration, and repository-boundary changes, also validate the non-Rust structure:
+
+```bash
+# Parse all TOML files.
+python - <<'PY'
+from pathlib import Path
+import tomllib
+for path in Path('.').rglob('*.toml'):
+    tomllib.loads(path.read_text())
+PY
+
+# Parse all GitHub workflow YAML files with a YAML parser when available.
+# Verify the repository model: no _repos/, distribution/, or scripts/ inside toolchain/.
+test ! -d _repos
+test ! -d distribution
+test ! -d scripts
+```
+
+If the local environment does not have Rust/Cargo, the agent must first try to use or install the required toolchain when possible. If that is impossible, the agent must say clearly that `cargo fmt`, `cargo clippy`, or `cargo test` could not be executed locally, run every available static check instead, and avoid claiming that the Rust checks passed.
+
+When the user provides a CI failure log, the agent must update the source exactly according to the failing check, re-run the relevant local checks when possible, and produce a new ZIP only after the checked state is internally consistent. Repeated CI failures from the same class, such as `cargo fmt --check`, mean the agent must broaden verification to the whole tree instead of patching only the last visible diff.
+
 ## CI expectations
 
 Release workflows expect a token that can push to `verzly/toolchain` and create releases in the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.

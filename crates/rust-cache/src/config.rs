@@ -11,7 +11,6 @@ pub struct Config {
     pub cache: CacheConfig,
 }
 
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheConfig {
