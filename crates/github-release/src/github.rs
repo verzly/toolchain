@@ -399,7 +399,11 @@ mod tests {
 
         assert!(commit_matches(&scoped, &include_scopes, &include_paths));
         assert!(commit_matches(&all, &include_scopes, &include_paths));
-        assert!(commit_matches(&path_matched, &include_scopes, &include_paths));
+        assert!(commit_matches(
+            &path_matched,
+            &include_scopes,
+            &include_paths
+        ));
         assert!(!commit_matches(&unrelated, &include_scopes, &include_paths));
     }
 

@@ -14,8 +14,10 @@ pub fn run(args: GenerateArgs) -> Result<()> {
     let store_password = if args.generate_passwords {
         secrets::random_password()
     } else {
-        args.store_password
-            .unwrap_or(secrets::prompt_password("Keystore password")?)
+        match args.store_password {
+            Some(password) => password,
+            None => secrets::prompt_password("Keystore password")?,
+        }
     };
 
     let key_password = if args.generate_passwords {

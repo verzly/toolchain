@@ -6,8 +6,10 @@ use crate::secrets;
 use anyhow::Result;
 
 pub fn run(args: FingerprintArgs) -> Result<()> {
-    let password = args
-        .store_password
-        .unwrap_or(secrets::prompt_password("Keystore password")?);
+    let password = match args.store_password {
+        Some(password) => password,
+        None => secrets::prompt_password("Keystore password")?,
+    };
+
     android::fingerprint(&args.path, &args.alias, &password)
 }

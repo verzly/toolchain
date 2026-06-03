@@ -181,14 +181,8 @@ mod tests {
             Some(PrereleaseMode::False),
         )
         .expect("valid plan");
-        let forced_true = build_plan(
-            &config,
-            "1.2.3",
-            None,
-            None,
-            Some(PrereleaseMode::True),
-        )
-        .expect("valid plan");
+        let forced_true = build_plan(&config, "1.2.3", None, None, Some(PrereleaseMode::True))
+            .expect("valid plan");
 
         assert!(auto.prerelease);
         assert!(!forced_false.prerelease);

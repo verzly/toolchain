@@ -177,7 +177,10 @@ mod tests {
         assert_eq!(config.project.binary, "my-tool");
         assert_eq!(config.build.out_dir, PathBuf::from("dist"));
         assert_eq!(config.build.container_engine, ContainerEngine::Podman);
-        assert_eq!(config.artifacts.name_template, "{binary}-v{version}-{target}{ext}");
+        assert_eq!(
+            config.artifacts.name_template,
+            "{binary}-v{version}-{target}{ext}"
+        );
         assert_eq!(linux.strategy, Strategy::Host);
         assert!(linux.artifacts[0].contains("target/x86_64-unknown-linux-gnu/release/my-tool"));
     }
