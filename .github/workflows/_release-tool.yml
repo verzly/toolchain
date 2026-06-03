@@ -20,9 +20,83 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ inputs.tool }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPOSITORY: verzly/toolchain
+  TARGET_REPOSITORY: verzly/${{ inputs.tool }}
+  RELEASE_TAG: v${{ inputs.version }}
+
 jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Validate release inputs and repository access
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          TOOL: ${{ inputs.tool }}
+          TARGET_REPOSITORY: verzly/${{ inputs.tool }}
+          RELEASE_TAG: v${{ inputs.version }}
+          SOURCE_REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${SOURCE_REF_NAME}" != "master" ]; then
+            echo "::error::Release workflows must be run from master. Current ref: ${SOURCE_REF_NAME}"
+            exit 1
+          fi
+
+          case "${TOOL}" in
+            github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            *) echo "::error::Unsupported tool: ${TOOL}"; exit 1 ;;
+          esac
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required because this workflow writes to ${TARGET_REPOSITORY}. Public repositories are public for reading, but release creation, tag creation, and pushing README/action.yml/LICENSE still require write access."
+            exit 1
+          fi
+
+          if [ ! -d "_repos/${TOOL}" ]; then
+            echo "::error::Missing distribution repository template: _repos/${TOOL}"
+            exit 1
+          fi
+
+          for required in README.md action.yml LICENSE; do
+            if [ ! -f "_repos/${TOOL}/${required}" ]; then
+              echo "::error::Missing _repos/${TOOL}/${required}"
+              exit 1
+            fi
+          done
+
+          permission="$(gh api "repos/${TARGET_REPOSITORY}" --jq '.permissions.push // .permissions.admin // false')"
+          if [ "${permission}" != "true" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${TARGET_REPOSITORY}. Use a classic PAT with repo access, a fine-grained PAT with Contents read/write for all distribution repositories, or a GitHub App installation token."
+            exit 1
+          fi
+
+          if gh release view "${RELEASE_TAG}" --repo "${TARGET_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${RELEASE_TAG} already exists in ${TARGET_REPOSITORY}. Re-run a publish-only recovery flow instead of creating a second source release."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPOSITORY}.git" "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${RELEASE_TAG} already exists in ${TARGET_REPOSITORY}."
+            exit 1
+          fi
+
   prepare_source:
     name: Prepare source
+    needs: preflight
     runs-on: ubuntu-latest
     outputs:
       release_branch: ${{ steps.prepare.outputs.release_branch }}
@@ -32,7 +106,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -41,7 +115,7 @@ jobs:
           git config user.name "verzly-release-bot"
           git config user.email "release-bot@verzly.dev"
 
-      - name: Bootstrap release tools
+      - name: Bootstrap github-release
         run: |
           cargo build --release -p github-release
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
@@ -63,7 +137,7 @@ jobs:
         with:
           ref: ${{ needs.prepare_source.outputs.release_branch }}
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -77,7 +151,7 @@ jobs:
         run: cargo test --workspace --all-targets
 
   build:
-    name: Build executable assets
+    name: Build ${{ inputs.tool }} for ${{ matrix.target }}
     needs:
       - prepare_source
       - test
@@ -100,11 +174,11 @@ jobs:
         with:
           ref: ${{ needs.prepare_source.outputs.release_branch }}
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap release tools
+      - name: Bootstrap cargo-release
         shell: bash
         run: |
           cargo build --release -p cargo-release
@@ -137,11 +211,11 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap release tool
+      - name: Bootstrap github-release
         run: |
           cargo build --release -p github-release
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
@@ -166,7 +240,7 @@ jobs:
         with:
           ref: ${{ needs.prepare_source.outputs.release_branch }}
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -175,7 +249,7 @@ jobs:
           git config user.name "verzly-release-bot"
           git config user.email "release-bot@verzly.dev"
 
-      - name: Bootstrap release tool
+      - name: Bootstrap github-release
         run: |
           cargo build --release -p github-release
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
@@ -196,29 +270,77 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout source repository
+        uses: actions/checkout@v5
         with:
+          path: source
           ref: master
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
+
+      - name: Checkout or initialize distribution repository
+        env:
+          DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          TARGET_REPOSITORY: verzly/${{ inputs.tool }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git clone "https://x-access-token:${DISTRIBUTION_REPO_TOKEN}@github.com/${TARGET_REPOSITORY}.git" distribution
+          cd distribution
+
+          if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
+            git checkout master
+            git pull --ff-only origin master
+          else
+            git checkout --orphan master
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap release tool
+      - name: Bootstrap github-release
+        working-directory: source
         run: |
           cargo build --release -p github-release
-          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+          echo "${{ github.workspace }}/source/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
       - uses: actions/download-artifact@v4
         with:
           path: downloaded-assets
 
-      - name: Publish public release
+      - name: Sync public repository content
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          TOOL: ${{ inputs.tool }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rsync -a --delete \
+            --exclude '.git' \
+            "source/_repos/${TOOL}/" \
+            "distribution/"
+
+          cd distribution
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+          git add --all
+
+          if git diff --cached --quiet; then
+            echo "Distribution repository content is already up to date."
+          else
+            git commit -m "chore(release): update distribution content for v${VERSION}"
+            git push origin master
+          fi
+
+      - name: Publish public release
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
         run: >-
           github-release publish
           --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
-          --assets downloaded-assets
+          --assets "${{ github.workspace }}/downloaded-assets"
           --prerelease "${{ inputs.prerelease }}"

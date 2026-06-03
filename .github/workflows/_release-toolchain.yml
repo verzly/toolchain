@@ -10,12 +10,13 @@ on:
         required: false
         type: string
         default: auto
-    secrets:
-      DISTRIBUTION_REPO_TOKEN:
-        required: false
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-toolchain-${{ inputs.version }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -23,21 +24,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v${{ inputs.version }}
+          SOURCE_REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${SOURCE_REF_NAME}" != "master" ]; then
+            echo "::error::Release workflows must be run from master. Current ref: ${SOURCE_REF_NAME}"
+            exit 1
+          fi
+          if gh release view "${RELEASE_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "::error::Release ${RELEASE_TAG} already exists in ${{ github.repository }}."
+            exit 1
+          fi
+
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap release tool
+      - name: Bootstrap github-release
         run: |
           cargo build --release -p github-release
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
       - name: Publish toolchain release
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           github-release publish
           --config github-release.toml
