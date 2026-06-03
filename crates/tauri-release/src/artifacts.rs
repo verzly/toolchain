@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use glob::glob;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, Serialize)]
