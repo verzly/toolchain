@@ -10,9 +10,7 @@ The source stays in this repository. Public distribution repositories stay inten
 - [Release all](#release-all)
 - [Toolchain release](#toolchain-release)
 - [Release notes and PR links](#release-notes-and-pr-links)
-- [Development](#development)
 - [Distribution repository contents](#distribution-repository-contents)
-- [Contributing](#contributing)
 
 ## Projects
 
@@ -25,7 +23,6 @@ The source stays in this repository. Public distribution repositories stay inten
 `rust-cache` redirects Rust and Tauri build cache output into a workspace-local cache directory so generated files stay predictable and easy to remove.
 
 `android-signing` generates, inspects, encodes, and exports Android release signing material for local and CI release builds.
-
 
 ## Repository model
 
@@ -160,27 +157,6 @@ chore(all): update shared release infrastructure
 
 Use `toolchain`, `ci`, `docs`, `deps`, or `workspace` for source-repository maintenance changes that should appear in the toolchain release but not every package release.
 
-## Development
-
-Run checks from the workspace root:
-
-```sh
-cargo build --release -p rust-cache
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo fmt --all -- --check
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo clippy --workspace --all-targets -- -D warnings
-rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo test --workspace --all-targets
-```
-
-Useful local commands:
-
-```sh
-cargo run -p github-release -- plan --config crates/cargo-release/source-github-release.toml --version 1.2.3
-cargo run -p cargo-release -- plan --config crates/cargo-release/cargo-release.toml
-cargo run -p rust-cache -- doctor
-```
-
-Keep the workspace plain and readable. Avoid build scripts, proc macros, hidden global behavior, and shell orchestration unless there is a concrete reason.
-
 ## Distribution repository contents
 
 Distribution repository files are maintained outside `verzly/toolchain`.
@@ -196,12 +172,6 @@ LICENSE
 Those directories exist only so the public repositories can be updated with less manual work. Do not commit `_repos/` into `verzly/toolchain`.
 
 The GitHub release workflows do not depend on `_repos/`. They publish release notes and executable assets to the already-existing distribution repositories.
-
-## Contributing
-
-Keep responsibilities narrow. `github-release` owns branch, tag, release, and GitHub Release publishing behavior. `cargo-release` owns Rust executable artifact building. `tauri-release` owns Tauri release artifact coordination. `rust-cache` owns cache redirection. `android-signing` owns Android signing material. Shared helper crates should only be introduced when at least two tools actively use the same narrowly named behavior.
-
-Prefer incremental refactoring over rewrites. Every public-facing change must keep the source-only monorepo and source-free distribution repository model intact.
 
 ## License
 
