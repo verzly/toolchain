@@ -56,6 +56,13 @@ jobs:
           test -f ".github/workflows/_release-toolchain.yml"
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"
+          grep -Fq 'required: false' ".github/workflows/_release-tool.yml"
+          grep -Fq 'required: false' ".github/workflows/_release-toolchain.yml"
+          grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' ".github/workflows/_release-tool.yml"
+          grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' ".github/workflows/_release-toolchain.yml"
+          grep -Fq 'gh workflow run' ".github/workflows/release-all.yml"
+          ! grep -Fq 'uses: ./.github/workflows/_release-tool.yml' ".github/workflows/release-all.yml"
+          ! grep -R -Fq 'Build $' ".github/workflows"
           grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
           grep -Fq "tag_prefix = \"v\"" "github-release.toml"
           for tool in github-release cargo-release tauri-release rust-cache android-signing; do

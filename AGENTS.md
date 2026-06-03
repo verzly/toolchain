@@ -184,7 +184,7 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should call the reusable workflows sequentially, not in parallel, to avoid concurrent source release branches racing to merge into `master`.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should stay readable by acting as a dispatcher: one visible job starts the per-tool release workflows in dependency order and watches each run before starting the next one. Do not expand Release All into a large nested graph of every internal release job.
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
@@ -288,7 +288,9 @@ Do not remove tests to make CI pass. Fix the implementation or update the test w
 
 ## CI expectations
 
-Release workflows expect a token that can push to `verzly/toolchain` and create releases in the target public repository. The expected secret name is `DISTRIBUTION_REPO_TOKEN`.
+Release workflows must work without a custom secret for source-repository operations by falling back to `github.token`. Use `DISTRIBUTION_REPO_TOKEN` only when the workflow needs to write to separate distribution repositories such as `verzly/cargo-release`. Public repository visibility does not remove the need for authenticated write access when creating releases or uploading assets.
+
+Do not make `DISTRIBUTION_REPO_TOKEN` a required reusable-workflow secret. Optional secret plus `github.token` fallback avoids `Input required and not supplied: token` failures in local or source-only release runs.
 
 Each public tool has its own small workflow:
 
