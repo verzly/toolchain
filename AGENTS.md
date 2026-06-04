@@ -4,9 +4,9 @@ This guide defines the intended architecture, repository boundaries, release mod
 
 ## Primary rule
 
-`verzly/toolchain` is the private Rust workspace. It contains source code, release workflows, and release configuration. Crate-level README files are intentionally not used; internal context belongs in the root README and this guide.
+`verzly/toolchain` is the private Rust workspace. It contains source code, release workflows, release configuration, and the committed `.codex/distributions/<tool>` public distribution templates. Crate-level README files are intentionally not used; internal context belongs in the root README and this guide.
 
-The public distribution repositories are separate GitHub repositories. Their public `README.md`, `action.yml`, and `LICENSE` files are maintained outside the private source workspace. Release workflows publish tags, GitHub Releases, generated notes, and executable assets to those repositories; they do not sync `_repos` from `verzly/toolchain`.
+The public distribution repositories are separate GitHub repositories. Their public `README.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` so AI agents can update the public documentation and action surface from the same workspace. The `sync-distributions.yml` workflow can push those templates into the matching `verzly/<tool>` repositories with `DISTRIBUTION_REPO_TOKEN`.
 
 Correct repository layout:
 
@@ -14,6 +14,13 @@ Correct repository layout:
 verzly/toolchain/
 ├── .github/workflows/
 ├── .cargo/config.toml
+├── .codex/
+│   └── distributions/
+│       ├── github-release/
+│       ├── cargo-release/
+│       ├── tauri-release/
+│       ├── rust-cache/
+│       └── android-signing/
 ├── crates/
 ├── Cargo.toml
 ├── Cargo.lock
@@ -29,7 +36,6 @@ Incorrect repository layout:
 verzly/toolchain/distribution/
 verzly/toolchain/scripts/
 verzly/toolchain/crates/<tool>/README.md
-verzly/toolchain/_repos/
 ```
 
 Do not add orchestration shell scripts for release behavior that belongs in `github-release`, `cargo-release`, or `rust-cache`.
@@ -74,19 +80,19 @@ VERSION
 
 The public repositories are thin distribution surfaces. They are not development repositories.
 
-## Handoff `_repos` directory
+## Distribution templates
 
-When producing a ZIP for the maintainer, include `_repos/` as a top-level sibling of `toolchain/` only.
-
-`_repos/<tool>` mirrors the intended content of the corresponding public repository:
+`.codex/distributions/<tool>` mirrors the intended committed content of the corresponding public repository:
 
 ```text
-_repos/github-release/README.md
-_repos/github-release/action.yml
-_repos/github-release/LICENSE
+.codex/distributions/github-release/README.md
+.codex/distributions/github-release/action.yml
+.codex/distributions/github-release/LICENSE
 ```
 
-This exists only to reduce manual work when updating multiple repositories. It is not source code and is not part of the private monorepo.
+Each template directory may contain only `README.md`, `action.yml`, and `LICENSE`. Do not put Rust source, release configs, workflow files, changelogs, or generated assets in these directories.
+
+Use `.github/workflows/sync-distributions.yml` to copy these templates into the public `verzly/<tool>` repositories. The workflow must use `DISTRIBUTION_REPO_TOKEN`, must fail if that token cannot push to a target repository, and must commit with the configured maintainer commit message such as `chore(distribution): bump public surface`.
 
 ## Source versioning
 
@@ -254,8 +260,8 @@ for path in Path('.').rglob('*.toml'):
 PY
 
 # Parse all GitHub workflow YAML files with a YAML parser when available.
-# Verify the repository model: _repos/ is a handoff sibling, not part of toolchain.
-test ! -d _repos
+# Verify the repository model and committed distribution templates.
+test -d .codex/distributions
 test ! -d distribution
 test ! -d scripts
 ```
@@ -349,7 +355,7 @@ Prefer explicit allowlists for generated artifact paths and uploaded files.
 
 Public README files should be human, usage-oriented, and complete enough for developers who have never seen `verzly/toolchain`. They must use a structured multi-level menu with planned main sections and subsections, not a single flat list. They must explain what the tool does, why it exists, how it works, practical use cases, GitHub Action examples, every action input, every action output, every CLI command, every CLI argument, accepted values, defaults, and important configuration fields.
 
-The public README is the product documentation for the distribution repository. The root `toolchain/README.md` is for maintainers. Do not add crate-level READMEs; public distribution READMEs live in the separate public repositories or in a handoff `_repos/<tool>` sibling when producing maintainer ZIPs.
+The public README is the product documentation for the distribution repository. The root `toolchain/README.md` is for maintainers. Do not add crate-level READMEs; public distribution READMEs live in `.codex/distributions/<tool>/README.md` and are synchronized into the separate public repositories.
 
 Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Release notes are generated from GitHub releases.
 
@@ -419,7 +425,7 @@ Tone and structure:
 
 ## Hard no list
 
-Do not add `_repos/`, `distribution/`, or release orchestration `scripts/` inside `verzly/toolchain`. Keep `_repos/` as a handoff sibling only when producing maintainer ZIPs.
+Do not add `distribution/` or release orchestration `scripts/` inside `verzly/toolchain`. Keep public repository templates in `.codex/distributions/<tool>` only.
 
 Do not put source code in public distribution repositories.
 
