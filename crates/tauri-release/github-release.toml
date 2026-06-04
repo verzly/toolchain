@@ -14,6 +14,7 @@ commit_message = "chore(release): prepare {tag}"
 merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
+floating_tags = true
 
 [source_release]
 target_branch = "master"

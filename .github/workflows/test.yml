@@ -60,6 +60,7 @@ jobs:
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"
           test -f ".github/workflows/delete-release.yml"
+          test -f ".github/workflows/update-floating-tags.yml"
           test -f ".github/workflows/sync-distributions.yml"
           grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to push distribution repository commits' ".github/workflows/sync-distributions.yml"
           grep -Fq 'chore(distribution): bump public surface' ".github/workflows/sync-distributions.yml"
@@ -71,6 +72,9 @@ jobs:
           grep -Fq 'GH_TOKEN:' ".github/workflows/_release-tool.yml"
           grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN' ".github/workflows/_release-tool.yml"
           grep -Fq 'DISTRIBUTION_REPO_TOKEN is required' ".github/workflows/release-all.yml"
+          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to update public distribution floating tags' ".github/workflows/update-floating-tags.yml"
+          grep -Fq 'github-release "${args[@]}"' ".github/workflows/update-floating-tags.yml"
+          grep -Fq 'args=(floating-tags --config "crates/${tool}/github-release.toml")' ".github/workflows/update-floating-tags.yml"
           grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to delete public distribution releases and tags' ".github/workflows/delete-release.yml"
           grep -Fq 'check_repository_access "verzly/${tool}" "${DISTRIBUTION_TOKEN}" "DISTRIBUTION_REPO_TOKEN"' ".github/workflows/delete-release.yml"
           grep -Fq 'repos/${repository}/releases/tags/${tag}' ".github/workflows/delete-release.yml"
@@ -141,9 +145,11 @@ jobs:
             ".github/workflows/release-rust-cache.yml" \
             ".github/workflows/release-tauri-release.yml" \
             ".github/workflows/release-toolchain.yml" \
-            ".github/workflows/delete-release.yml"
+            ".github/workflows/delete-release.yml" \
+            ".github/workflows/update-floating-tags.yml"
           grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
           grep -Fq "tag_prefix = \"v\"" "github-release.toml"
+          grep -Fq "floating_tags = false" "github-release.toml"
           for tool in github-release cargo-release tauri-release rust-cache android-signing; do
             test -f "crates/${tool}/Cargo.toml"
             test ! -f "crates/${tool}/README.md"
@@ -161,6 +167,7 @@ jobs:
             grep -Fq "tag_prefix = \"${tool}-v\"" "crates/${tool}/github-release.toml"
             grep -Fq "path = \"crates/${tool}/Cargo.toml\"" "crates/${tool}/github-release.toml"
             grep -Fq "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
+            grep -Fq "floating_tags = true" "crates/${tool}/github-release.toml"
             grep -Fq "mode = \"scoped\"" "crates/${tool}/github-release.toml"
             grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
             grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"

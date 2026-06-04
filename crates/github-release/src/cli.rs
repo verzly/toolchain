@@ -30,6 +30,8 @@ pub enum Commands {
     FinalizeBatch(FinalizeBatchArgs),
     /// Publish a GitHub Release without preparing or merging a branch.
     Publish(PublishArgs),
+    /// Create or refresh stable major/minor floating tags for published releases.
+    FloatingTags(FloatingTagsArgs),
     /// Delete a temporary release branch after a failed build.
     Abort(AbortArgs),
 }
@@ -148,6 +150,10 @@ pub struct FinalizeArgs {
     /// Read the GitHub Release body from this file instead of generated notes.
     #[arg(long)]
     pub notes_file: Option<PathBuf>,
+
+    /// Update stable major/minor floating tags such as v1 and v1.2 after finalization.
+    #[arg(long, default_value_t = false)]
+    pub update_floating_tags: bool,
 }
 
 #[derive(Args, Debug)]
@@ -210,6 +216,41 @@ pub struct PublishArgs {
     /// Read the GitHub Release body from this file instead of generated notes.
     #[arg(long)]
     pub notes_file: Option<PathBuf>,
+
+    /// Update stable major/minor floating tags such as v1 and v1.2 after publishing.
+    #[arg(long, default_value_t = false)]
+    pub update_floating_tags: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct FloatingTagsArgs {
+    /// Config path.
+    #[arg(short, long, default_value = "github-release.toml")]
+    pub config: PathBuf,
+
+    /// Release version to resolve through the configured prefix and suffix.
+    #[arg(short, long)]
+    pub version: Option<String>,
+
+    /// Existing full stable tag to analyze, such as v1.2.3.
+    #[arg(long)]
+    pub tag: Option<String>,
+
+    /// Scan all stable vX.Y.Z tags and update the highest matching vX.Y and vX tags.
+    #[arg(long, default_value_t = false)]
+    pub all: bool,
+
+    /// Override target repository instead of using github.target_repository.
+    #[arg(long)]
+    pub repository: Option<String>,
+
+    /// Run even when release.floating_tags is disabled in the config.
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
+
+    /// Print commands without executing them.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug)]
@@ -269,6 +310,7 @@ mod tests {
             "true",
             "--notes",
             "Custom release body",
+            "--update-floating-tags",
             "--dry-run",
         ]);
 
@@ -281,6 +323,7 @@ mod tests {
         assert_eq!(args.assets, Some(PathBuf::from("dist")));
         assert_eq!(args.prerelease, PrereleaseMode::True);
         assert_eq!(args.notes.as_deref(), Some("Custom release body"));
+        assert!(args.update_floating_tags);
         assert!(args.dry_run);
     }
 
@@ -349,5 +392,25 @@ mod tests {
                 "github-release-v1.2.3".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn parses_floating_tags_all() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "floating-tags",
+            "--config",
+            "release.toml",
+            "--all",
+            "--dry-run",
+        ]);
+
+        let Commands::FloatingTags(args) = cli.command else {
+            panic!("expected floating-tags command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("release.toml"));
+        assert!(args.all);
+        assert!(args.dry_run);
     }
 }

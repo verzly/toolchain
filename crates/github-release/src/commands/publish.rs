@@ -30,6 +30,9 @@ pub fn run(args: PublishArgs) -> Result<()> {
         },
         args.dry_run,
     )?;
+    if plan.floating_tags || args.update_floating_tags {
+        github::refresh_floating_tags_for_plan(&plan, args.dry_run)?;
+    }
     output::write_github_outputs(&plan)?;
 
     Ok(())
