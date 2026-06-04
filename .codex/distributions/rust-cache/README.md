@@ -220,9 +220,7 @@ Checksum files use the same name with `.sha256` appended. The action verifies th
 
 ## Contributing
 
-Open issues in this repository when the problem is user-facing: installation, documentation, release assets, action inputs, or behavior of the published executable. Source changes are made in `verzly/toolchain` under the matching crate directory.
-
-The architectural rule is intentionally strict: each tool owns one responsibility. Do not make a distribution repository grow source code, CI logic, or release orchestration. Those belong in `verzly/toolchain`.
+Contribution guidelines live in the `verzly/toolchain` `CONTRIBUTING.md`. Source changes are made in `verzly/toolchain`; this repository is the public distribution surface.
 
 ## License
 
