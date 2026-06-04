@@ -15,6 +15,7 @@ fn main() -> Result<()> {
         Commands::Generate(args) => commands::generate::run(args),
         Commands::Base64(args) => commands::base64::run(args),
         Commands::Fingerprint(args) => commands::fingerprint::run(args),
+        Commands::VerifyFingerprint(args) => commands::verify_fingerprint::run(args),
         Commands::PrintSecrets(args) => commands::print_secrets::run(args),
         Commands::WriteGithubEnv(args) => commands::write_github_env::run(args),
         Commands::Doctor => commands::doctor::run(),

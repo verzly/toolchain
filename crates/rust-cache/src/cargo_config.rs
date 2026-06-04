@@ -110,6 +110,7 @@ fn normalize_path(path: &Path) -> String {
 mod tests {
     use super::*;
     use crate::config::{CacheConfig, CargoConfig, Config};
+    use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -141,6 +142,7 @@ mod tests {
             cargo: CargoConfig {
                 target_dir: "rust/packages/{package}/target".to_string(),
             },
+            env: BTreeMap::new(),
         };
         let workspace = workspace(temp_dir("resolve"));
 

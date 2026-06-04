@@ -2,14 +2,49 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub cache: CacheConfig,
     pub cargo: CargoConfig,
+    pub env: BTreeMap<String, String>,
+}
+
+impl Config {
+    pub fn default_env() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("GRADLE_USER_HOME".to_string(), "android/gradle".to_string()),
+            ("NPM_CONFIG_CACHE".to_string(), "js/npm".to_string()),
+            ("YARN_CACHE_FOLDER".to_string(), "js/yarn".to_string()),
+            ("PNPM_STORE_PATH".to_string(), "js/pnpm-store".to_string()),
+        ])
+    }
+
+    fn apply_env_defaults(&mut self) {
+        let mut merged = Self::default_env();
+        for (key, value) in std::mem::take(&mut self.env) {
+            if value.trim().is_empty() {
+                merged.remove(&key);
+            } else {
+                merged.insert(key, value);
+            }
+        }
+        self.env = merged;
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            cache: CacheConfig::default(),
+            cargo: CargoConfig::default(),
+            env: Self::default_env(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -52,7 +87,10 @@ pub fn load(path: &Path) -> Result<Config> {
     }
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
+    let mut config: Config =
+        toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
+    config.apply_env_defaults();
+    Ok(config)
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
@@ -93,6 +131,8 @@ mod tests {
         assert!(!config.cache.redirect_cargo_home);
         assert!(config.cache.redirect_gradle);
         assert_eq!(config.cargo.target_dir, "rust/packages/{package}/target");
+        assert_eq!(config.env["NPM_CONFIG_CACHE"], "js/npm");
+        assert_eq!(config.env["PNPM_STORE_PATH"], "js/pnpm-store");
     }
 
     #[test]
@@ -119,5 +159,21 @@ mod tests {
 
         assert_eq!(config.cache.package, "demo");
         assert_eq!(config.cargo.target_dir, "rust/{package}/target");
+    }
+
+    #[test]
+    fn custom_env_cache_paths_extend_defaults_when_configured() {
+        let path = temp_path("custom-env");
+        fs::write(
+            &path,
+            "[env]\nFOO_CACHE = \"custom/foo\"\nYARN_CACHE_FOLDER = \"\"\n\n[cache]\npackage = \"demo\"\n",
+        )
+        .expect("write config");
+
+        let config = load(&path).expect("load config");
+
+        assert_eq!(config.env["FOO_CACHE"], "custom/foo");
+        assert_eq!(config.env["NPM_CONFIG_CACHE"], "js/npm");
+        assert!(!config.env.contains_key("YARN_CACHE_FOLDER"));
     }
 }

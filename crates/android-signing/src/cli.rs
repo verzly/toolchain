@@ -17,6 +17,8 @@ pub enum Commands {
     Generate(GenerateArgs),
     Base64(Base64Args),
     Fingerprint(FingerprintArgs),
+    #[command(name = "verify-fingerprint")]
+    VerifyFingerprint(VerifyFingerprintArgs),
     #[command(name = "print-secrets")]
     PrintSecrets(PrintSecretsArgs),
     #[command(name = "write-github-env")]
@@ -89,6 +91,20 @@ pub struct FingerprintArgs {
 }
 
 #[derive(Args, Debug)]
+pub struct VerifyFingerprintArgs {
+    pub path: PathBuf,
+
+    #[arg(short, long, default_value = "release-key")]
+    pub alias: String,
+
+    #[arg(long)]
+    pub store_password: Option<String>,
+
+    #[arg(long)]
+    pub expected_sha256: String,
+}
+
+#[derive(Args, Debug)]
 pub struct PrintSecretsArgs {
     pub path: PathBuf,
 
@@ -126,5 +142,26 @@ mod tests {
         assert_eq!(args.validity, 10000);
         assert!(!args.force);
         assert!(!args.dry_run);
+    }
+
+    #[test]
+    fn parses_verify_fingerprint_options() {
+        let cli = Cli::parse_from([
+            "android-signing",
+            "verify-fingerprint",
+            "release.jks",
+            "--alias",
+            "release-key",
+            "--expected-sha256",
+            "AA:BB",
+        ]);
+
+        let Commands::VerifyFingerprint(args) = cli.command else {
+            panic!("expected verify-fingerprint command");
+        };
+
+        assert_eq!(args.path, PathBuf::from("release.jks"));
+        assert_eq!(args.alias, "release-key");
+        assert_eq!(args.expected_sha256, "AA:BB");
     }
 }

@@ -5,4 +5,5 @@ pub mod doctor;
 pub mod fingerprint;
 pub mod generate;
 pub mod print_secrets;
+pub mod verify_fingerprint;
 pub mod write_github_env;
