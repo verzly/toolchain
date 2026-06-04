@@ -1,0 +1,100 @@
+name: Sync Distributions
+run-name: Sync distributions ${{ inputs.tool }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: "Distribution repository to sync, or all."
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+      commit-message:
+        description: "Commit message used in distribution repositories."
+        required: false
+        default: "chore(distribution): bump public surface"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-distributions-${{ inputs.tool }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync public distribution repositories
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: source
+          token: ${{ github.token }}
+
+      - name: Sync distribution repositories
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          SELECTED_TOOL: ${{ inputs.tool }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required to push distribution repository commits."
+            exit 1
+          fi
+
+          case "${SELECTED_TOOL}" in
+            all) tools="github-release cargo-release tauri-release rust-cache android-signing" ;;
+            github-release|cargo-release|tauri-release|rust-cache|android-signing) tools="${SELECTED_TOOL}" ;;
+            *) echo "::error::Unsupported tool: ${SELECTED_TOOL}"; exit 1 ;;
+          esac
+
+          git config --global user.name "verzly-distribution-bot"
+          git config --global user.email "distribution-bot@verzly.dev"
+
+          for tool in ${tools}; do
+            template_dir="${GITHUB_WORKSPACE}/source/.codex/distributions/${tool}"
+            target_dir="${GITHUB_WORKSPACE}/target-${tool}"
+            repository="verzly/${tool}"
+
+            for file in README.md action.yml LICENSE; do
+              if [ ! -f "${template_dir}/${file}" ]; then
+                echo "::error::Missing ${template_dir}/${file}"
+                exit 1
+              fi
+            done
+
+            permission="$(gh api "repos/${repository}" --jq '.permissions.push // .permissions.admin // false')"
+            if [ "${permission}" != "true" ]; then
+              echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${repository}."
+              exit 1
+            fi
+
+            git clone "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "${target_dir}"
+
+            find "${target_dir}" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+            cp "${template_dir}/README.md" "${target_dir}/README.md"
+            cp "${template_dir}/action.yml" "${target_dir}/action.yml"
+            cp "${template_dir}/LICENSE" "${target_dir}/LICENSE"
+
+            (
+              cd "${target_dir}"
+              git add README.md action.yml LICENSE
+              if git diff --cached --quiet; then
+                echo "${repository} is already up to date."
+              else
+                git commit -m "${COMMIT_MESSAGE}"
+                git push origin HEAD
+              fi
+            )
+          done
