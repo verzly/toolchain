@@ -1,9 +1,9 @@
-//! Maintains stable major/minor floating tags such as v1 and v1.2 for published releases.
+//! Maintains moving tags such as v1, v1.2, latest, and next for published releases.
 
 use crate::cli::FloatingTagsArgs;
 use crate::config;
 use crate::domain;
-use crate::github;
+use crate::github::{self, FloatingTagOptions};
 use anyhow::Result;
 
 pub fn run(args: FloatingTagsArgs) -> Result<()> {
@@ -14,7 +14,17 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
     }
 
     let config = config::load(&args.config)?;
-    if !config.release.floating_tags && !args.force {
+    let options = if args.force {
+        FloatingTagOptions::force_all()
+    } else {
+        FloatingTagOptions {
+            stable_line_tags: config.release.floating_tags,
+            latest_tag: config.release.latest_tag,
+            next_tag: config.release.next_tag,
+        }
+    };
+
+    if !options.any() {
         println!(
             "floating tags are disabled in {}; skipping",
             args.config.display()
@@ -34,33 +44,26 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
 
     if let Some(version) = args.version.as_ref() {
         let plan = domain::build_plan(&config, version, None, None, None)?;
-        let Some(version) = github::stable_version_from_tag(
-            &plan.tag,
-            &config.release.tag_prefix,
-            &config.release.tag_suffix,
-        ) else {
-            println!(
-                "skipping floating tags for non-stable release tag {}",
-                plan.tag
-            );
-            return Ok(());
-        };
+        let version = semver::Version::parse(&plan.version_text)?;
         github::refresh_floating_tags_for_tag(
             repository,
             &plan.tag,
             &config.release.tag_prefix,
             &config.release.tag_suffix,
+            &config.release.latest_tag_name,
+            &config.release.next_tag_name,
             &version,
+            options,
             args.dry_run,
         )?;
     } else if let Some(tag) = args.tag.as_ref() {
-        let Some(version) = github::stable_version_from_tag(
+        let Some(version) = github::version_from_tag_for_release(
             tag,
             &config.release.tag_prefix,
             &config.release.tag_suffix,
         ) else {
             println!(
-                "skipping floating tags because {tag} does not match a stable {}X.Y.Z{} release",
+                "skipping floating tags because {tag} does not match a SemVer {}X.Y.Z{} release",
                 config.release.tag_prefix, config.release.tag_suffix
             );
             return Ok(());
@@ -70,7 +73,10 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
             tag,
             &config.release.tag_prefix,
             &config.release.tag_suffix,
+            &config.release.latest_tag_name,
+            &config.release.next_tag_name,
             &version,
+            options,
             args.dry_run,
         )?;
     } else {
@@ -78,6 +84,9 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
             repository,
             &config.release.tag_prefix,
             &config.release.tag_suffix,
+            &config.release.latest_tag_name,
+            &config.release.next_tag_name,
+            options,
             args.dry_run,
         )?;
     }

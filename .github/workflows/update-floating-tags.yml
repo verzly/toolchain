@@ -17,7 +17,7 @@ on:
           - rust-cache
           - android-signing
       mode:
-        description: "How to choose the stable release tags."
+        description: "How to choose release tags for moving tag repair."
         required: true
         type: choice
         default: all
@@ -29,7 +29,7 @@ on:
         description: "Version to update when mode is version, with or without leading v."
         required: false
       tag:
-        description: "Full release tag to analyze when mode is tag, for example v1.2.3."
+        description: "Full release tag to analyze when mode is tag, for example v1.2.3 or v1.3.0-rc.1."
         required: false
       dry_run:
         description: "Print the tag updates without writing refs."

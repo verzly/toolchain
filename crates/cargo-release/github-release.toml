@@ -15,6 +15,8 @@ merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
 floating_tags = true
+latest_tag = true
+next_tag = true
 
 [source_release]
 target_branch = "master"

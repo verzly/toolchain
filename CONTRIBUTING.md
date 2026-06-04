@@ -106,7 +106,7 @@ Maintainer workflows are:
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair stable `vX.Y` and `vX` tags in public distribution repositories after stable `vX.Y.Z` releases already exist. Use `delete-release.yml` only for release cleanup; it checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
+Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 ## Production Tokens
 
@@ -134,7 +134,7 @@ release-all.yml          # every public tool, then toolchain
 release-toolchain.yml    # toolchain-only release
 delete-release.yml       # destructive release and tag cleanup
 sync-distributions.yml   # public README/action/LICENSE sync only
-update-floating-tags.yml # stable vX.Y / vX tag repair for public repositories
+update-floating-tags.yml # moving tag repair for public repositories
 ```
 
 Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public distribution bump commits, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
@@ -143,7 +143,7 @@ Single-tool releases squash-merge their temporary source branch back into `maste
 
 After all required builds pass and before public `vX.Y.Z` tags are created, release workflows run `sync-distributions.yml` only for the repositories being released. The sync uses a release-specific `chore(distribution)` commit message and forces a bump commit even when the public files are already up to date, so the public release tag lands on the release bump commit.
 
-Public distribution release configs enable stable floating tags. Publishing `v1.2.3` updates `v1.2` and `v1` in the public distribution repository. The root toolchain config keeps this disabled because the source repository should not receive moving major/minor tags.
+Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview. The root toolchain config keeps these disabled because the source repository should not receive moving distribution tags.
 
 ## Documentation
 

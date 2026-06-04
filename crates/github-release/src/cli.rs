@@ -30,7 +30,7 @@ pub enum Commands {
     FinalizeBatch(FinalizeBatchArgs),
     /// Publish a GitHub Release without preparing or merging a branch.
     Publish(PublishArgs),
-    /// Create or refresh stable major/minor floating tags for published releases.
+    /// Create or refresh moving tags for published releases.
     FloatingTags(FloatingTagsArgs),
     /// Delete a temporary release branch after a failed build.
     Abort(AbortArgs),
@@ -154,6 +154,14 @@ pub struct FinalizeArgs {
     /// Update stable major/minor floating tags such as v1 and v1.2 after finalization.
     #[arg(long, default_value_t = false)]
     pub update_floating_tags: bool,
+
+    /// Update the configured latest tag after finalization.
+    #[arg(long, default_value_t = false)]
+    pub update_latest_tag: bool,
+
+    /// Update the configured next tag after finalization.
+    #[arg(long, default_value_t = false)]
+    pub update_next_tag: bool,
 }
 
 #[derive(Args, Debug)]
@@ -220,6 +228,14 @@ pub struct PublishArgs {
     /// Update stable major/minor floating tags such as v1 and v1.2 after publishing.
     #[arg(long, default_value_t = false)]
     pub update_floating_tags: bool,
+
+    /// Update the configured latest tag after publishing.
+    #[arg(long, default_value_t = false)]
+    pub update_latest_tag: bool,
+
+    /// Update the configured next tag after publishing.
+    #[arg(long, default_value_t = false)]
+    pub update_next_tag: bool,
 }
 
 #[derive(Args, Debug)]
@@ -244,7 +260,7 @@ pub struct FloatingTagsArgs {
     #[arg(long)]
     pub repository: Option<String>,
 
-    /// Run even when release.floating_tags is disabled in the config.
+    /// Run and enable all floating tag families even when they are disabled in the config.
     #[arg(long, default_value_t = false)]
     pub force: bool,
 

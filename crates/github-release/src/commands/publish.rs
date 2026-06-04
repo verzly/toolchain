@@ -30,8 +30,13 @@ pub fn run(args: PublishArgs) -> Result<()> {
         },
         args.dry_run,
     )?;
-    if plan.floating_tags || args.update_floating_tags {
-        github::refresh_floating_tags_for_plan(&plan, args.dry_run)?;
+    let floating_tag_options = github::FloatingTagOptions::for_plan(&plan).with_overrides(
+        args.update_floating_tags,
+        args.update_latest_tag,
+        args.update_next_tag,
+    );
+    if floating_tag_options.any() {
+        github::refresh_floating_tags_for_plan(&plan, floating_tag_options, args.dry_run)?;
     }
     output::write_github_outputs(&plan)?;
 

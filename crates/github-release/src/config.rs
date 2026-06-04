@@ -60,6 +60,10 @@ pub struct ReleaseConfig {
     pub cleanup: bool,
     pub latest: bool,
     pub floating_tags: bool,
+    pub latest_tag: bool,
+    pub next_tag: bool,
+    pub latest_tag_name: String,
+    pub next_tag_name: String,
 }
 
 impl Default for ReleaseConfig {
@@ -76,6 +80,10 @@ impl Default for ReleaseConfig {
             cleanup: true,
             latest: true,
             floating_tags: false,
+            latest_tag: false,
+            next_tag: false,
+            latest_tag_name: "latest".to_string(),
+            next_tag_name: "next".to_string(),
         }
     }
 }
