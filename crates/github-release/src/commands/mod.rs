@@ -2,6 +2,7 @@
 
 pub mod abort;
 pub mod finalize;
+pub mod floating_tags;
 pub mod init;
 pub mod plan;
 pub mod prepare;

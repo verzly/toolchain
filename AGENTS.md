@@ -126,6 +126,7 @@ Do not add `source-github-release.toml`. One `github-release.toml` per crate is 
 ```toml
 [release]
 tag_prefix = "v"
+floating_tags = true
 
 [source_release]
 tag_prefix = "cargo-release-v"
@@ -150,6 +151,8 @@ value = "{version}"
 ```
 
 `github-release` must not guess or auto-discover version files in this monorepo. Every file that needs a version bump must be listed in `[[files]]`. Prepare/finalize commands use `[source_release]` and `[[files]]`; publish uses `[release]` and `[github]`.
+
+Public distribution configs should enable `floating_tags = true` only in `[release]`. A stable public release such as `v1.2.3` should refresh `v1.2` and `v1` in the matching public distribution repository. Prereleases must not update moving tags. The root `github-release.toml` for `verzly/toolchain` must keep `floating_tags = false`, and `[source_release]` tags such as `cargo-release-v1.2.3` should not produce moving source tags inside the toolchain repository.
 
 These configs must stay in the source repository and must not be copied to distribution repositories.
 
@@ -180,7 +183,7 @@ Expected flow:
 4. `cargo-release build` builds executable assets from that exact branch.
 5. `github-release abort` deletes the temporary source release branch if anything fails.
 6. `github-release finalize --merge-strategy squash --skip-github-release` squash-merges the branch into one `master` commit and creates `<tool>-vX.Y.Z`.
-7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, and uploads assets.
+7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, uploads assets, and refreshes enabled stable floating tags such as `vX.Y` and `vX`.
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live. Visible PR references must never show raw URLs: same-repository PRs should render as `#123`, while external repository PRs should render as `toolchain#123` or the matching repository name plus PR number.
 
@@ -191,6 +194,8 @@ Release All may create multiple preparation commits on the temporary aggregate b
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
 A `.github/workflows/delete-release.yml` workflow must exist for destructive release cleanup. It must check repository access before deleting anything, delete GitHub Releases through the GitHub API, and delete matching Git tags explicitly instead of relying on release-delete tag cleanup side effects. For `all`, it must remove `vX.Y.Z` from `verzly/toolchain`, remove `vX.Y.Z` from every public `verzly/<tool>` repository, and remove each package-prefixed source tag from `verzly/toolchain`. Public repository deletion must require `DISTRIBUTION_REPO_TOKEN`.
+
+A `.github/workflows/update-floating-tags.yml` workflow must exist for non-destructive floating tag repair in public distribution repositories. It must use `github-release floating-tags`, require `DISTRIBUTION_REPO_TOKEN`, support all public tools or one selected tool, and respect `release.floating_tags` unless maintainers deliberately run the CLI with a force flag outside the workflow.
 
 ## Commit and PR title scopes for release notes
 

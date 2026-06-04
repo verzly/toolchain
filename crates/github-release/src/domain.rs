@@ -9,6 +9,8 @@ use semver::Version;
 pub struct ReleasePlan {
     pub version_text: String,
     pub tag: String,
+    pub tag_prefix: String,
+    pub tag_suffix: String,
     pub release_name: String,
     pub target_branch: String,
     pub release_branch: String,
@@ -16,6 +18,7 @@ pub struct ReleasePlan {
     pub latest: bool,
     pub commit_message: String,
     pub merge_message: String,
+    pub floating_tags: bool,
     pub github: GitHubPlan,
 }
 
@@ -90,6 +93,8 @@ pub fn build_plan(
     Ok(ReleasePlan {
         version_text,
         tag: tag.clone(),
+        tag_prefix: config.release.tag_prefix.clone(),
+        tag_suffix: config.release.tag_suffix.clone(),
         release_name,
         target_branch,
         release_branch,
@@ -97,6 +102,7 @@ pub fn build_plan(
         latest: config.release.latest,
         commit_message: render_template(&config.release.commit_message, &tag, clean_version),
         merge_message: render_template(&config.release.merge_message, &tag, clean_version),
+        floating_tags: config.release.floating_tags,
         github: GitHubPlan {
             target_repository,
             source_repository,

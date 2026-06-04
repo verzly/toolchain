@@ -3,7 +3,9 @@
 use crate::config::NotesMode;
 use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
+use semver::Version;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -72,6 +74,169 @@ pub fn create_release(
     }
 
     Ok(())
+}
+
+pub fn refresh_floating_tags_for_plan(plan: &ReleasePlan, dry_run: bool) -> Result<()> {
+    let repository = target_repository_for_tag_updates(plan, dry_run)?;
+    let version = Version::parse(&plan.version_text)
+        .with_context(|| format!("invalid SemVer version: {}", plan.version_text))?;
+
+    refresh_floating_tags_for_tag(
+        &repository,
+        &plan.tag,
+        &plan.tag_prefix,
+        &plan.tag_suffix,
+        &version,
+        dry_run,
+    )
+}
+
+fn target_repository_for_tag_updates(plan: &ReleasePlan, dry_run: bool) -> Result<String> {
+    if let Some(repository) = plan.github.target_repository.as_ref() {
+        return Ok(repository.clone());
+    }
+
+    if dry_run {
+        return Ok("<current repository>".to_string());
+    }
+
+    current_repository()
+}
+
+pub fn refresh_floating_tags_for_tag(
+    repository: &str,
+    full_tag: &str,
+    tag_prefix: &str,
+    tag_suffix: &str,
+    version: &Version,
+    dry_run: bool,
+) -> Result<()> {
+    let floating_tags = stable_floating_tags(tag_prefix, tag_suffix, version);
+    if floating_tags.is_empty() {
+        println!(
+            "skipping floating tags for non-stable release tag {full_tag} in {repository}"
+        );
+        return Ok(());
+    }
+
+    let target_sha = if dry_run {
+        format!("<resolved target of {full_tag}>")
+    } else {
+        resolve_tag_target_sha(repository, full_tag)?
+    };
+
+    for floating_tag in floating_tags {
+        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+    }
+
+    Ok(())
+}
+
+pub fn refresh_highest_floating_tags(
+    repository: &str,
+    tag_prefix: &str,
+    tag_suffix: &str,
+    dry_run: bool,
+) -> Result<()> {
+    let tags = list_matching_tags(repository, tag_prefix)?;
+    let mut highest_major: HashMap<u64, (Version, String)> = HashMap::new();
+    let mut highest_minor: HashMap<(u64, u64), (Version, String)> = HashMap::new();
+
+    for tag in tags {
+        let Some(version) = stable_version_from_tag(&tag, tag_prefix, tag_suffix) else {
+            continue;
+        };
+
+        let major = version.major;
+        let minor = version.minor;
+        keep_highest(&mut highest_major, major, version.clone(), tag.clone());
+        keep_highest(&mut highest_minor, (major, minor), version, tag);
+    }
+
+    if highest_major.is_empty() && highest_minor.is_empty() {
+        println!(
+            "no stable tags matching {}X.Y.Z{} were found in {repository}",
+            tag_prefix, tag_suffix
+        );
+        return Ok(());
+    }
+
+    for (_, (version, tag)) in highest_minor {
+        let target_sha = if dry_run {
+            format!("<resolved target of {tag}>")
+        } else {
+            resolve_tag_target_sha(repository, &tag)?
+        };
+        let floating_tag = format!(
+            "{}{}.{}{}",
+            tag_prefix, version.major, version.minor, tag_suffix
+        );
+        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+    }
+
+    for (_, (version, tag)) in highest_major {
+        let target_sha = if dry_run {
+            format!("<resolved target of {tag}>")
+        } else {
+            resolve_tag_target_sha(repository, &tag)?
+        };
+        let floating_tag = format!("{}{}{}", tag_prefix, version.major, tag_suffix);
+        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+    }
+
+    Ok(())
+}
+
+pub fn stable_version_from_tag(
+    tag: &str,
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> Option<Version> {
+    let version_text = tag.strip_prefix(tag_prefix)?.strip_suffix(tag_suffix)?;
+    let version = Version::parse(version_text).ok()?;
+    if is_stable_patch_version(&version) {
+        Some(version)
+    } else {
+        None
+    }
+}
+
+pub fn stable_floating_tags(
+    tag_prefix: &str,
+    tag_suffix: &str,
+    version: &Version,
+) -> Vec<String> {
+    if !is_stable_patch_version(version) {
+        return Vec::new();
+    }
+
+    vec![
+        format!("{}{}.{}{}", tag_prefix, version.major, version.minor, tag_suffix),
+        format!("{}{}{}", tag_prefix, version.major, tag_suffix),
+    ]
+}
+
+fn is_stable_patch_version(version: &Version) -> bool {
+    version.pre.is_empty() && version.build.is_empty()
+}
+
+fn keep_highest<K>(
+    map: &mut HashMap<K, (Version, String)>,
+    key: K,
+    version: Version,
+    tag: String,
+)
+where
+    K: Eq + std::hash::Hash,
+{
+    let should_replace = map
+        .get(&key)
+        .map(|(current, _)| &version > current)
+        .unwrap_or(true);
+
+    if should_replace {
+        map.insert(key, (version, tag));
+    }
 }
 
 fn release_notes_file(
@@ -301,6 +466,23 @@ struct GeneratedNotes {
     body: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct RefResponse {
+    object: GitObject,
+}
+
+#[derive(Clone, Deserialize)]
+struct GitObject {
+    sha: String,
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+#[derive(Deserialize)]
+struct TagResponse {
+    object: GitObject,
+}
+
 fn generate_notes_from_repository(
     repository: &str,
     tag: &str,
@@ -332,6 +514,109 @@ fn generate_notes_from_repository(
     let notes: GeneratedNotes = serde_json::from_slice(&output.stdout)
         .context("failed to parse generated release notes response")?;
     Ok(notes.body.unwrap_or_default())
+}
+
+fn list_matching_tags(repository: &str, tag_prefix: &str) -> Result<Vec<String>> {
+    let endpoint = format!("repos/{repository}/git/matching-refs/tags/{tag_prefix}");
+    let output = gh_output(&[
+        "api".to_string(),
+        "--paginate".to_string(),
+        endpoint,
+        "--jq".to_string(),
+        ".[].ref".to_string(),
+    ])?;
+
+    Ok(String::from_utf8_lossy(&output)
+        .lines()
+        .map(str::trim)
+        .filter_map(|line| line.strip_prefix("refs/tags/"))
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+fn resolve_tag_target_sha(repository: &str, tag: &str) -> Result<String> {
+    let endpoint = format!("repos/{repository}/git/ref/tags/{tag}");
+    let output = gh_output(&["api".to_string(), endpoint])?;
+    let response: RefResponse = serde_json::from_slice(&output)
+        .with_context(|| format!("failed to parse tag ref {tag} in {repository}"))?;
+
+    resolve_git_object_to_commit(repository, response.object)
+}
+
+fn resolve_git_object_to_commit(repository: &str, mut object: GitObject) -> Result<String> {
+    for _ in 0..8 {
+        match object.kind.as_str() {
+            "commit" => return Ok(object.sha),
+            "tag" => {
+                let endpoint = format!("repos/{repository}/git/tags/{}", object.sha);
+                let output = gh_output(&["api".to_string(), endpoint])?;
+                let tag: TagResponse = serde_json::from_slice(&output).with_context(|| {
+                    format!("failed to parse annotated tag object {} in {repository}", object.sha)
+                })?;
+                object = tag.object;
+            }
+            kind => anyhow::bail!(
+                "tag target in {repository} resolves to unsupported Git object type: {kind}"
+            ),
+        }
+    }
+
+    anyhow::bail!("tag target in {repository} contains too many nested tag objects")
+}
+
+fn upsert_tag_ref(repository: &str, tag: &str, target_sha: &str, dry_run: bool) -> Result<()> {
+    if dry_run {
+        println!(
+            "gh api --method PATCH repos/{repository}/git/refs/tags/{tag} -f sha={target_sha} -F force=true"
+        );
+        return Ok(());
+    }
+
+    if tag_ref_exists(repository, tag)? {
+        run_gh(
+            &[
+                "api".to_string(),
+                "--method".to_string(),
+                "PATCH".to_string(),
+                format!("repos/{repository}/git/refs/tags/{tag}"),
+                "-f".to_string(),
+                format!("sha={target_sha}"),
+                "-F".to_string(),
+                "force=true".to_string(),
+            ],
+            false,
+        )?;
+    } else {
+        run_gh(
+            &[
+                "api".to_string(),
+                "--method".to_string(),
+                "POST".to_string(),
+                format!("repos/{repository}/git/refs"),
+                "-f".to_string(),
+                format!("ref=refs/tags/{tag}"),
+                "-f".to_string(),
+                format!("sha={target_sha}"),
+            ],
+            false,
+        )?;
+    }
+
+    println!("updated floating tag {repository}@{tag} -> {target_sha}");
+    Ok(())
+}
+
+fn tag_ref_exists(repository: &str, tag: &str) -> Result<bool> {
+    let endpoint = format!("repos/{repository}/git/ref/tags/{tag}");
+    let status = Command::new("gh")
+        .args(["api", endpoint.as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .with_context(|| format!("failed to inspect tag ref {tag} in {repository}"))?;
+
+    Ok(status.success())
 }
 
 #[derive(Clone, Debug)]
@@ -503,6 +788,37 @@ fn fallback_notes(repository: &str, tag: &str, error: &str) -> String {
     )
 }
 
+fn gh_output(args: &[String]) -> Result<Vec<u8>> {
+    let output = Command::new("gh")
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .with_context(|| format!("failed to run gh {}", args.join(" ")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("gh command failed: gh {}\n{stderr}", args.join(" "));
+    }
+
+    Ok(output.stdout)
+}
+
+fn current_repository() -> Result<String> {
+    let output = gh_output(&[
+        "repo".to_string(),
+        "view".to_string(),
+        "--json".to_string(),
+        "nameWithOwner".to_string(),
+        "--jq".to_string(),
+        ".nameWithOwner".to_string(),
+    ])?;
+    let repository = String::from_utf8_lossy(&output).trim().to_string();
+    if repository.is_empty() {
+        anyhow::bail!("failed to resolve current GitHub repository");
+    }
+    Ok(repository)
+}
+
 fn run_gh(args: &[String], dry_run: bool) -> Result<()> {
     if dry_run {
         println!("gh {}", args.join(" "));
@@ -557,6 +873,8 @@ mod tests {
         ReleasePlan {
             version_text: "0.1.0".to_string(),
             tag: "v0.1.0".to_string(),
+            tag_prefix: "v".to_string(),
+            tag_suffix: String::new(),
             release_name: "tool v0.1.0".to_string(),
             target_branch: "master".to_string(),
             release_branch: "release/v0.1.0".to_string(),
@@ -564,6 +882,7 @@ mod tests {
             latest: true,
             commit_message: "prepare v0.1.0".to_string(),
             merge_message: "merge v0.1.0".to_string(),
+            floating_tags: false,
             github: crate::domain::GitHubPlan {
                 target_repository: Some("verzly/tool".to_string()),
                 source_repository: Some("verzly/toolchain".to_string()),
@@ -687,6 +1006,45 @@ mod tests {
             normalize_pull_request_links(body, Some("verzly/cargo-release")),
             body
         );
+    }
+
+    #[test]
+    fn stable_floating_tags_keep_release_prefix_and_suffix() {
+        let version = Version::parse("1.2.3").expect("version");
+
+        assert_eq!(
+            stable_floating_tags("action-v", "-dist", &version),
+            vec!["action-v1.2-dist".to_string(), "action-v1-dist".to_string()]
+        );
+    }
+
+    #[test]
+    fn stable_floating_tags_skip_prereleases_and_build_metadata() {
+        assert!(stable_floating_tags(
+            "v",
+            "",
+            &Version::parse("1.2.3-rc.1").expect("version")
+        )
+        .is_empty());
+        assert!(stable_floating_tags(
+            "v",
+            "",
+            &Version::parse("1.2.3+build.1").expect("version")
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn stable_version_from_tag_requires_full_patch_tag() {
+        assert_eq!(
+            stable_version_from_tag("action-v1.2.3-dist", "action-v", "-dist")
+                .expect("version")
+                .to_string(),
+            "1.2.3"
+        );
+        assert!(stable_version_from_tag("action-v1.2-dist", "action-v", "-dist").is_none());
+        assert!(stable_version_from_tag("action-v1.2.3-rc.1-dist", "action-v", "-dist")
+            .is_none());
     }
 
     #[test]

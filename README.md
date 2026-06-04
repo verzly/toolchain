@@ -17,6 +17,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `ac
   - [Release all tools](#release-all-tools)
   - [Release toolchain only](#release-toolchain-only)
   - [Delete a release](#delete-a-release)
+  - [Update floating tags](#update-floating-tags)
   - [Sync distribution repositories](#sync-distribution-repositories)
 - [Release configuration](#release-configuration)
   - [Source and public tags](#source-and-public-tags)
@@ -156,6 +157,8 @@ publish toolchain release
 
 Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release.
 
+Public distribution configs enable stable floating tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. Prerelease tags such as `v1.2.3-rc.1` never update floating tags.
+
 ### Release toolchain only
 
 Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in `verzly/toolchain` without executable assets. It uses the root `github-release.toml` and creates the clean source tag `vX.Y.Z`.
@@ -165,6 +168,20 @@ Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in
 Use `.github/workflows/delete-release.yml` only for release cleanup or rollback. The workflow requires a manual confirmation string, checks repository access before deleting anything, deletes the selected GitHub Release through the GitHub API, and then deletes the matching Git tag explicitly. For `all`, it removes `vX.Y.Z` from `verzly/toolchain`, removes `vX.Y.Z` from every public `verzly/<tool>` repository, and removes every package-prefixed source tag such as `cargo-release-vX.Y.Z` from `verzly/toolchain`.
 
 Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository cleanup uses `github.token`.
+
+### Update floating tags
+
+Use `.github/workflows/update-floating-tags.yml` to repair or backfill stable floating tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags`, reads each tool's `crates/<tool>/github-release.toml`, and skips any config where `release.floating_tags` is disabled.
+
+Modes:
+
+```text
+all      scan all stable vX.Y.Z tags and point each vX.Y / vX tag at the highest matching release
+version  update vX.Y / vX for one version input such as 1.2.3
+tag      analyze one full tag such as v1.2.3
+```
+
+The workflow requires `DISTRIBUTION_REPO_TOKEN` because floating tags are written to the public `verzly/<tool>` repositories. The root `verzly/toolchain` release config keeps floating tags disabled.
 
 ### Sync distribution repositories
 
@@ -188,6 +205,14 @@ crates/<tool>/cargo-release.toml
 ```
 
 `github-release.toml` contains both release contexts. `[source_release]` controls the temporary source branch and source tag in `verzly/toolchain`; `[release]` controls the public `vX.Y.Z` release in `verzly/<tool>`.
+
+For public distribution repositories, `[release]` also enables stable floating tags:
+
+```toml
+floating_tags = true
+```
+
+With `tag_prefix = "v"` and `tag_suffix = ""`, publishing `v1.2.3` updates `v1.2` and `v1`. If a project uses a custom prefix or suffix, the floating tags keep the same shape, for example `tool-v1.2-dist` and `tool-v1-dist` for `tool-v1.2.3-dist`.
 
 ### Release notes
 

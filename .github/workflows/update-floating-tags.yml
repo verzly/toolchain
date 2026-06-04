@@ -1,0 +1,133 @@
+name: Update Floating Tags
+run-name: Update floating tags for ${{ inputs.target }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Distribution repository to update, or all."
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+      mode:
+        description: "How to choose the stable release tags."
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - version
+          - tag
+      version:
+        description: "Version to update when mode is version, with or without leading v."
+        required: false
+      tag:
+        description: "Full release tag to analyze when mode is tag, for example v1.2.3."
+        required: false
+      dry_run:
+        description: "Print the tag updates without writing refs."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-floating-tags-${{ inputs.target }}-${{ inputs.mode }}-${{ inputs.version || inputs.tag || 'all' }}
+  cancel-in-progress: false
+
+env:
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+
+jobs:
+  update:
+    name: Update distribution floating tags
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Update enabled floating tags
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          MODE: ${{ inputs.mode }}
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required to update public distribution floating tags."
+            exit 1
+          fi
+
+          case "${TARGET}" in
+            all|github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            *) echo "::error::Unsupported target: ${TARGET}"; exit 1 ;;
+          esac
+
+          case "${MODE}" in
+            all) ;;
+            version)
+              if [ -z "${VERSION}" ]; then
+                echo "::error::version is required when mode is version."
+                exit 1
+              fi
+              ;;
+            tag)
+              if [ -z "${TAG}" ]; then
+                echo "::error::tag is required when mode is tag."
+                exit 1
+              fi
+              ;;
+            *) echo "::error::Unsupported mode: ${MODE}"; exit 1 ;;
+          esac
+
+          if [ "${TARGET}" = "all" ]; then
+            selected_tools="${TOOLS}"
+          else
+            selected_tools="${TARGET}"
+          fi
+
+          for tool in ${selected_tools}; do
+            repository="verzly/${tool}"
+            permission="$(gh api "repos/${repository}" --jq '.permissions.push // .permissions.admin // false')"
+            if [ "${permission}" != "true" ]; then
+              echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${repository}."
+              exit 1
+            fi
+
+            args=(floating-tags --config "crates/${tool}/github-release.toml")
+            case "${MODE}" in
+              all) args+=(--all) ;;
+              version) args+=(--version "${VERSION#v}") ;;
+              tag) args+=(--tag "${TAG}") ;;
+            esac
+
+            if [ "${DRY_RUN}" = "true" ]; then
+              args+=(--dry-run)
+            fi
+
+            echo "Updating floating tags for ${repository}."
+            github-release "${args[@]}"
+          done

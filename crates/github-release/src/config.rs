@@ -59,6 +59,7 @@ pub struct ReleaseConfig {
     pub merge_message: String,
     pub cleanup: bool,
     pub latest: bool,
+    pub floating_tags: bool,
 }
 
 impl Default for ReleaseConfig {
@@ -74,6 +75,7 @@ impl Default for ReleaseConfig {
             merge_message: "chore(release): merge {tag}".to_string(),
             cleanup: true,
             latest: true,
+            floating_tags: false,
         }
     }
 }
