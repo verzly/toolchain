@@ -16,6 +16,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `ac
   - [Release one public tool](#release-one-public-tool)
   - [Release all tools](#release-all-tools)
   - [Release toolchain only](#release-toolchain-only)
+  - [Delete a release](#delete-a-release)
   - [Sync distribution repositories](#sync-distribution-repositories)
 - [Release configuration](#release-configuration)
   - [Source and public tags](#source-and-public-tags)
@@ -159,6 +160,12 @@ Public repositories receive `vX.Y.Z`; the source repository receives package-pre
 
 Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in `verzly/toolchain` without executable assets. It uses the root `github-release.toml` and creates the clean source tag `vX.Y.Z`.
 
+### Delete a release
+
+Use `.github/workflows/delete-release.yml` only for release cleanup or rollback. The workflow requires a manual confirmation string, deletes the selected GitHub Release, and deletes the matching Git tag. For `all`, it removes `vX.Y.Z` from `verzly/toolchain`, removes `vX.Y.Z` from every public `verzly/<tool>` repository, and removes every package-prefixed source tag such as `cargo-release-vX.Y.Z` from `verzly/toolchain`.
+
+Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository cleanup uses `github.token`.
+
 ### Sync distribution repositories
 
 Use `.github/workflows/sync-distributions.yml` when public `README.md`, `action.yml`, or `LICENSE` files need to be pushed to the separate `verzly/<tool>` repositories without creating a release.
@@ -184,7 +191,9 @@ crates/<tool>/cargo-release.toml
 
 ### Release notes
 
-Public releases can use generated notes, scoped source notes, no notes, or a custom body. The current public tool configs use custom release text that points users back to the exact source comparison in `verzly/toolchain`, for example:
+Public releases can use generated notes, scoped source notes, no notes, or a custom body. Generated and scoped notes normalize pull request URLs so the visible text is `#123` for the current repository or `toolchain#123` for another repository; the full URL stays hidden behind the Markdown link.
+
+The current public tool configs use custom release text that points users back to the exact source comparison in `verzly/toolchain`, for example:
 
 ```text
 https://github.com/verzly/toolchain/compare/cargo-release-v0.1.0...cargo-release-v0.2.0

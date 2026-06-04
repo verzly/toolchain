@@ -94,8 +94,10 @@ fn release_notes_file(
         )?));
     }
 
-    if plan.github.generate_notes && plan.github.source_repository.is_some() {
-        return Ok(Some(write_external_notes_file(plan, dry_run)?));
+    if plan.github.generate_notes
+        && (plan.github.source_repository.is_some() || plan.github.target_repository.is_some())
+    {
+        return Ok(Some(write_generated_notes_file(plan, dry_run)?));
     }
 
     Ok(None)
@@ -111,11 +113,12 @@ fn write_custom_notes_file(plan: &ReleasePlan, template: &str) -> Result<PathBuf
 
 fn render_notes_template(plan: &ReleasePlan, template: &str) -> Result<String> {
     let previous_source_tag = previous_source_tag(plan)?;
-    Ok(render_notes_template_with_previous(
+    let body = render_notes_template_with_previous(
         plan,
         template,
         previous_source_tag.as_deref(),
-    ))
+    );
+    Ok(normalize_release_note_links(&body, plan))
 }
 
 fn render_notes_template_with_previous(
@@ -158,46 +161,136 @@ fn source_compare_url(plan: &ReleasePlan, previous_source_tag: Option<&str>) -> 
     }
 }
 
-fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBuf> {
-    let source_repository = plan
+fn normalize_release_note_links(body: &str, plan: &ReleasePlan) -> String {
+    normalize_pull_request_links(body, plan.github.target_repository.as_deref())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PullRequestUrl<'a> {
+    end: usize,
+    owner: &'a str,
+    repo: &'a str,
+    number: &'a str,
+}
+
+fn normalize_pull_request_links(body: &str, context_repository: Option<&str>) -> String {
+    const PREFIX: &str = "https://github.com/";
+
+    let mut normalized = String::with_capacity(body.len());
+    let mut cursor = 0;
+
+    while let Some(relative_start) = body[cursor..].find(PREFIX) {
+        let start = cursor + relative_start;
+        normalized.push_str(&body[cursor..start]);
+
+        let Some(url) = parse_pull_request_url(&body[start..]) else {
+            normalized.push_str(PREFIX);
+            cursor = start + PREFIX.len();
+            continue;
+        };
+
+        let end = start + url.end;
+        if is_markdown_link_destination(body, start) {
+            normalized.push_str(&body[start..end]);
+        } else {
+            let repository = format!("{}/{}", url.owner, url.repo);
+            let label = if same_repository(context_repository, &repository) {
+                format!("#{}", url.number)
+            } else {
+                format!("{}#{}", url.repo, url.number)
+            };
+            normalized.push_str(&format!("[{label}]({})", &body[start..end]));
+        }
+        cursor = end;
+    }
+
+    normalized.push_str(&body[cursor..]);
+    normalized
+}
+
+fn parse_pull_request_url(value: &str) -> Option<PullRequestUrl<'_>> {
+    const PREFIX: &str = "https://github.com/";
+    let rest = value.strip_prefix(PREFIX)?;
+
+    let owner_end = rest.find('/')?;
+    let owner = &rest[..owner_end];
+    let rest = &rest[owner_end + 1..];
+
+    let repo_end = rest.find("/pull/")?;
+    let repo = &rest[..repo_end];
+    let rest = &rest[repo_end + "/pull/".len()..];
+
+    let number_len = rest
+        .char_indices()
+        .take_while(|(_, ch)| ch.is_ascii_digit())
+        .last()
+        .map(|(index, ch)| index + ch.len_utf8())?;
+
+    if owner.is_empty() || repo.is_empty() || number_len == 0 {
+        return None;
+    }
+
+    Some(PullRequestUrl {
+        end: PREFIX.len() + owner.len() + 1 + repo.len() + "/pull/".len() + number_len,
+        owner,
+        repo,
+        number: &rest[..number_len],
+    })
+}
+
+fn is_markdown_link_destination(body: &str, url_start: usize) -> bool {
+    body[..url_start].ends_with("](")
+}
+
+fn same_repository(context_repository: Option<&str>, repository: &str) -> bool {
+    context_repository
+        .map(|value| value.eq_ignore_ascii_case(repository))
+        .unwrap_or(false)
+}
+
+fn write_generated_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBuf> {
+    let notes_repository = plan
         .github
         .source_repository
         .as_ref()
-        .context("source repository is required for external release notes")?;
+        .or(plan.github.target_repository.as_ref())
+        .context("source_repository or target_repository is required for generated release notes")?;
+    let notes_tag = if plan.github.source_repository.is_some() {
+        &plan.github.source_tag
+    } else {
+        &plan.tag
+    };
+    let target_commitish = if plan.github.source_repository.is_some() {
+        None
+    } else {
+        Some(plan.target_branch.as_str())
+    };
 
     let generated = if dry_run {
         format!(
-            "Generated release notes would be requested from `{source_repository}` for `{}`.",
-            plan.github.source_tag
+            "Generated release notes would be requested from `{notes_repository}` for `{notes_tag}`."
         )
-    } else if plan.github.notes.mode == NotesMode::Scoped {
-        generate_scoped_notes_from_git(plan).unwrap_or_else(|error| {
-            fallback_notes(
-                source_repository,
-                &plan.github.source_tag,
-                &error.to_string(),
-            )
-        })
+    } else if plan.github.source_repository.is_some() && plan.github.notes.mode == NotesMode::Scoped
+    {
+        generate_scoped_notes_from_git(plan)
+            .unwrap_or_else(|error| fallback_notes(notes_repository, notes_tag, &error.to_string()))
     } else {
-        generate_notes_from_source(source_repository, &plan.github.source_tag).unwrap_or_else(
-            |error| {
-                fallback_notes(
-                    source_repository,
-                    &plan.github.source_tag,
-                    &error.to_string(),
-                )
-            },
-        )
+        generate_notes_from_repository(notes_repository, notes_tag, target_commitish)
+            .unwrap_or_else(|error| fallback_notes(notes_repository, notes_tag, &error.to_string()))
     };
+    let generated = normalize_release_note_links(&generated, plan);
 
     let mut body = String::new();
     body.push_str(&generated);
-    body.push_str("\n\n---\n\n");
-    body.push_str(&format!(
-        "Source changes for this release are maintained in `{source_repository}`. Pull request links in \
-         these notes intentionally point to that source repository, even when the release itself is \
-         published from a distribution repository.\n"
-    ));
+
+    if let Some(source_repository) = plan.github.source_repository.as_ref() {
+        body.push_str("\n\n---\n\n");
+        body.push_str(&format!(
+            "Source changes for this release are maintained in `{source_repository}`. Pull request links in \
+             these notes intentionally point to that source repository, even when the release itself is \
+             published from a distribution repository.\n"
+        ));
+    }
 
     let path = std::env::temp_dir().join(format!("github-release-{}-notes.md", plan.tag));
     fs::write(&path, body)
@@ -210,10 +303,25 @@ struct GeneratedNotes {
     body: Option<String>,
 }
 
-fn generate_notes_from_source(repository: &str, tag: &str) -> Result<String> {
+fn generate_notes_from_repository(
+    repository: &str,
+    tag: &str,
+    target_commitish: Option<&str>,
+) -> Result<String> {
     let endpoint = format!("repos/{repository}/releases/generate-notes");
+    let mut args = vec![
+        "api".to_string(),
+        endpoint,
+        "-f".to_string(),
+        format!("tag_name={tag}"),
+    ];
+    if let Some(target_commitish) = target_commitish {
+        args.push("-f".to_string());
+        args.push(format!("target_commitish={target_commitish}"));
+    }
+
     let output = Command::new("gh")
-        .args(["api", &endpoint, "-f", &format!("tag_name={tag}")])
+        .args(&args)
         .stdin(Stdio::null())
         .output()
         .with_context(|| format!("failed to generate release notes from {repository}"))?;
@@ -553,6 +661,34 @@ mod tests {
             &include_paths
         ));
         assert!(!commit_matches(&unrelated, &include_scopes, &include_paths));
+    }
+
+    #[test]
+    fn release_note_link_normalization_hides_pull_request_urls() {
+        let body = "## What's changed
+
+- Fix cache path in https://github.com/verzly/toolchain/pull/15.
+- Keep public docs in https://github.com/verzly/cargo-release/pull/9";
+
+        let normalized = normalize_pull_request_links(body, Some("verzly/cargo-release"));
+
+        assert_eq!(
+            normalized,
+            "## What's changed
+
+- Fix cache path in [toolchain#15](https://github.com/verzly/toolchain/pull/15).
+- Keep public docs in [#9](https://github.com/verzly/cargo-release/pull/9)"
+        );
+    }
+
+    #[test]
+    fn release_note_link_normalization_preserves_existing_markdown_destinations() {
+        let body = "See [toolchain#15](https://github.com/verzly/toolchain/pull/15).";
+
+        assert_eq!(
+            normalize_pull_request_links(body, Some("verzly/cargo-release")),
+            body
+        );
     }
 
     #[test]

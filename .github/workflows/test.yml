@@ -59,6 +59,7 @@ jobs:
           test -f ".github/workflows/_release-build-assets.yml"
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"
+          test -f ".github/workflows/delete-release.yml"
           test -f ".github/workflows/sync-distributions.yml"
           grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to push distribution repository commits' ".github/workflows/sync-distributions.yml"
           grep -Fq 'chore(distribution): bump public surface' ".github/workflows/sync-distributions.yml"
@@ -70,6 +71,10 @@ jobs:
           grep -Fq 'GH_TOKEN:' ".github/workflows/_release-tool.yml"
           grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN' ".github/workflows/_release-tool.yml"
           grep -Fq 'DISTRIBUTION_REPO_TOKEN is required' ".github/workflows/release-all.yml"
+          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to delete public distribution releases and tags' ".github/workflows/delete-release.yml"
+          grep -Fq 'gh release delete "${tag}" --repo "${repository}" --yes --cleanup-tag' ".github/workflows/delete-release.yml"
+          grep -Fq 'gh api --method DELETE "repos/${repository}/git/refs/tags/${tag}"' ".github/workflows/delete-release.yml"
+          grep -Fq 'delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}"' ".github/workflows/delete-release.yml"
           grep -Fq 'Release All must be run from master' ".github/workflows/release-all.yml"
           grep -Fq 'Release workflows must be run from master' ".github/workflows/_release-tool.yml"
           grep -Fq 'git ls-remote --exit-code --tags' ".github/workflows/_release-tool.yml"
@@ -86,6 +91,8 @@ jobs:
           grep -Fq 'github-release finalize-batch' ".github/workflows/release-all.yml"
           grep -Fq 'source_tag_args+=(--source-tag "${tool}-v${VERSION}")' ".github/workflows/release-all.yml"
           grep -Fq 'Squashed commits:' "crates/github-release/src/commands/finalize.rs"
+          grep -Fq 'normalize_pull_request_links' "crates/github-release/src/github.rs"
+          grep -Fq 'is_markdown_link_destination' "crates/github-release/src/github.rs"
           grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/_release-tool.yml"
           grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/release-all.yml"
           grep -Fq 'use_prebuilt_cargo_release: true' ".github/workflows/release-all.yml"
@@ -126,7 +133,8 @@ jobs:
             ".github/workflows/release-github-release.yml" \
             ".github/workflows/release-rust-cache.yml" \
             ".github/workflows/release-tauri-release.yml" \
-            ".github/workflows/release-toolchain.yml"
+            ".github/workflows/release-toolchain.yml" \
+            ".github/workflows/delete-release.yml"
           grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
           grep -Fq "tag_prefix = \"v\"" "github-release.toml"
           for tool in github-release cargo-release tauri-release rust-cache android-signing; do
