@@ -10,6 +10,10 @@ use anyhow::Result;
 // Finalize is intentionally ordered from safest to most public operation:
 // merge first, then tag, then optionally publish a GitHub Release from that tag.
 pub fn run(args: FinalizeArgs) -> Result<()> {
+    if args.notes.is_some() && args.notes_file.is_some() {
+        anyhow::bail!("use either --notes or --notes-file, not both");
+    }
+
     let config = config::load(&args.config)?.source_view();
     let plan = domain::build_plan(
         &config,
@@ -59,7 +63,15 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
     if args.skip_github_release {
         println!("skipping GitHub Release creation for {}", plan.tag);
     } else {
-        github::create_release(&plan, args.assets.as_deref(), args.dry_run)?;
+        github::create_release(
+            &plan,
+            args.assets.as_deref(),
+            github::ReleaseNotesInput {
+                body: args.notes.as_deref(),
+                file: args.notes_file.as_deref(),
+            },
+            args.dry_run,
+        )?;
     }
 
     if config.release.cleanup && !args.keep_branch {

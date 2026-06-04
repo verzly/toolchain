@@ -130,6 +130,14 @@ pub struct FinalizeArgs {
     /// Do not create a GitHub Release. Useful for source monorepo tags that are followed by a public distribution release.
     #[arg(long, default_value_t = false)]
     pub skip_github_release: bool,
+
+    /// Use this text as the GitHub Release body instead of generated notes.
+    #[arg(long)]
+    pub notes: Option<String>,
+
+    /// Read the GitHub Release body from this file instead of generated notes.
+    #[arg(long)]
+    pub notes_file: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -153,6 +161,14 @@ pub struct PublishArgs {
     /// Print commands without executing them.
     #[arg(long, default_value_t = false)]
     pub dry_run: bool,
+
+    /// Use this text as the GitHub Release body instead of generated notes.
+    #[arg(long)]
+    pub notes: Option<String>,
+
+    /// Read the GitHub Release body from this file instead of generated notes.
+    #[arg(long)]
+    pub notes_file: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -204,6 +220,8 @@ mod tests {
             "dist",
             "--prerelease",
             "true",
+            "--notes",
+            "Custom release body",
             "--dry-run",
         ]);
 
@@ -215,6 +233,7 @@ mod tests {
         assert_eq!(args.config, PathBuf::from("release.toml"));
         assert_eq!(args.assets, Some(PathBuf::from("dist")));
         assert_eq!(args.prerelease, PrereleaseMode::True);
+        assert_eq!(args.notes.as_deref(), Some("Custom release body"));
         assert!(args.dry_run);
     }
 }

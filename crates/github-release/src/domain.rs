@@ -27,6 +27,7 @@ pub struct GitHubPlan {
     pub source_tag_prefix: String,
     pub source_tag_suffix: String,
     pub generate_notes: bool,
+    pub notes_body: String,
     pub notes: NotesPlan,
 }
 
@@ -103,6 +104,7 @@ pub fn build_plan(
             source_tag_prefix: config.github.source_tag_prefix.clone(),
             source_tag_suffix: config.github.source_tag_suffix.clone(),
             generate_notes: config.github.generate_notes,
+            notes_body: config.github.notes_body.clone(),
             notes: NotesPlan {
                 mode: config.github.notes.mode,
                 include_scopes: config.github.notes.include_scopes.clone(),

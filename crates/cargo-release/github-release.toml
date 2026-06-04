@@ -32,7 +32,15 @@ target_repository = "verzly/cargo-release"
 source_repository = "verzly/toolchain"
 source_tag_prefix = "cargo-release-v"
 source_tag_suffix = ""
-generate_notes = true
+generate_notes = false
+notes_body = """
+This version was developed in `verzly/toolchain`.
+
+Source changes for this package can be reviewed from `{previous_source_tag}` to `{source_tag}`:
+{source_compare_url}
+
+The distribution repository contains the public GitHub Action surface and release assets. Source changes and pull requests live in `verzly/toolchain`.
+"""
 
 [github.notes]
 mode = "scoped"
