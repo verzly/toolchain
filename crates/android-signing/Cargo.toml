@@ -1,18 +1,27 @@
-[package]
+[[bin]]
 name = "android-signing"
-version = "0.1.0"
-edition.workspace = true
-description = "Android release signing keystore helper"
-license.workspace = true
-repository.workspace = true
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0"
 base64 = "0.22"
-clap = { version = "4.5", features = ["derive"] }
 rand = "0.10"
 rpassword = "7.5"
 
-[[bin]]
+[dependencies.clap]
+features = ["derive"]
+version = "4.5"
+
+[package]
+description = "Android release signing keystore helper"
 name = "android-signing"
-path = "src/main.rs"
+version = "0.1.0"
+
+[package.edition]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.repository]
+workspace = true
