@@ -137,9 +137,11 @@ sync-distributions.yml   # public README/action/LICENSE sync only
 update-floating-tags.yml # stable vX.Y / vX tag repair for public repositories
 ```
 
-Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
+Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public distribution bump commits, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
 
 Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit. If a re-release has no source diff because `master` already contains the requested version, finalization skips the squash commit and tags the current `master` commit instead.
+
+After all required builds pass and before public `vX.Y.Z` tags are created, release workflows run `sync-distributions.yml` only for the repositories being released. The sync uses a release-specific `chore(distribution)` commit message and forces a bump commit even when the public files are already up to date, so the public release tag lands on the release bump commit.
 
 Public distribution release configs enable stable floating tags. Publishing `v1.2.3` updates `v1.2` and `v1` in the public distribution repository. The root toolchain config keeps this disabled because the source repository should not receive moving major/minor tags.
 

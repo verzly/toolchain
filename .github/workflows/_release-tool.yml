@@ -230,10 +230,23 @@ jobs:
           --merge-strategy squash
           --skip-github-release
 
+  sync_distribution:
+    name: Sync distribution
+    needs:
+      - finalize_source
+      - build
+    uses: ./.github/workflows/sync-distributions.yml
+    with:
+      tool: ${{ inputs.tool }}
+      commit-message: "chore(distribution): bump public surface for v${{ inputs.version }} release"
+      force-commit: true
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+
   publish_distribution:
     name: Publish distribution
     needs:
-      - finalize_source
+      - sync_distribution
       - build
     runs-on: ubuntu-latest
 
