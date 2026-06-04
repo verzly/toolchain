@@ -105,7 +105,7 @@ Maintainer workflows are:
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `delete-release.yml` only for release cleanup; it removes the selected GitHub Release and the matching tag together.
+Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `delete-release.yml` only for release cleanup; it checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 ## Production Tokens
 

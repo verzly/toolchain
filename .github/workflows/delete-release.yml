@@ -71,14 +71,40 @@ jobs:
             exit 1
           fi
 
+          selected_tools=()
+          for tool in ${TOOLS}; do
+            if [ "${TARGET}" = "all" ] || [ "${TARGET}" = "${tool}" ]; then
+              selected_tools+=("${tool}")
+            fi
+          done
+
+          check_repository_access() {
+            local repository="$1"
+            local token="$2"
+            local token_name="$3"
+
+            if ! GH_TOKEN="${token}" gh api "repos/${repository}" >/dev/null 2>&1; then
+              echo "::error::${token_name} cannot access ${repository}. Check the token owner, scopes, and repository access."
+              exit 1
+            fi
+          }
+
+          check_repository_access "${SOURCE_REPOSITORY}" "${SOURCE_TOKEN}" "GITHUB_TOKEN"
+          for tool in "${selected_tools[@]}"; do
+            check_repository_access "verzly/${tool}" "${DISTRIBUTION_TOKEN}" "DISTRIBUTION_REPO_TOKEN"
+          done
+
           delete_release_if_exists() {
             local repository="$1"
             local tag="$2"
             local token="$3"
+            local release_id
 
-            if GH_TOKEN="${token}" gh release view "${tag}" --repo "${repository}" >/dev/null 2>&1; then
+            release_id="$(GH_TOKEN="${token}" gh api "repos/${repository}/releases/tags/${tag}" --jq '.id' 2>/dev/null || true)"
+
+            if [ -n "${release_id}" ]; then
               echo "Deleting release ${tag} from ${repository}."
-              GH_TOKEN="${token}" gh release delete "${tag}" --repo "${repository}" --yes --cleanup-tag
+              GH_TOKEN="${token}" gh api --method DELETE "repos/${repository}/releases/${release_id}" >/dev/null
             else
               echo "::notice::Release ${tag} does not exist in ${repository}."
             fi
@@ -110,11 +136,7 @@ jobs:
             delete_release_and_tag "${SOURCE_REPOSITORY}" "${release_tag}" "${SOURCE_TOKEN}"
           fi
 
-          for tool in ${TOOLS}; do
-            if [ "${TARGET}" != "all" ] && [ "${TARGET}" != "${tool}" ]; then
-              continue
-            fi
-
+          for tool in "${selected_tools[@]}"; do
             delete_release_and_tag "verzly/${tool}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
             delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}" "${SOURCE_TOKEN}"
           done

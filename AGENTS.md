@@ -190,7 +190,7 @@ Release All may create multiple preparation commits on the temporary aggregate b
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
-A `.github/workflows/delete-release.yml` workflow must exist for destructive release cleanup. It must delete both GitHub Releases and their matching Git tags. For `all`, it must remove `vX.Y.Z` from `verzly/toolchain`, remove `vX.Y.Z` from every public `verzly/<tool>` repository, and remove each package-prefixed source tag from `verzly/toolchain`. Public repository deletion must require `DISTRIBUTION_REPO_TOKEN`.
+A `.github/workflows/delete-release.yml` workflow must exist for destructive release cleanup. It must check repository access before deleting anything, delete GitHub Releases through the GitHub API, and delete matching Git tags explicitly instead of relying on release-delete tag cleanup side effects. For `all`, it must remove `vX.Y.Z` from `verzly/toolchain`, remove `vX.Y.Z` from every public `verzly/<tool>` repository, and remove each package-prefixed source tag from `verzly/toolchain`. Public repository deletion must require `DISTRIBUTION_REPO_TOKEN`.
 
 ## Commit and PR title scopes for release notes
 
