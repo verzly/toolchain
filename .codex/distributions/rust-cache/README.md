@@ -75,6 +75,8 @@ The composite action detects the runner operating system and CPU architecture, m
 
 The action does not build from source. It does not clone `verzly/toolchain`. It only consumes the release assets published here.
 
+When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, or `@v1.2`, the installer resolves that ref to the concrete `vX.Y.Z` or preview release tag pointing at the same commit before downloading assets. This lets workflows use moving action refs while executable assets remain attached to immutable release tags.
+
 ## Usage
 
 ### Action inputs
@@ -82,7 +84,7 @@ The action does not build from source. It does not clone `verzly/toolchain`. It 
 | Input | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `github-token` | No | `""` | Any GitHub token readable by `gh`; empty uses `${{ github.token }}` | Used only to download release assets. Public repositories normally work with the default token. Pass a custom token when downloading from a private fork or restricted environment. |
-| `version` | No | `""` | Empty, `1.2.3`, `v1.2.3`, or any published release tag | Selects the release asset to download. Empty means latest release. If the value does not start with `v`, the action prefixes it with `v`. |
+| `version` | No | `""` | Empty, `latest`, `next`, `v1`, `v1.2`, `1.2.3`, `v1.2.3`, or any published release tag | Selects the release asset to download. Empty uses the action ref when it is a release selector, otherwise the latest release. Moving refs resolve to the concrete `vX.Y.Z` release tag that has the executable asset. |
 | `install-only` | No | `"false"` | String `"true"` or `"false"` | When `"true"`, the action only installs the executable and adds it to `PATH`. When `"false"`, it installs and immediately runs the executable with `args`. |
 | `args` | No | `--help` | Any valid CLI argument string for the executable | Passed to the installed executable when `install-only` is not `"true"`. Quote values carefully because this string is evaluated by the shell. |
 | `working-directory` | No | `.` | Relative or absolute path | Directory where the executable runs when `install-only` is not `"true"`. |
