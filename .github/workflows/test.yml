@@ -86,6 +86,8 @@ jobs:
           grep -Fq 'use_prebuilt_cargo_release: true' ".github/workflows/release-all.yml"
           grep -Fq 'use_prebuilt_cargo_release: false' ".github/workflows/release-all.yml"
           grep -Fq 'name: Add built cargo-release to PATH' ".github/workflows/_release-build-assets.yml"
+          grep -Fq 'macos-15-intel' ".github/workflows/_release-build-assets.yml"
+          ! grep -Fq 'macos-13' ".github/workflows/_release-build-assets.yml"
           grep -Fq 'github-release prepare' ".github/workflows/release-all.yml"
           grep -Fq 'cargo-release build' ".github/workflows/_release-build-assets.yml"
           grep -Fq 'github-release finalize' ".github/workflows/release-all.yml"
