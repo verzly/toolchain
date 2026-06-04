@@ -3,7 +3,7 @@
 use crate::cli::FloatingTagsArgs;
 use crate::config;
 use crate::domain;
-use crate::github::{self, FloatingTagOptions};
+use crate::github::{self, FloatingTagOptions, FloatingTagUpdate};
 use anyhow::Result;
 
 pub fn run(args: FloatingTagsArgs) -> Result<()> {
@@ -46,13 +46,15 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
         let plan = domain::build_plan(&config, version, None, None, None)?;
         let version = semver::Version::parse(&plan.version_text)?;
         github::refresh_floating_tags_for_tag(
-            repository,
-            &plan.tag,
-            &config.release.tag_prefix,
-            &config.release.tag_suffix,
-            &config.release.latest_tag_name,
-            &config.release.next_tag_name,
-            &version,
+            FloatingTagUpdate {
+                repository,
+                full_tag: &plan.tag,
+                tag_prefix: &config.release.tag_prefix,
+                tag_suffix: &config.release.tag_suffix,
+                latest_tag_name: &config.release.latest_tag_name,
+                next_tag_name: &config.release.next_tag_name,
+                version: &version,
+            },
             options,
             args.dry_run,
         )?;
@@ -69,13 +71,15 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
             return Ok(());
         };
         github::refresh_floating_tags_for_tag(
-            repository,
-            tag,
-            &config.release.tag_prefix,
-            &config.release.tag_suffix,
-            &config.release.latest_tag_name,
-            &config.release.next_tag_name,
-            &version,
+            FloatingTagUpdate {
+                repository,
+                full_tag: tag,
+                tag_prefix: &config.release.tag_prefix,
+                tag_suffix: &config.release.tag_suffix,
+                latest_tag_name: &config.release.latest_tag_name,
+                next_tag_name: &config.release.next_tag_name,
+                version: &version,
+            },
             options,
             args.dry_run,
         )?;

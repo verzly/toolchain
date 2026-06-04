@@ -131,13 +131,15 @@ pub fn refresh_floating_tags_for_plan(
         .with_context(|| format!("invalid SemVer version: {}", plan.version_text))?;
 
     refresh_floating_tags_for_tag(
-        &repository,
-        &plan.tag,
-        &plan.tag_prefix,
-        &plan.tag_suffix,
-        &plan.latest_tag_name,
-        &plan.next_tag_name,
-        &version,
+        FloatingTagUpdate {
+            repository: &repository,
+            full_tag: &plan.tag,
+            tag_prefix: &plan.tag_prefix,
+            tag_suffix: &plan.tag_suffix,
+            latest_tag_name: &plan.latest_tag_name,
+            next_tag_name: &plan.next_tag_name,
+            version: &version,
+        },
         options,
         dry_run,
     )
@@ -155,17 +157,30 @@ fn target_repository_for_tag_updates(plan: &ReleasePlan, dry_run: bool) -> Resul
     current_repository()
 }
 
+pub struct FloatingTagUpdate<'a> {
+    pub repository: &'a str,
+    pub full_tag: &'a str,
+    pub tag_prefix: &'a str,
+    pub tag_suffix: &'a str,
+    pub latest_tag_name: &'a str,
+    pub next_tag_name: &'a str,
+    pub version: &'a Version,
+}
+
 pub fn refresh_floating_tags_for_tag(
-    repository: &str,
-    full_tag: &str,
-    tag_prefix: &str,
-    tag_suffix: &str,
-    latest_tag_name: &str,
-    next_tag_name: &str,
-    version: &Version,
+    update: FloatingTagUpdate<'_>,
     options: FloatingTagOptions,
     dry_run: bool,
 ) -> Result<()> {
+    let FloatingTagUpdate {
+        repository,
+        full_tag,
+        tag_prefix,
+        tag_suffix,
+        latest_tag_name,
+        next_tag_name,
+        version,
+    } = update;
     if options.stable_line_tags {
         let floating_tags = stable_floating_tags(tag_prefix, tag_suffix, version);
         if floating_tags.is_empty() {
@@ -346,7 +361,8 @@ fn version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Ver
     Version::parse(version_text).ok()
 }
 
-pub fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
+#[cfg(test)]
+fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
     let version = version_from_tag(tag, tag_prefix, tag_suffix)?;
     if is_stable_patch_version(&version) {
         Some(version)
