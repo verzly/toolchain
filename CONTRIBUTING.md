@@ -106,7 +106,7 @@ Maintainer workflows are:
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
+Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 Generated release notes should compare against the previous full SemVer release tag from the same tag family. Do not use creation date ordering for notes ranges, because moving tags and repaired releases can make chronological tag order misleading.
 

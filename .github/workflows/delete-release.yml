@@ -1,11 +1,11 @@
 name: Delete Release
-run-name: Delete release v${{ inputs.version }} from ${{ inputs.target }}
+run-name: Delete release ${{ inputs.version }} from ${{ inputs.target }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to delete. Accepts 1.2.3 or v1.2.3."
+        description: "Version to delete without the v prefix. Example: 1.2.3."
         required: true
       target:
         description: "Release target to delete. All deletes public tool releases, source tags, and the toolchain release."
@@ -21,7 +21,7 @@ on:
           - rust-cache
           - android-signing
       confirm:
-        description: "Type DELETE vX.Y.Z to confirm destructive release and tag deletion."
+        description: "Type DELETE X.Y.Z to confirm destructive release and tag deletion."
         required: true
 
 permissions:
@@ -52,9 +52,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="${INPUT_VERSION#v}"
+          version="${INPUT_VERSION}"
+          if [[ "${version}" == v* ]]; then
+            echo "::error::Version must be provided without the v prefix. Use '${version#v}' instead of '${version}'."
+            exit 1
+          fi
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version must be a SemVer value without the v prefix, for example 1.2.3."
+            exit 1
+          fi
+
           release_tag="v${version}"
-          expected_confirmation="DELETE ${release_tag}"
+          expected_confirmation="DELETE ${version}"
 
           if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
             echo "::error::Confirmation mismatch. Type '${expected_confirmation}' to delete release and tag data."

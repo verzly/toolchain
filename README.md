@@ -169,7 +169,7 @@ Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in
 
 ### Delete a release
 
-Use `.github/workflows/delete-release.yml` only for release cleanup or rollback. The workflow requires a manual confirmation string, checks repository access before deleting anything, deletes the selected GitHub Release through the GitHub API, and then deletes the matching Git tag explicitly. For `all`, it removes `vX.Y.Z` from `verzly/toolchain`, removes `vX.Y.Z` from every public `verzly/<tool>` repository, and removes every package-prefixed source tag such as `cargo-release-vX.Y.Z` from `verzly/toolchain`.
+Use `.github/workflows/delete-release.yml` only for release cleanup or rollback. The workflow takes the same version input style as release workflows: enter `X.Y.Z` without the `v` prefix, and confirm with `DELETE X.Y.Z`. It checks repository access before deleting anything, deletes the selected GitHub Release through the GitHub API, and then deletes the matching Git tag explicitly. For `all`, it removes `vX.Y.Z` from `verzly/toolchain`, removes `vX.Y.Z` from every public `verzly/<tool>` repository, and removes every package-prefixed source tag such as `cargo-release-vX.Y.Z` from `verzly/toolchain`.
 
 Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository cleanup uses `github.token`.
 
