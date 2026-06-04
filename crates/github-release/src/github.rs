@@ -177,7 +177,7 @@ fn generate_scoped_notes_from_git(plan: &ReleasePlan) -> Result<String> {
     body.push('\n');
     if let Some(previous_tag) = previous_tag {
         body.push_str(&format!(
-            "Compared source tags: `{previous_tag}` → `{}`.\n",
+            "Compared source tags: `{previous_tag}` -> `{}`.\n",
             plan.github.source_tag
         ));
     } else {

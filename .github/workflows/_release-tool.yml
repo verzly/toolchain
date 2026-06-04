@@ -62,21 +62,9 @@ jobs:
           esac
 
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::DISTRIBUTION_REPO_TOKEN is required because this workflow writes to ${TARGET_REPOSITORY}. Public repositories are public for reading, but release creation, tag creation, and pushing README/action.yml/LICENSE still require write access."
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required because this workflow publishes releases and assets to ${TARGET_REPOSITORY}. Public repositories are public for reading, but creating tags, creating releases, and uploading assets still require write access."
             exit 1
           fi
-
-          if [ ! -d "_repos/${TOOL}" ]; then
-            echo "::error::Missing distribution repository template: _repos/${TOOL}"
-            exit 1
-          fi
-
-          for required in README.md action.yml LICENSE; do
-            if [ ! -f "_repos/${TOOL}/${required}" ]; then
-              echo "::error::Missing _repos/${TOOL}/${required}"
-              exit 1
-            fi
-          done
 
           permission="$(gh api "repos/${TARGET_REPOSITORY}" --jq '.permissions.push // .permissions.admin // false')"
           if [ "${permission}" != "true" ]; then
@@ -126,6 +114,21 @@ jobs:
           github-release prepare
           --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
+
+      - name: Refresh source lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo metadata --format-version 1 --no-deps >/dev/null
+          git add Cargo.lock
+
+          if git diff --cached --quiet; then
+            echo "Cargo.lock is already up to date for ${{ steps.prepare.outputs.tag }}."
+          else
+            git commit -m "chore(release): update lockfile for ${{ steps.prepare.outputs.tag }}"
+            git push origin HEAD:${{ steps.prepare.outputs.release_branch }}
+          fi
 
   test:
     name: Test source
@@ -278,25 +281,6 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - name: Checkout or initialize distribution repository
-        env:
-          DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
-          TARGET_REPOSITORY: verzly/${{ inputs.tool }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git clone "https://x-access-token:${DISTRIBUTION_REPO_TOKEN}@github.com/${TARGET_REPOSITORY}.git" distribution
-          cd distribution
-
-          if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
-            git checkout master
-            git pull --ff-only origin master
-          else
-            git checkout --orphan master
-            git rm -rf . >/dev/null 2>&1 || true
-          fi
-
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Bootstrap github-release
@@ -308,31 +292,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: downloaded-assets
-
-      - name: Sync public repository content
-        env:
-          TOOL: ${{ inputs.tool }}
-          VERSION: ${{ inputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rsync -a --delete \
-            --exclude '.git' \
-            "source/_repos/${TOOL}/" \
-            "distribution/"
-
-          cd distribution
-          git config user.name "verzly-release-bot"
-          git config user.email "release-bot@verzly.dev"
-          git add --all
-
-          if git diff --cached --quiet; then
-            echo "Distribution repository content is already up to date."
-          else
-            git commit -m "chore(release): update distribution content for v${VERSION}"
-            git push origin master
-          fi
 
       - name: Publish public release
         working-directory: source
