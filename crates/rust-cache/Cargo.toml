@@ -1,18 +1,30 @@
-[package]
-name = "rust-cache"
-version = "0.1.0"
-edition.workspace = true
-description = "Project-local cache routing helper for Rust and Tauri workspaces"
-license.workspace = true
-repository.workspace = true
-
-[dependencies]
-anyhow = "1.0"
-clap = { version = "4.5", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "1.1"
-
 [[bin]]
 name = "rust-cache"
 path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+serde_json = "1.0"
+toml = "1.1"
+
+[dependencies.clap]
+features = ["derive"]
+version = "4.5"
+
+[dependencies.serde]
+features = ["derive"]
+version = "1.0"
+
+[package]
+description = "Project-local cache routing helper for Rust and Tauri workspaces"
+name = "rust-cache"
+version = "0.1.0"
+
+[package.edition]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.repository]
+workspace = true
