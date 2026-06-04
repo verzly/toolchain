@@ -107,6 +107,71 @@ pub fn fingerprint(path: &Path, alias: &str, store_password: &str) -> Result<()>
     Ok(())
 }
 
+pub fn fingerprint_sha256(path: &Path, alias: &str, store_password: &str) -> Result<String> {
+    let command_args = vec![
+        "-list".to_string(),
+        "-v".to_string(),
+        "-keystore".to_string(),
+        path.display().to_string(),
+        "-alias".to_string(),
+        alias.to_string(),
+        "-storepass".to_string(),
+        store_password.to_string(),
+    ];
+    let output = Command::new("keytool")
+        .args(command_args)
+        .stdin(Stdio::null())
+        .output()
+        .context("failed to run keytool")?;
+
+    if !output.status.success() {
+        anyhow::bail!("keytool failed to print fingerprint");
+    }
+
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    parse_sha256_fingerprint(&combined)
+        .context("keytool output did not contain a SHA-256 fingerprint")
+}
+
+pub fn verify_sha256_fingerprint(
+    path: &Path,
+    alias: &str,
+    store_password: &str,
+    expected: &str,
+) -> Result<()> {
+    let actual = fingerprint_sha256(path, alias, store_password)?;
+    let expected = normalize_fingerprint(expected);
+    let actual = normalize_fingerprint(&actual);
+
+    if actual != expected {
+        anyhow::bail!("fingerprint mismatch: expected {expected}, got {actual}");
+    }
+
+    Ok(())
+}
+
+fn parse_sha256_fingerprint(output: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let line = line.trim();
+        line.strip_prefix("SHA256:")
+            .or_else(|| line.strip_prefix("SHA-256:"))
+            .map(str::trim)
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn normalize_fingerprint(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_ascii_hexdigit())
+        .flat_map(|character| character.to_uppercase())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +190,20 @@ mod tests {
             keystore_base64(&path).expect("encode keystore"),
             "a2V5c3RvcmU="
         );
+    }
+
+    #[test]
+    fn parses_and_normalizes_sha256_fingerprint() {
+        let output = "\
+Alias name: release-key
+Certificate fingerprints:
+         SHA256: AA:bb:01:ff
+";
+
+        assert_eq!(
+            parse_sha256_fingerprint(output).expect("sha256"),
+            "AA:bb:01:ff"
+        );
+        assert_eq!(normalize_fingerprint("aa bb:01-ff"), "AABB01FF");
     }
 }

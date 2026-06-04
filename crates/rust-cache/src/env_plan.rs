@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct EnvPlan {
@@ -50,6 +50,10 @@ impl EnvPlan {
             );
         }
 
+        for (key, value) in &config.env {
+            values.insert(key.clone(), env_cache_path(&cache_root, value));
+        }
+
         Ok(Self {
             workspace_root: workspace.root,
             package,
@@ -63,6 +67,15 @@ impl EnvPlan {
         for (key, value) in &self.values {
             println!("export {key}=\"{value}\"");
         }
+    }
+}
+
+fn env_cache_path(cache_root: &Path, value: &str) -> String {
+    let path = PathBuf::from(value);
+    if path.is_absolute() {
+        path.display().to_string()
+    } else {
+        cache_root.join(path).display().to_string()
     }
 }
 
@@ -84,6 +97,7 @@ mod tests {
             cargo: CargoConfig {
                 target_dir: "rust/packages/{package}/target".to_string(),
             },
+            env: BTreeMap::new(),
         };
 
         let plan = EnvPlan::build(&config).expect("build env plan");
@@ -97,5 +111,41 @@ mod tests {
             .ends_with(".cache-test/rust/packages/demo-package/target"));
         assert!(plan.values.contains_key("CARGO_HOME"));
         assert!(!plan.values.contains_key("GRADLE_USER_HOME"));
+    }
+
+    #[test]
+    fn applies_default_and_custom_language_cache_paths_under_cache_root() {
+        let mut config = Config::default();
+        config.cache.dir = PathBuf::from(".cache-test");
+        config.cache.package = "demo-package".to_string();
+        config
+            .env
+            .insert("FOO_CACHE".to_string(), "foo".to_string());
+
+        let plan = EnvPlan::build(&config).expect("build env plan");
+
+        assert!(plan
+            .values
+            .get("NPM_CONFIG_CACHE")
+            .expect("npm cache")
+            .ends_with(".cache-test/js/npm"));
+        assert!(plan
+            .values
+            .get("PNPM_STORE_PATH")
+            .expect("pnpm cache")
+            .ends_with(".cache-test/js/pnpm-store"));
+        assert!(plan
+            .values
+            .get("FOO_CACHE")
+            .expect("custom cache")
+            .ends_with(".cache-test/foo"));
+    }
+
+    #[test]
+    fn keeps_absolute_custom_cache_paths() {
+        assert_eq!(
+            env_cache_path(Path::new(".cache"), "/tmp/tool-cache"),
+            "/tmp/tool-cache"
+        );
     }
 }
