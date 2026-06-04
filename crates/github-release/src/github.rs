@@ -113,9 +113,7 @@ pub fn refresh_floating_tags_for_tag(
 ) -> Result<()> {
     let floating_tags = stable_floating_tags(tag_prefix, tag_suffix, version);
     if floating_tags.is_empty() {
-        println!(
-            "skipping floating tags for non-stable release tag {full_tag} in {repository}"
-        );
+        println!("skipping floating tags for non-stable release tag {full_tag} in {repository}");
         return Ok(());
     }
 
@@ -187,11 +185,7 @@ pub fn refresh_highest_floating_tags(
     Ok(())
 }
 
-pub fn stable_version_from_tag(
-    tag: &str,
-    tag_prefix: &str,
-    tag_suffix: &str,
-) -> Option<Version> {
+pub fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
     let version_text = tag.strip_prefix(tag_prefix)?.strip_suffix(tag_suffix)?;
     let version = Version::parse(version_text).ok()?;
     if is_stable_patch_version(&version) {
@@ -201,17 +195,16 @@ pub fn stable_version_from_tag(
     }
 }
 
-pub fn stable_floating_tags(
-    tag_prefix: &str,
-    tag_suffix: &str,
-    version: &Version,
-) -> Vec<String> {
+pub fn stable_floating_tags(tag_prefix: &str, tag_suffix: &str, version: &Version) -> Vec<String> {
     if !is_stable_patch_version(version) {
         return Vec::new();
     }
 
     vec![
-        format!("{}{}.{}{}", tag_prefix, version.major, version.minor, tag_suffix),
+        format!(
+            "{}{}.{}{}",
+            tag_prefix, version.major, version.minor, tag_suffix
+        ),
         format!("{}{}{}", tag_prefix, version.major, tag_suffix),
     ]
 }
@@ -220,12 +213,7 @@ fn is_stable_patch_version(version: &Version) -> bool {
     version.pre.is_empty() && version.build.is_empty()
 }
 
-fn keep_highest<K>(
-    map: &mut HashMap<K, (Version, String)>,
-    key: K,
-    version: Version,
-    tag: String,
-)
+fn keep_highest<K>(map: &mut HashMap<K, (Version, String)>, key: K, version: Version, tag: String)
 where
     K: Eq + std::hash::Hash,
 {
@@ -551,7 +539,10 @@ fn resolve_git_object_to_commit(repository: &str, mut object: GitObject) -> Resu
                 let endpoint = format!("repos/{repository}/git/tags/{}", object.sha);
                 let output = gh_output(&["api".to_string(), endpoint])?;
                 let tag: TagResponse = serde_json::from_slice(&output).with_context(|| {
-                    format!("failed to parse annotated tag object {} in {repository}", object.sha)
+                    format!(
+                        "failed to parse annotated tag object {} in {repository}",
+                        object.sha
+                    )
                 })?;
                 object = tag.object;
             }
@@ -1020,18 +1011,14 @@ mod tests {
 
     #[test]
     fn stable_floating_tags_skip_prereleases_and_build_metadata() {
-        assert!(stable_floating_tags(
-            "v",
-            "",
-            &Version::parse("1.2.3-rc.1").expect("version")
-        )
-        .is_empty());
-        assert!(stable_floating_tags(
-            "v",
-            "",
-            &Version::parse("1.2.3+build.1").expect("version")
-        )
-        .is_empty());
+        assert!(
+            stable_floating_tags("v", "", &Version::parse("1.2.3-rc.1").expect("version"))
+                .is_empty()
+        );
+        assert!(
+            stable_floating_tags("v", "", &Version::parse("1.2.3+build.1").expect("version"))
+                .is_empty()
+        );
     }
 
     #[test]
@@ -1043,8 +1030,7 @@ mod tests {
             "1.2.3"
         );
         assert!(stable_version_from_tag("action-v1.2-dist", "action-v", "-dist").is_none());
-        assert!(stable_version_from_tag("action-v1.2.3-rc.1-dist", "action-v", "-dist")
-            .is_none());
+        assert!(stable_version_from_tag("action-v1.2.3-rc.1-dist", "action-v", "-dist").is_none());
     }
 
     #[test]

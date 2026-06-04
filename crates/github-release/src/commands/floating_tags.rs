@@ -39,7 +39,10 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
             &config.release.tag_prefix,
             &config.release.tag_suffix,
         ) else {
-            println!("skipping floating tags for non-stable release tag {}", plan.tag);
+            println!(
+                "skipping floating tags for non-stable release tag {}",
+                plan.tag
+            );
             return Ok(());
         };
         github::refresh_floating_tags_for_tag(
