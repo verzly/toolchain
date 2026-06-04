@@ -8,7 +8,7 @@ inputs:
     required: false
     default: ""
   version:
-    description: GitHub Release tag to download. Use 1.2.3 or v1.2.3. Leave empty to use the latest release.
+    description: GitHub Release tag to download. Use 1.2.3, v1.2.3, latest, next, v1, or v1.2. Leave empty to use the action ref when it is a release selector, otherwise the latest release.
     required: false
     default: ""
   install-only:
@@ -84,6 +84,7 @@ runs:
         INPUT_TOKEN: ${{ inputs.github-token }}
         DEFAULT_TOKEN: ${{ github.token }}
         ACTION_REPOSITORY: ${{ github.action_repository }}
+        ACTION_REF: ${{ github.action_ref }}
         VERSION: ${{ inputs.version }}
         HOST: ${{ steps.host.outputs.host-target }}
         EXT: ${{ steps.host.outputs.extension }}
@@ -113,23 +114,214 @@ runs:
           REPOSITORY="verzly/rust-cache"
         fi
 
-        TAG="${VERSION}"
-        if [ -n "${TAG}" ] && [[ "${TAG}" != v* ]]; then
-          TAG="v${TAG}"
-        fi
-
         TOOL_DIR="${RUNNER_TEMP}/rust-cache-action"
         BIN_DIR="${RUNNER_TEMP}/rust-cache-bin"
         PATTERN="rust-cache-v*-${HOST}${EXT}"
 
+        normalize_release_selector() {
+          local selector="$1"
+
+          if [[ "${selector}" =~ ^[0-9]+([.][0-9]+){0,2}([-+].*)?$ ]]; then
+            selector="v${selector}"
+          fi
+
+          printf '%s\n' "${selector}"
+        }
+
+        is_action_ref_release_selector() {
+          local selector="$1"
+
+          case "${selector}" in
+            latest|next) return 0 ;;
+          esac
+
+          [[ "${selector}" =~ ^v[0-9]+([.][0-9]+){0,2}([-+].*)?$ ]]
+        }
+
+        is_exact_release_tag() {
+          local selector="$1"
+
+          [[ "${selector}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
+        }
+
+        release_has_asset() {
+          local tag="$1"
+          local pattern="$2"
+          local assets=""
+
+          if ! assets="$(gh release view "${tag}" --repo "${REPOSITORY}" --json assets --jq '.assets[].name' 2>/dev/null)"; then
+            return 1
+          fi
+
+          while IFS= read -r asset; do
+            case "${asset}" in
+              $pattern) return 0 ;;
+            esac
+          done <<< "${assets}"
+
+          return 1
+        }
+
+        resolve_tag_commit_sha() {
+          local tag="$1"
+          local object_sha=""
+          local object_type=""
+
+          read -r object_sha object_type < <(
+            gh api "repos/${REPOSITORY}/git/ref/tags/${tag}" --jq '.object | "\(.sha) \(.type)"'
+          )
+
+          for _ in 1 2 3 4 5 6 7 8; do
+            case "${object_type}" in
+              commit)
+                printf '%s\n' "${object_sha}"
+                return 0
+                ;;
+              tag)
+                read -r object_sha object_type < <(
+                  gh api "repos/${REPOSITORY}/git/tags/${object_sha}" --jq '.object | "\(.sha) \(.type)"'
+                )
+                ;;
+              *)
+                echo "::error::Tag ${tag} in ${REPOSITORY} resolves to unsupported Git object type: ${object_type}."
+                return 1
+                ;;
+            esac
+          done
+
+          echo "::error::Tag ${tag} in ${REPOSITORY} contains too many nested tag objects."
+          return 1
+        }
+
+        candidate_prefix_for_selector() {
+          local selector="$1"
+
+          case "${selector}" in
+            latest|next)
+              printf 'v\n'
+              return 0
+              ;;
+          esac
+
+          if [[ "${selector}" =~ ^v([0-9]+)$ ]]; then
+            printf 'v%s.\n' "${BASH_REMATCH[1]}"
+            return 0
+          fi
+
+          if [[ "${selector}" =~ ^v([0-9]+)[.]([0-9]+)$ ]]; then
+            printf 'v%s.%s.\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+            return 0
+          fi
+
+          printf '%s\n' "${selector}"
+        }
+
+        semver_sort_key() {
+          local tag="$1"
+          local version="${tag#v}"
+          local major=""
+          local minor=""
+          local patch=""
+          local qualifier=""
+          local stable=1
+          local qualifier_key="~"
+
+          if [[ ! "${version}" =~ ^([0-9]+)[.]([0-9]+)[.]([0-9]+)([-+][0-9A-Za-z.-]+)?$ ]]; then
+            return 1
+          fi
+
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          qualifier="${BASH_REMATCH[4]:-}"
+
+          if [[ "${qualifier}" == -* ]]; then
+            stable=0
+            qualifier_key="${qualifier#-}"
+          fi
+
+          printf '%010d.%010d.%010d.%d.%s\n' \
+            "$((10#${major}))" \
+            "$((10#${minor}))" \
+            "$((10#${patch}))" \
+            "${stable}" \
+            "${qualifier_key}"
+        }
+
+        resolve_release_tag_for_selector() {
+          local selector="$1"
+          local pattern="$2"
+          local selector_sha=""
+          local prefix=""
+          local best=""
+          local candidate=""
+          local candidate_sha=""
+          local key=""
+
+          if [ -z "${selector}" ]; then
+            return 0
+          fi
+
+          if is_exact_release_tag "${selector}" && release_has_asset "${selector}" "${pattern}"; then
+            printf '%s\n' "${selector}"
+            return 0
+          fi
+
+          selector_sha="$(resolve_tag_commit_sha "${selector}")"
+          prefix="$(candidate_prefix_for_selector "${selector}")"
+
+          while IFS= read -r candidate; do
+            candidate="${candidate#refs/tags/}"
+
+            if ! key="$(semver_sort_key "${candidate}")"; then
+              continue
+            fi
+
+            if ! candidate_sha="$(resolve_tag_commit_sha "${candidate}" 2>/dev/null)"; then
+              continue
+            fi
+
+            if [ "${candidate_sha}" != "${selector_sha}" ]; then
+              continue
+            fi
+
+            if ! release_has_asset "${candidate}" "${pattern}"; then
+              continue
+            fi
+
+            best="$(printf '%s\n%s\t%s' "${best}" "${key}" "${candidate}" | sed '/^$/d' | sort | tail -n 1)"
+          done < <(gh api --paginate "repos/${REPOSITORY}/git/matching-refs/tags/${prefix}" --jq '.[].ref')
+
+          if [ -n "${best}" ]; then
+            printf '%s\n' "${best##*$'\t'}"
+            return 0
+          fi
+
+          echo "::error::Could not resolve ${REPOSITORY}@${selector} to a release tag containing asset pattern ${pattern}."
+          return 1
+        }
+
+        TAG="${VERSION}"
+        if [ -n "${TAG}" ]; then
+          TAG="$(normalize_release_selector "${TAG}")"
+        elif [ -n "${ACTION_REF:-}" ] && is_action_ref_release_selector "${ACTION_REF}"; then
+          TAG="$(normalize_release_selector "${ACTION_REF}")"
+        fi
+
+        RELEASE_TAG="$(resolve_release_tag_for_selector "${TAG}" "${PATTERN}")"
+
         rm -rf "${TOOL_DIR}" "${BIN_DIR}"
         mkdir -p "${TOOL_DIR}" "${BIN_DIR}"
 
-        echo "Downloading ${PATTERN} from ${REPOSITORY}"
-        if [ -n "${TAG}" ]; then
-          gh release download "${TAG}" --repo "${REPOSITORY}" --pattern "${PATTERN}" --dir "${TOOL_DIR}"
-          gh release download "${TAG}" --repo "${REPOSITORY}" --pattern "${PATTERN}.sha256" --dir "${TOOL_DIR}" || true
+        if [ -n "${RELEASE_TAG}" ]; then
+          if [ "${RELEASE_TAG}" != "${TAG}" ]; then
+            echo "Resolved ${REPOSITORY}@${TAG} to release ${RELEASE_TAG}."
+          fi
+          echo "Downloading ${PATTERN} from ${REPOSITORY} release ${RELEASE_TAG}"
+          gh release download "${RELEASE_TAG}" --repo "${REPOSITORY}" --pattern "${PATTERN}" --dir "${TOOL_DIR}"
+          gh release download "${RELEASE_TAG}" --repo "${REPOSITORY}" --pattern "${PATTERN}.sha256" --dir "${TOOL_DIR}" || true
         else
+          echo "Downloading ${PATTERN} from ${REPOSITORY} latest release"
           gh release download --repo "${REPOSITORY}" --pattern "${PATTERN}" --dir "${TOOL_DIR}"
           gh release download --repo "${REPOSITORY}" --pattern "${PATTERN}.sha256" --dir "${TOOL_DIR}" || true
         fi

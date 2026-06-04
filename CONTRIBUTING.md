@@ -145,6 +145,8 @@ After all required builds pass and before public `vX.Y.Z` tags are created, rele
 
 Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview. The root toolchain config keeps these disabled because the source repository should not receive moving distribution tags.
 
+Public distribution actions must also support those moving refs at runtime. When a workflow uses `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`, the composite action should resolve the requested action ref to the concrete version release tag on the same commit, then download executable assets from that immutable release.
+
 ## Documentation
 
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.

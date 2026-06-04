@@ -156,6 +156,8 @@ value = "{version}"
 
 Public distribution configs should enable `floating_tags = true`, `latest_tag = true`, and `next_tag = true` only in `[release]`. A stable public release such as `v1.2.3` should refresh `v1.2`, `v1`, and `latest` in the matching public distribution repository. Preview releases should refresh `next` to the highest preview; when no preview exists, `next` should point to the same release as `latest`. The root `github-release.toml` for `verzly/toolchain` must keep these moving tags disabled, and `[source_release]` tags such as `cargo-release-v1.2.3` should not produce moving source tags inside the toolchain repository.
 
+Public distribution `action.yml` files must make executable assets available through moving action refs too. When the action is used as `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`, it should resolve the requested tag to the concrete version tag on the same commit and download assets from that release. Do not publish duplicate releases for moving tags; moving tags are only pointers.
+
 These configs must stay in the source repository and must not be copied to distribution repositories.
 
 

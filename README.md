@@ -161,6 +161,8 @@ Public repositories receive `vX.Y.Z`; the source repository receives package-pre
 
 Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
 
+The public composite actions support those moving refs as action pins. A workflow can use `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`; the action reads the requested ref, resolves it to the concrete version tag on the same commit, and downloads the executable from that release. Executable assets remain attached to immutable `vX.Y.Z` releases instead of duplicated onto moving tags.
+
 ### Release toolchain only
 
 Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in `verzly/toolchain` without executable assets. It uses the root `github-release.toml` and creates the clean source tag `vX.Y.Z`.
@@ -217,6 +219,8 @@ next_tag = true
 ```
 
 With `tag_prefix = "v"` and `tag_suffix = ""`, publishing `v1.2.3` updates `v1.2` and `v1`. Stable releases update `latest` to the highest stable `vX.Y.Z`. Preview releases such as `v1.3.0-rc.1` update `next` to the highest preview. If no preview release exists, `next` points to the same commit as `latest`.
+
+Distribution `action.yml` files must resolve moving action refs to the concrete release tag before downloading assets. For example, `@v1.2` should download from the highest `v1.2.Z` release tag on the same commit, while `@latest` and `@next` should download from the stable or preview version tag that shares the moving tag commit.
 
 ### Release notes
 
