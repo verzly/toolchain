@@ -26,6 +26,8 @@ pub enum Commands {
     Prepare(PrepareArgs),
     /// Merge the release branch and tag the source repository after artifacts were built successfully.
     Finalize(FinalizeArgs),
+    /// Squash merge one prepared source branch and create multiple source tags.
+    FinalizeBatch(FinalizeBatchArgs),
     /// Publish a GitHub Release without preparing or merging a branch.
     Publish(PublishArgs),
     /// Delete a temporary release branch after a failed build.
@@ -88,6 +90,10 @@ pub struct PrepareArgs {
     #[arg(long, default_value_t = false)]
     pub force_branch: bool,
 
+    /// Continue an existing release branch instead of recreating it from the target branch.
+    #[arg(long, default_value_t = false)]
+    pub reuse_branch: bool,
+
     /// Override version commit message.
     #[arg(long)]
     pub commit_message: Option<String>,
@@ -127,6 +133,10 @@ pub struct FinalizeArgs {
     #[arg(long, default_value_t = false)]
     pub keep_branch: bool,
 
+    /// How the release branch is merged back to the target branch.
+    #[arg(long, value_enum, default_value_t = MergeStrategy::Squash)]
+    pub merge_strategy: MergeStrategy,
+
     /// Do not create a GitHub Release. Useful for source monorepo tags that are followed by a public distribution release.
     #[arg(long, default_value_t = false)]
     pub skip_github_release: bool,
@@ -138,6 +148,37 @@ pub struct FinalizeArgs {
     /// Read the GitHub Release body from this file instead of generated notes.
     #[arg(long)]
     pub notes_file: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+pub struct FinalizeBatchArgs {
+    /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
+    #[arg(short, long)]
+    pub version: String,
+
+    /// Target branch to receive the squash merge.
+    #[arg(long, default_value = "master")]
+    pub target_branch: String,
+
+    /// Prepared aggregate source release branch to squash merge.
+    #[arg(long)]
+    pub release_branch: String,
+
+    /// Source tag to create from the finalized target branch. Repeat for multiple tags.
+    #[arg(long = "source-tag", required = true)]
+    pub source_tags: Vec<String>,
+
+    /// Override squash merge commit message.
+    #[arg(long)]
+    pub merge_message: Option<String>,
+
+    /// Print commands without executing them.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+
+    /// Keep the release branch after success.
+    #[arg(long, default_value_t = false)]
+    pub keep_branch: bool,
 }
 
 #[derive(Args, Debug)]
@@ -201,6 +242,12 @@ pub enum PrereleaseMode {
     False,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub enum MergeStrategy {
+    Squash,
+    NoFf,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +282,72 @@ mod tests {
         assert_eq!(args.prerelease, PrereleaseMode::True);
         assert_eq!(args.notes.as_deref(), Some("Custom release body"));
         assert!(args.dry_run);
+    }
+
+    #[test]
+    fn parses_prepare_reuse_branch() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "prepare",
+            "--version",
+            "1.2.3",
+            "--release-branch",
+            "release/all-v1.2.3",
+            "--reuse-branch",
+        ]);
+
+        let Commands::Prepare(args) = cli.command else {
+            panic!("expected prepare command");
+        };
+
+        assert_eq!(args.release_branch.as_deref(), Some("release/all-v1.2.3"));
+        assert!(args.reuse_branch);
+    }
+
+    #[test]
+    fn parses_finalize_merge_strategy() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "finalize",
+            "--version",
+            "1.2.3",
+            "--merge-strategy",
+            "no-ff",
+        ]);
+
+        let Commands::Finalize(args) = cli.command else {
+            panic!("expected finalize command");
+        };
+
+        assert_eq!(args.merge_strategy, MergeStrategy::NoFf);
+    }
+
+    #[test]
+    fn parses_finalize_batch_source_tags() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "finalize-batch",
+            "--version",
+            "1.2.3",
+            "--release-branch",
+            "release/all-v1.2.3",
+            "--source-tag",
+            "cargo-release-v1.2.3",
+            "--source-tag",
+            "github-release-v1.2.3",
+        ]);
+
+        let Commands::FinalizeBatch(args) = cli.command else {
+            panic!("expected finalize-batch command");
+        };
+
+        assert_eq!(args.release_branch, "release/all-v1.2.3");
+        assert_eq!(
+            args.source_tags,
+            vec![
+                "cargo-release-v1.2.3".to_string(),
+                "github-release-v1.2.3".to_string()
+            ]
+        );
     }
 }

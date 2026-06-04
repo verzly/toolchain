@@ -128,30 +128,32 @@ The flow is:
 github-release prepare
 cargo fmt / clippy / test
 cargo-release build
-github-release finalize --skip-github-release
+github-release finalize --merge-strategy squash --skip-github-release
 github-release publish
 ```
 
 `prepare` creates a temporary source branch and updates only the configured version files. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag before `publish` creates the public release and uploads assets.
 
+Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits.
+
 ### Release all tools
 
 Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
 
-The workflow is a visible two-phase dependency graph. It prepares every source release branch first, runs tests, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it merge source branches, create source tags, publish public releases with the already-built assets, and publish the final toolchain release.
+The workflow is a visible two-phase dependency graph. It prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, publish public releases with the already-built assets, and publish the final toolchain release.
 
 ```text
 preflight
-prepare all source branches
-test prepared branches
+prepare release/all-vX.Y.Z source branch
+test prepared source branch
 build cargo-release assets
 build github-release / tauri-release / rust-cache / android-signing assets
-finalize all source branches and source tags
+github-release finalize-batch
 publish all public distribution releases
 publish toolchain release
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit.
 
 ### Release toolchain only
 

@@ -10,6 +10,10 @@ use anyhow::Result;
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.
 pub fn run(args: PrepareArgs) -> Result<()> {
+    if args.force_branch && args.reuse_branch {
+        anyhow::bail!("use either --force-branch or --reuse-branch, not both");
+    }
+
     let config = config::load(&args.config)?.source_view();
     let mut plan = domain::build_plan(
         &config,
@@ -31,8 +35,12 @@ pub fn run(args: PrepareArgs) -> Result<()> {
 
     git::run(["fetch", "origin", &plan.target_branch], args.dry_run)?;
 
-    if (git::branch_exists(&plan.release_branch) || git::remote_branch_exists(&plan.release_branch))
+    let local_release_branch_exists = git::branch_exists(&plan.release_branch);
+    let remote_release_branch_exists = git::remote_branch_exists(&plan.release_branch);
+
+    if (local_release_branch_exists || remote_release_branch_exists)
         && !args.force_branch
+        && !args.reuse_branch
     {
         anyhow::bail!("release branch already exists: {}", plan.release_branch);
     }
@@ -40,12 +48,20 @@ pub fn run(args: PrepareArgs) -> Result<()> {
         anyhow::bail!("release tag already exists: {}", plan.tag);
     }
 
-    git::run(["checkout", &plan.target_branch], args.dry_run)?;
-    git::run(
-        ["pull", "--ff-only", "origin", &plan.target_branch],
-        args.dry_run,
-    )?;
-    git::run(["checkout", "-B", &plan.release_branch], args.dry_run)?;
+    if args.reuse_branch && (local_release_branch_exists || remote_release_branch_exists) {
+        checkout_existing_release_branch(
+            &plan.release_branch,
+            remote_release_branch_exists,
+            args.dry_run,
+        )?;
+    } else {
+        git::run(["checkout", &plan.target_branch], args.dry_run)?;
+        git::run(
+            ["pull", "--ff-only", "origin", &plan.target_branch],
+            args.dry_run,
+        )?;
+        git::run(["checkout", "-B", &plan.release_branch], args.dry_run)?;
+    }
 
     // Version updates happen before the project build so downstream jobs build the exact release contents.
     version_files::update_all(&config.files, &plan, args.dry_run)?;
@@ -62,6 +78,26 @@ pub fn run(args: PrepareArgs) -> Result<()> {
     )?;
 
     output::write_github_outputs(&plan)?;
+
+    Ok(())
+}
+
+fn checkout_existing_release_branch(
+    release_branch: &str,
+    remote_release_branch_exists: bool,
+    dry_run: bool,
+) -> Result<()> {
+    if remote_release_branch_exists {
+        let remote_release_branch = format!("origin/{release_branch}");
+        let release_refspec = format!("{release_branch}:refs/remotes/origin/{release_branch}");
+        git::run(["fetch", "origin", &release_refspec], dry_run)?;
+        git::run(
+            ["checkout", "-B", release_branch, &remote_release_branch],
+            dry_run,
+        )?;
+    } else {
+        git::run(["checkout", release_branch], dry_run)?;
+    }
 
     Ok(())
 }
