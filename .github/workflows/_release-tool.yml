@@ -154,52 +154,16 @@ jobs:
         run: cargo test --workspace --all-targets
 
   build:
-    name: Build ${{ inputs.tool }} for ${{ matrix.target }}
+    name: Build assets
     needs:
       - prepare_source
       - test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux-x64
-          - os: macos-13
-            target: macos-x64
-          - os: macos-14
-            target: macos-arm64
-          - os: windows-latest
-            target: windows-x64
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.prepare_source.outputs.release_branch }}
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Bootstrap cargo-release
-        shell: bash
-        run: |
-          cargo build --release -p cargo-release
-          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
-
-      - name: Build executable assets
-        shell: bash
-        run: >-
-          cargo-release build
-          --config "crates/${{ inputs.tool }}/cargo-release.toml"
-          --version "${{ inputs.version }}"
-          --target "${{ matrix.target }}"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ inputs.tool }}-${{ matrix.target }}
-          path: dist/${{ inputs.tool }}/**/*
-          if-no-files-found: error
+    uses: ./.github/workflows/_release-build-assets.yml
+    with:
+      tool: ${{ inputs.tool }}
+      version: ${{ inputs.version }}
+      ref: ${{ needs.prepare_source.outputs.release_branch }}
+      use_prebuilt_cargo_release: false
 
   abort_source:
     name: Abort source

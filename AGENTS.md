@@ -184,7 +184,7 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should stay readable as a visible dependency graph: one preflight job, then sequential reusable workflow calls for each public tool, then the toolchain release.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It must stay readable as a visible two-phase graph: preflight, prepare every source release branch, test prepared branches, build `cargo-release`, build the other executable assets with that freshly built `cargo-release`, finalize all source branches and tags, publish all public distribution releases with the already-built assets, then publish the toolchain release.
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
@@ -313,7 +313,7 @@ The repository must also contain these maintainer workflows:
 ```text
 .github/workflows/release-toolchain.yml       # publish the private/source repo release, no assets
 .github/workflows/_release-toolchain.yml      # reusable toolchain release workflow
-.github/workflows/release-all.yml             # sequentially release all public tools and then toolchain
+.github/workflows/release-all.yml             # prepare/build everything first, then finalize/publish releases
 ```
 
 Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.
@@ -433,4 +433,4 @@ Do not make public distribution repositories responsible for testing, building, 
 
 Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.
 
-Release All must not dispatch separate workflow runs. It should call the reusable workflows directly so GitHub Actions shows the complete release graph in the Release All run.
+Release All must not dispatch separate workflow runs and must not publish each tool in a full prepare/build/finalize/publish wave before the next tool starts. It should show the complete release graph in one run, finish every prepare/test/build job first, and publish releases only after all assets exist.
