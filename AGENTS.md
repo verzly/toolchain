@@ -178,7 +178,7 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should stay readable by acting as a dispatcher: one visible job starts the per-tool release workflows in dependency order and watches each run before starting the next one. Do not expand Release All into a large nested graph of every internal release job.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It should stay readable as a visible dependency graph: one preflight job, then sequential reusable workflow calls for each public tool, then the toolchain release.
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
@@ -427,4 +427,4 @@ Do not make public distribution repositories responsible for testing, building, 
 
 Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.
 
-Release All must dispatch workflows with an explicit repository argument such as `--repo "${REPO}"`. Do not rely on GitHub CLI discovering a repository from a local `.git` directory in dispatcher-only jobs.
+Release All must not dispatch separate workflow runs. It should call the reusable workflows directly so GitHub Actions shows the complete release graph in the Release All run.

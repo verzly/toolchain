@@ -96,9 +96,7 @@ These files are not copied to distribution repositories.
 
 Use `.github/workflows/release-all.yml` when the same version should be released for every public tool and for the toolchain repository itself.
 
-The workflow is intentionally a dispatcher with one visible job. It starts the existing per-tool release workflows one after another, watches each dispatched run, and stops on the first failure. This keeps the Release All graph readable while preserving the safer sequential release order.
-
-The dispatcher passes the repository explicitly to GitHub CLI commands, so it does not depend on a checked-out `.git` directory.
+The workflow is intentionally a visible dependency graph. It calls the reusable tool release workflow once per public tool, then calls the toolchain release workflow. Each release waits for the previous one, so the Release All run shows the whole ordered release chain instead of hiding work in separately dispatched runs.
 
 Release order:
 

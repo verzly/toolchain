@@ -18,16 +18,15 @@ on:
           - "false"
 
 permissions:
-  actions: write
-  contents: read
+  contents: write
 
 concurrency:
   group: release-all-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
-  dispatch:
-    name: Dispatch release workflows
+  preflight:
+    name: Release all preflight
     runs-on: ubuntu-latest
 
     steps:
@@ -56,64 +55,65 @@ jobs:
             fi
           done
 
-      - name: Release tools in dependency order
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          VERSION: ${{ inputs.version }}
-          PRERELEASE: ${{ inputs.prerelease }}
-          REF_NAME: ${{ github.ref_name }}
-          PARENT_RUN_ID: ${{ github.run_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
+  github_release:
+    name: Release github-release
+    needs: preflight
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: github-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-          workflows=(
-            "release-github-release.yml"
-            "release-cargo-release.yml"
-            "release-tauri-release.yml"
-            "release-rust-cache.yml"
-            "release-android-signing.yml"
-            "release-toolchain.yml"
-          )
+  cargo_release:
+    name: Release cargo-release
+    needs: github_release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: cargo-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-          for workflow in "${workflows[@]}"; do
-            echo "::group::${workflow}"
-            run_key="release-all-${PARENT_RUN_ID}-${workflow}-${VERSION}"
-            echo "Dispatching ${workflow} for version ${VERSION} on ${REF_NAME} (${run_key})"
+  tauri_release:
+    name: Release tauri-release
+    needs: cargo_release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: tauri-release
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-            gh workflow run "${workflow}" \
-              --repo "${REPO}" \
-              --ref "${REF_NAME}" \
-              -f "version=${VERSION}" \
-              -f "prerelease=${PRERELEASE}" \
-              -f "orchestrator=${run_key}"
+  rust_cache:
+    name: Release rust-cache
+    needs: tauri_release
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: rust-cache
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-            run_id=""
-            for _ in {1..30}; do
-              run_id="$(gh run list \
-                --repo "${REPO}" \
-                --workflow "${workflow}" \
-                --branch "${REF_NAME}" \
-                --event workflow_dispatch \
-                --limit 30 \
-                --json databaseId,displayTitle \
-                | jq -r --arg key "${run_key}" '.[] | select(.displayTitle | contains($key)) | .databaseId' \
-                | head -n 1)"
+  android_signing:
+    name: Release android-signing
+    needs: rust_cache
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: android-signing
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-              if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
-                break
-              fi
-
-              sleep 4
-            done
-
-            if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
-              echo "::error::Could not find dispatched run for ${workflow} with key ${run_key}."
-              exit 1
-            fi
-
-            echo "Watching ${workflow} run ${run_id}"
-            gh run watch "${run_id}" --repo "${REPO}" --exit-status
-            echo "::endgroup::"
-          done
+  toolchain:
+    name: Release toolchain
+    needs: android_signing
+    uses: ./.github/workflows/_release-toolchain.yml
+    with:
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
