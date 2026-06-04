@@ -261,7 +261,10 @@ pub fn refresh_highest_floating_tags(
     }
 
     if options.next_tag {
-        let target_tag = analysis.next_preview.as_ref().or(analysis.latest_stable.as_ref());
+        let target_tag = analysis
+            .next_preview
+            .as_ref()
+            .or(analysis.latest_stable.as_ref());
         if let Some((_, tag)) = target_tag {
             update_named_floating_tag(repository, next_tag_name, tag, dry_run)?;
         } else {
@@ -1220,10 +1223,7 @@ mod tests {
             "",
         );
 
-        assert_eq!(
-            analysis.latest_stable.expect("latest stable").1,
-            "v1.1.0"
-        );
+        assert_eq!(analysis.latest_stable.expect("latest stable").1, "v1.1.0");
         assert_eq!(
             analysis.next_preview.expect("next preview").1,
             "v2.0.0-alpha.1"
