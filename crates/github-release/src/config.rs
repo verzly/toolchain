@@ -86,6 +86,7 @@ pub struct GitHubConfig {
     pub source_tag_prefix: String,
     pub source_tag_suffix: String,
     pub generate_notes: bool,
+    pub notes_body: String,
     pub notes: NotesConfig,
 }
 
@@ -97,6 +98,7 @@ impl Default for GitHubConfig {
             source_tag_prefix: String::new(),
             source_tag_suffix: String::new(),
             generate_notes: true,
+            notes_body: String::new(),
             notes: NotesConfig::default(),
         }
     }

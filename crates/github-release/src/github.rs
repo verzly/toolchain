@@ -8,12 +8,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bool) -> Result<()> {
-    let notes_file = if plan.github.generate_notes && plan.github.source_repository.is_some() {
-        Some(write_external_notes_file(plan, dry_run)?)
-    } else {
-        None
-    };
+pub struct ReleaseNotesInput<'a> {
+    pub body: Option<&'a str>,
+    pub file: Option<&'a Path>,
+}
+
+pub fn create_release(
+    plan: &ReleasePlan,
+    assets_dir: Option<&Path>,
+    notes: ReleaseNotesInput<'_>,
+    dry_run: bool,
+) -> Result<()> {
+    let notes_file = release_notes_file(plan, notes, dry_run)?;
 
     let mut args = vec![
         "release".to_string(),
@@ -66,6 +72,90 @@ pub fn create_release(plan: &ReleasePlan, assets_dir: Option<&Path>, dry_run: bo
     }
 
     Ok(())
+}
+
+fn release_notes_file(
+    plan: &ReleasePlan,
+    notes: ReleaseNotesInput<'_>,
+    dry_run: bool,
+) -> Result<Option<PathBuf>> {
+    if let Some(path) = notes.file {
+        return Ok(Some(path.to_path_buf()));
+    }
+
+    if let Some(body) = notes.body {
+        return Ok(Some(write_custom_notes_file(plan, body)?));
+    }
+
+    if !plan.github.notes_body.trim().is_empty() {
+        return Ok(Some(write_custom_notes_file(
+            plan,
+            &plan.github.notes_body,
+        )?));
+    }
+
+    if plan.github.generate_notes && plan.github.source_repository.is_some() {
+        return Ok(Some(write_external_notes_file(plan, dry_run)?));
+    }
+
+    Ok(None)
+}
+
+fn write_custom_notes_file(plan: &ReleasePlan, template: &str) -> Result<PathBuf> {
+    let body = render_notes_template(plan, template)?;
+    let path = std::env::temp_dir().join(format!("github-release-{}-custom-notes.md", plan.tag));
+    fs::write(&path, body)
+        .with_context(|| format!("failed to write release notes file {}", path.display()))?;
+    Ok(path)
+}
+
+fn render_notes_template(plan: &ReleasePlan, template: &str) -> Result<String> {
+    let previous_source_tag = previous_source_tag(plan)?;
+    Ok(render_notes_template_with_previous(
+        plan,
+        template,
+        previous_source_tag.as_deref(),
+    ))
+}
+
+fn render_notes_template_with_previous(
+    plan: &ReleasePlan,
+    template: &str,
+    previous_source_tag: Option<&str>,
+) -> String {
+    let previous = previous_source_tag.unwrap_or("");
+    let compare_url = source_compare_url(plan, previous_source_tag);
+    let source_repository = plan.github.source_repository.as_deref().unwrap_or("");
+
+    template
+        .replace("{version}", &plan.version_text)
+        .replace("{tag}", &plan.tag)
+        .replace("{release_name}", &plan.release_name)
+        .replace(
+            "{target_repository}",
+            plan.github.target_repository.as_deref().unwrap_or(""),
+        )
+        .replace("{source_repository}", source_repository)
+        .replace("{source_tag}", &plan.github.source_tag)
+        .replace("{previous_source_tag}", previous)
+        .replace("{source_compare_url}", &compare_url)
+}
+
+fn source_compare_url(plan: &ReleasePlan, previous_source_tag: Option<&str>) -> String {
+    let Some(repository) = plan.github.source_repository.as_ref() else {
+        return String::new();
+    };
+
+    match previous_source_tag {
+        Some(previous) => format!(
+            "https://github.com/{repository}/compare/{previous}...{}",
+            plan.github.source_tag
+        ),
+        None => format!(
+            "https://github.com/{repository}/releases/tag/{}",
+            plan.github.source_tag
+        ),
+    }
 }
 
 fn write_external_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathBuf> {
@@ -356,6 +446,64 @@ fn collect_assets_recursive(dir: &Path, assets: &mut Vec<PathBuf>) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn release_plan() -> ReleasePlan {
+        ReleasePlan {
+            version_text: "0.1.0".to_string(),
+            tag: "v0.1.0".to_string(),
+            release_name: "tool v0.1.0".to_string(),
+            target_branch: "master".to_string(),
+            release_branch: "release/v0.1.0".to_string(),
+            prerelease: false,
+            latest: true,
+            commit_message: "prepare v0.1.0".to_string(),
+            merge_message: "merge v0.1.0".to_string(),
+            github: crate::domain::GitHubPlan {
+                target_repository: Some("verzly/tool".to_string()),
+                source_repository: Some("verzly/toolchain".to_string()),
+                source_tag: "tool-v0.1.0".to_string(),
+                source_tag_prefix: "tool-v".to_string(),
+                source_tag_suffix: String::new(),
+                generate_notes: false,
+                notes_body: String::new(),
+                notes: crate::domain::NotesPlan {
+                    mode: NotesMode::Scoped,
+                    include_scopes: vec!["tool".to_string()],
+                    include_paths: vec!["crates/tool/".to_string()],
+                },
+            },
+        }
+    }
+
+    #[test]
+    fn custom_notes_template_renders_source_compare_link() {
+        let plan = release_plan();
+        let body = render_notes_template_with_previous(
+            &plan,
+            "Developed in {source_repository} from {previous_source_tag} to {source_tag}: {source_compare_url}",
+            Some("tool-v0.0.9"),
+        );
+
+        assert_eq!(
+            body,
+            "Developed in verzly/toolchain from tool-v0.0.9 to tool-v0.1.0: https://github.com/verzly/toolchain/compare/tool-v0.0.9...tool-v0.1.0"
+        );
+    }
+
+    #[test]
+    fn custom_notes_template_falls_back_to_source_tag_link_without_previous_tag() {
+        let plan = release_plan();
+        let body = render_notes_template_with_previous(
+            &plan,
+            "Source changes: {source_compare_url}",
+            None,
+        );
+
+        assert_eq!(
+            body,
+            "Source changes: https://github.com/verzly/toolchain/releases/tag/tool-v0.1.0"
+        );
+    }
 
     #[test]
     fn commit_scope_reads_conventional_commit_scope() {
