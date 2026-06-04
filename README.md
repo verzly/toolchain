@@ -135,13 +135,13 @@ github-release publish
 
 `prepare` creates a temporary source branch and updates only the configured version files. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag before `publish` creates the public release and uploads assets.
 
-Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits.
+Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits. If the release branch has no source diff because the requested version is already present in `master`, finalization skips the squash commit and creates the release tags from the existing `master` commit.
 
 ### Release all tools
 
 Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
 
-The workflow is a visible two-phase dependency graph. It prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, publish public releases with the already-built assets, and publish the final toolchain release.
+The workflow is a visible two-phase dependency graph. It replaces a stale aggregate source branch from a previous failed run, prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, publish public releases with the already-built assets, and publish the final toolchain release.
 
 ```text
 preflight
@@ -154,7 +154,7 @@ publish all public distribution releases
 publish toolchain release
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release.
 
 ### Release toolchain only
 
