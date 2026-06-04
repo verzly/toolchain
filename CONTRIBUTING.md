@@ -135,9 +135,9 @@ delete-release.yml       # destructive release and tag cleanup
 sync-distributions.yml   # public README/action/LICENSE sync only
 ```
 
-Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions.
+Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
 
-Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit.
+Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit. If a re-release has no source diff because `master` already contains the requested version, finalization skips the squash commit and tags the current `master` commit instead.
 
 ## Documentation
 

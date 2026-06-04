@@ -60,8 +60,8 @@ jobs:
 
           aggregate_branch="release/all-v${VERSION}"
           if git ls-remote --exit-code --heads origin "refs/heads/${aggregate_branch}" >/dev/null 2>&1; then
-            echo "::error::Aggregate source release branch already exists: ${aggregate_branch}. Abort or finish it before starting another Release All run."
-            exit 1
+            echo "::notice::Deleting stale aggregate source release branch: ${aggregate_branch}"
+            git push origin --delete "${aggregate_branch}"
           fi
 
           for tool in ${TOOLS}; do
@@ -205,35 +205,6 @@ jobs:
       ref: ${{ needs.prepare_source_branch.outputs.release_branch }}
       use_prebuilt_cargo_release: true
 
-  abort_sources:
-    name: Abort aggregate source branch
-    needs:
-      - prepare_source_branch
-      - test_sources
-      - build_cargo_release
-      - build_assets
-    if: ${{ always() && needs.prepare_source_branch.result == 'success' && (needs.test_sources.result == 'failure' || needs.test_sources.result == 'cancelled' || needs.build_cargo_release.result == 'failure' || needs.build_cargo_release.result == 'cancelled' || needs.build_assets.result == 'failure' || needs.build_assets.result == 'cancelled') }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Bootstrap github-release
-        run: |
-          cargo build --release -p github-release
-          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
-
-      - name: Delete aggregate source release branch
-        run: >-
-          github-release abort
-          --config "crates/github-release/github-release.toml"
-          --release-branch "${{ needs.prepare_source_branch.outputs.release_branch }}"
-
   finalize_source_batch:
     name: Squash merge source branch and create source tags
     needs:
@@ -277,6 +248,36 @@ jobs:
             --version "${VERSION}" \
             --release-branch "${RELEASE_BRANCH}" \
             "${source_tag_args[@]}"
+
+  abort_sources:
+    name: Abort aggregate source branch
+    needs:
+      - prepare_source_branch
+      - test_sources
+      - build_cargo_release
+      - build_assets
+      - finalize_source_batch
+    if: ${{ always() && needs.prepare_source_branch.result == 'success' && (needs.test_sources.result == 'failure' || needs.test_sources.result == 'cancelled' || needs.build_cargo_release.result == 'failure' || needs.build_cargo_release.result == 'cancelled' || needs.build_assets.result == 'failure' || needs.build_assets.result == 'cancelled' || needs.finalize_source_batch.result == 'failure' || needs.finalize_source_batch.result == 'cancelled') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Delete aggregate source release branch
+        run: >-
+          github-release abort
+          --config "crates/github-release/github-release.toml"
+          --release-branch "${{ needs.prepare_source_branch.outputs.release_branch }}"
 
   publish_distributions:
     name: Publish ${{ matrix.tool }} distribution

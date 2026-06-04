@@ -90,6 +90,22 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
 }
 
 pub fn run_batch(args: FinalizeBatchArgs) -> Result<()> {
+    let release_branch = args.release_branch.clone();
+    let keep_branch = args.keep_branch;
+    let dry_run = args.dry_run;
+
+    let result = run_batch_inner(args);
+
+    if result.is_err() && !keep_branch {
+        if let Err(cleanup_error) = delete_release_branch(&release_branch, dry_run) {
+            eprintln!("failed to delete release branch after finalize error: {cleanup_error}");
+        }
+    }
+
+    result
+}
+
+fn run_batch_inner(args: FinalizeBatchArgs) -> Result<()> {
     let clean_version = args.version.strip_prefix('v').unwrap_or(&args.version);
     let version = Version::parse(clean_version)
         .with_context(|| format!("invalid SemVer version: {}", args.version))?;
@@ -188,10 +204,11 @@ fn squash_merge_release_branch(
     git::run(["merge", "--squash", remote_release_branch], dry_run)?;
 
     if !dry_run && !git::has_staged_changes()? {
-        anyhow::bail!(
-            "squash merge produced no staged changes from {}",
+        println!(
+            "release branch {} has no source changes to squash; target branch already contains the release contents",
             plan.release_branch
         );
+        return Ok(());
     }
 
     let body = squash_merge_body(&plan.release_branch, &summary);
@@ -222,10 +239,16 @@ fn push_target_branch_and_source_tags(
 }
 
 fn delete_release_branch(release_branch: &str, dry_run: bool) -> Result<()> {
-    git::run(["push", "origin", "--delete", release_branch], dry_run)?;
+    if git::remote_branch_exists(release_branch) || dry_run {
+        git::run(["push", "origin", "--delete", release_branch], dry_run)?;
+    } else {
+        println!("remote release branch does not exist: {release_branch}");
+    }
+
     if git::branch_exists(release_branch) || dry_run {
         git::run(["branch", "-D", release_branch], dry_run)?;
     }
+
     Ok(())
 }
 
