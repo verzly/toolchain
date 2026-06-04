@@ -56,7 +56,10 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
         &remote_release_branch,
         args.dry_run,
     )?;
-    git::run(["push", "origin", &source_merge.target_branch], args.dry_run)?;
+    git::run(
+        ["push", "origin", &source_merge.target_branch],
+        args.dry_run,
+    )?;
     git::run(
         ["tag", "-a", &plan.tag, "-m", &plan.release_name],
         args.dry_run,
@@ -114,7 +117,11 @@ pub fn run_batch(args: FinalizeBatchArgs) -> Result<()> {
 
     let remote_release_branch = fetch_and_checkout_target_branch(&source_merge, args.dry_run)?;
     squash_merge_release_branch(&source_merge, &remote_release_branch, args.dry_run)?;
-    let source_tags = args.source_tags.iter().map(String::as_str).collect::<Vec<_>>();
+    let source_tags = args
+        .source_tags
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     push_target_branch_and_source_tags(&source_merge.target_branch, &source_tags, args.dry_run)?;
 
     if !args.keep_branch {

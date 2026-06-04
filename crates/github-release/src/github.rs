@@ -113,11 +113,7 @@ fn write_custom_notes_file(plan: &ReleasePlan, template: &str) -> Result<PathBuf
 
 fn render_notes_template(plan: &ReleasePlan, template: &str) -> Result<String> {
     let previous_source_tag = previous_source_tag(plan)?;
-    let body = render_notes_template_with_previous(
-        plan,
-        template,
-        previous_source_tag.as_deref(),
-    );
+    let body = render_notes_template_with_previous(plan, template, previous_source_tag.as_deref());
     Ok(normalize_release_note_links(&body, plan))
 }
 
@@ -254,7 +250,9 @@ fn write_generated_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathB
         .source_repository
         .as_ref()
         .or(plan.github.target_repository.as_ref())
-        .context("source_repository or target_repository is required for generated release notes")?;
+        .context(
+            "source_repository or target_repository is required for generated release notes",
+        )?;
     let notes_tag = if plan.github.source_repository.is_some() {
         &plan.github.source_tag
     } else {
