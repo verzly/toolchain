@@ -195,7 +195,7 @@ jobs:
           --version "${{ inputs.version }}"
           --target "${{ matrix.target }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.tool }}-${{ matrix.target }}
           path: dist/${{ inputs.tool }}/**/*
@@ -289,7 +289,7 @@ jobs:
           cargo build --release -p github-release
           echo "${{ github.workspace }}/source/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: downloaded-assets
 
