@@ -56,6 +56,7 @@ jobs:
           grep -Fq 'target_dir = "rust/packages/{package}/target"' "rust-cache.toml"
           ! grep -R -Fq "rust-cache run" ".github/workflows"
           test -f ".github/workflows/_release-toolchain.yml"
+          test -f ".github/workflows/_release-build-assets.yml"
           test -f ".github/workflows/release-toolchain.yml"
           test -f ".github/workflows/release-all.yml"
           test -f ".github/workflows/sync-distributions.yml"
@@ -73,13 +74,26 @@ jobs:
           grep -Fq 'Release workflows must be run from master' ".github/workflows/_release-tool.yml"
           grep -Fq 'git ls-remote --exit-code --tags' ".github/workflows/_release-tool.yml"
           grep -Fq 'name: Release all preflight' ".github/workflows/release-all.yml"
-          grep -Fq 'uses: ./.github/workflows/_release-tool.yml' ".github/workflows/release-all.yml"
           grep -Fq 'uses: ./.github/workflows/_release-toolchain.yml' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: github_release' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: cargo_release' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: tauri_release' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: rust_cache' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: android_signing' ".github/workflows/release-all.yml"
+          grep -Fq 'prepare_sources:' ".github/workflows/release-all.yml"
+          grep -Fq 'test_sources:' ".github/workflows/release-all.yml"
+          grep -Fq 'build_cargo_release:' ".github/workflows/release-all.yml"
+          grep -Fq 'build_assets:' ".github/workflows/release-all.yml"
+          grep -Fq 'finalize_sources:' ".github/workflows/release-all.yml"
+          grep -Fq 'publish_distributions:' ".github/workflows/release-all.yml"
+          grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/_release-tool.yml"
+          grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/release-all.yml"
+          grep -Fq 'use_prebuilt_cargo_release: true' ".github/workflows/release-all.yml"
+          grep -Fq 'use_prebuilt_cargo_release: false' ".github/workflows/release-all.yml"
+          grep -Fq 'name: Add built cargo-release to PATH' ".github/workflows/_release-build-assets.yml"
+          grep -Fq 'github-release prepare' ".github/workflows/release-all.yml"
+          grep -Fq 'cargo-release build' ".github/workflows/_release-build-assets.yml"
+          grep -Fq 'github-release finalize' ".github/workflows/release-all.yml"
+          grep -Fq 'github-release publish' ".github/workflows/release-all.yml"
+          grep -Fq 'name: Build cargo-release assets' ".github/workflows/release-all.yml"
+          grep -Fq 'needs: build_cargo_release' ".github/workflows/release-all.yml"
+          grep -Fq 'needs: finalize_sources' ".github/workflows/release-all.yml"
+          grep -Fq 'needs: publish_distributions' ".github/workflows/release-all.yml"
           ! grep -Fq 'gh workflow run' ".github/workflows/release-all.yml"
           ! grep -Fq 'gh run watch' ".github/workflows/release-all.yml"
           grep -Fq 'cargo metadata --format-version 1 --no-deps' ".github/workflows/_release-tool.yml"
@@ -92,6 +106,7 @@ jobs:
           ! grep -Fq 'actions/download-artifact@v4' ".github/workflows/_release-tool.yml"
           ! grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' \
             ".github/workflows/_release-tool.yml" \
+            ".github/workflows/_release-build-assets.yml" \
             ".github/workflows/_release-toolchain.yml" \
             ".github/workflows/release-all.yml" \
             ".github/workflows/release-android-signing.yml" \

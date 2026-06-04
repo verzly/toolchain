@@ -138,18 +138,20 @@ github-release publish
 
 Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
 
-The workflow is a visible dependency graph:
+The workflow is a visible two-phase dependency graph. It prepares every source release branch first, runs tests, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it merge source branches, create source tags, publish public releases with the already-built assets, and publish the final toolchain release.
 
 ```text
-github-release
-cargo-release
-tauri-release
-rust-cache
-android-signing
-toolchain
+preflight
+prepare all source branches
+test prepared branches
+build cargo-release assets
+build github-release / tauri-release / rust-cache / android-signing assets
+finalize all source branches and source tags
+publish all public distribution releases
+publish toolchain release
 ```
 
-Each step waits for the previous release. Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
 
 ### Release toolchain only
 

@@ -24,19 +24,30 @@ concurrency:
   group: release-all-${{ inputs.version }}
   cancel-in-progress: false
 
+env:
+  TOOLCHAIN_REPOSITORY: verzly/toolchain
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+
 jobs:
   preflight:
     name: Release all preflight
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
       - name: Validate release token and target repositories
         env:
           GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
           REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ inputs.version }}
         shell: bash
         run: |
           set -euo pipefail
+
           if [ "${REF_NAME}" != "master" ]; then
             echo "::error::Release All must be run from master. Current ref: ${REF_NAME}"
             exit 1
@@ -47,72 +58,274 @@ jobs:
             exit 1
           fi
 
-          for repository in verzly/github-release verzly/cargo-release verzly/tauri-release verzly/rust-cache verzly/android-signing; do
+          for tool in ${TOOLS}; do
+            repository="verzly/${tool}"
+            release_tag="v${VERSION}"
+            source_tag="${tool}-v${VERSION}"
+
             permission="$(gh api "repos/${repository}" --jq '.permissions.push // .permissions.admin // false')"
             if [ "${permission}" != "true" ]; then
               echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${repository}."
               exit 1
             fi
+
+            if gh release view "${release_tag}" --repo "${repository}" >/dev/null 2>&1; then
+              echo "::error::Release ${release_tag} already exists in ${repository}."
+              exit 1
+            fi
+
+            if git ls-remote --exit-code --tags "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git" "refs/tags/${release_tag}" >/dev/null 2>&1; then
+              echo "::error::Tag ${release_tag} already exists in ${repository}."
+              exit 1
+            fi
+
+            if git ls-remote --exit-code --tags origin "refs/tags/${source_tag}" >/dev/null 2>&1; then
+              echo "::error::Source tag ${source_tag} already exists in ${TOOLCHAIN_REPOSITORY}."
+              exit 1
+            fi
           done
 
-  github_release:
-    name: Release github-release
-    needs: preflight
-    uses: ./.github/workflows/_release-tool.yml
-    with:
-      tool: github-release
-      version: ${{ inputs.version }}
-      prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          if gh release view "v${VERSION}" --repo "${TOOLCHAIN_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Toolchain release v${VERSION} already exists in ${TOOLCHAIN_REPOSITORY}."
+            exit 1
+          fi
 
-  cargo_release:
-    name: Release cargo-release
-    needs: github_release
-    uses: ./.github/workflows/_release-tool.yml
+  prepare_sources:
+    name: Prepare ${{ matrix.tool }} source
+    needs: preflight
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Git
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Prepare source release
+        run: >-
+          github-release prepare
+          --config "crates/${{ matrix.tool }}/github-release.toml"
+          --version "${{ inputs.version }}"
+
+      - name: Refresh source lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_branch="release/${{ matrix.tool }}-v${{ inputs.version }}"
+          cargo metadata --format-version 1 --no-deps >/dev/null
+          git add Cargo.lock
+
+          if git diff --cached --quiet; then
+            echo "Cargo.lock is already up to date for ${release_branch}."
+          else
+            git commit -m "chore(release): update lockfile for ${{ matrix.tool }}-v${{ inputs.version }}"
+            git push origin HEAD:${release_branch}
+          fi
+
+  test_sources:
+    name: Test ${{ matrix.tool }} source
+    needs: prepare_sources
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release/${{ matrix.tool }}-v${{ inputs.version }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets
+
+  build_cargo_release:
+    name: Build cargo-release assets
+    needs: test_sources
+    uses: ./.github/workflows/_release-build-assets.yml
     with:
       tool: cargo-release
       version: ${{ inputs.version }}
-      prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+      ref: release/cargo-release-v${{ inputs.version }}
+      use_prebuilt_cargo_release: false
 
-  tauri_release:
-    name: Release tauri-release
-    needs: cargo_release
-    uses: ./.github/workflows/_release-tool.yml
+  build_assets:
+    name: Build ${{ matrix.tool }} assets
+    needs: build_cargo_release
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - github-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+    uses: ./.github/workflows/_release-build-assets.yml
     with:
-      tool: tauri-release
+      tool: ${{ matrix.tool }}
       version: ${{ inputs.version }}
-      prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+      ref: release/${{ matrix.tool }}-v${{ inputs.version }}
+      use_prebuilt_cargo_release: true
 
-  rust_cache:
-    name: Release rust-cache
-    needs: tauri_release
-    uses: ./.github/workflows/_release-tool.yml
-    with:
-      tool: rust-cache
-      version: ${{ inputs.version }}
-      prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+  abort_sources:
+    name: Abort prepared source branches
+    needs:
+      - prepare_sources
+      - test_sources
+      - build_cargo_release
+      - build_assets
+    if: ${{ always() && needs.prepare_sources.result == 'success' && (needs.test_sources.result == 'failure' || needs.test_sources.result == 'cancelled' || needs.build_cargo_release.result == 'failure' || needs.build_cargo_release.result == 'cancelled' || needs.build_assets.result == 'failure' || needs.build_assets.result == 'cancelled') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
 
-  android_signing:
-    name: Release android-signing
-    needs: rust_cache
-    uses: ./.github/workflows/_release-tool.yml
-    with:
-      tool: android-signing
-      version: ${{ inputs.version }}
-      prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Delete source release branch
+        run: >-
+          github-release abort
+          --config "crates/${{ matrix.tool }}/github-release.toml"
+          --version "${{ inputs.version }}"
+
+  finalize_sources:
+    name: Finalize source tags
+    needs:
+      - build_cargo_release
+      - build_assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Git
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Merge source branches and create source tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for tool in ${TOOLS}; do
+            github-release finalize \
+              --config "crates/${tool}/github-release.toml" \
+              --version "${{ inputs.version }}" \
+              --skip-github-release
+          done
+
+  publish_distributions:
+    name: Publish ${{ matrix.tool }} distribution
+    needs: finalize_sources
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ matrix.tool }}-*
+          path: downloaded-assets
+          merge-multiple: true
+
+      - name: Publish public release
+        env:
+          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+        run: >-
+          github-release publish
+          --config "crates/${{ matrix.tool }}/github-release.toml"
+          --version "${{ inputs.version }}"
+          --assets "${{ github.workspace }}/downloaded-assets"
+          --prerelease "${{ inputs.prerelease }}"
 
   toolchain:
     name: Release toolchain
-    needs: android_signing
+    needs: publish_distributions
     uses: ./.github/workflows/_release-toolchain.yml
     with:
       version: ${{ inputs.version }}
