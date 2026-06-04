@@ -80,6 +80,10 @@ jobs:
           ! grep -Fq 'source/_repos' ".github/workflows/_release-tool.yml"
           ! grep -Fq 'rsync -a --delete' ".github/workflows/_release-tool.yml"
           grep -Fq 'github-release publish' ".github/workflows/_release-tool.yml"
+          grep -Fq 'actions/upload-artifact@v7' ".github/workflows/_release-tool.yml"
+          grep -Fq 'actions/download-artifact@v8' ".github/workflows/_release-tool.yml"
+          ! grep -Fq 'actions/upload-artifact@v4' ".github/workflows/_release-tool.yml"
+          ! grep -Fq 'actions/download-artifact@v4' ".github/workflows/_release-tool.yml"
           ! grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' \
             ".github/workflows/_release-tool.yml" \
             ".github/workflows/_release-toolchain.yml" \
