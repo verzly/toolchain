@@ -373,6 +373,8 @@ Public README files should be human, usage-oriented, and complete enough for dev
 
 The public README is the product documentation for the distribution repository. The root `toolchain/README.md` is for maintainers. Do not add crate-level READMEs; public distribution READMEs live in `.codex/distributions/<tool>/README.md` and are synchronized into the separate public repositories.
 
+Generated release notes must pass an explicit SemVer-aware `previous_tag_name` to GitHub. The previous tag is the highest full SemVer tag below the current release within the same prefix and suffix, so moving tags such as `v0`, `v0.1`, `latest`, and `next` are ignored. Scoped/custom source comparisons should use the same SemVer-aware previous-tag lookup.
+
 Do not add `CHANGELOG.md` or `VERSION` files unless explicitly requested. Release notes are generated from GitHub releases.
 
 ## README writing standard

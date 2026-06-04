@@ -20,7 +20,7 @@ version = "1.0"
 [package]
 description = "Reusable GitHub release branch and publishing orchestrator"
 name = "github-release"
-version = "0.2.0"
+version = "0.1.0"
 
 [package.edition]
 workspace = true
