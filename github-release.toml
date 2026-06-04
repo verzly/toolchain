@@ -13,6 +13,8 @@ merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
 floating_tags = false
+latest_tag = false
+next_tag = false
 
 [github]
 target_repository = "verzly/toolchain"

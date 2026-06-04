@@ -19,6 +19,10 @@ pub struct ReleasePlan {
     pub commit_message: String,
     pub merge_message: String,
     pub floating_tags: bool,
+    pub latest_tag: bool,
+    pub next_tag: bool,
+    pub latest_tag_name: String,
+    pub next_tag_name: String,
     pub github: GitHubPlan,
 }
 
@@ -103,6 +107,10 @@ pub fn build_plan(
         commit_message: render_template(&config.release.commit_message, &tag, clean_version),
         merge_message: render_template(&config.release.merge_message, &tag, clean_version),
         floating_tags: config.release.floating_tags,
+        latest_tag: config.release.latest_tag,
+        next_tag: config.release.next_tag,
+        latest_tag_name: config.release.latest_tag_name.clone(),
+        next_tag_name: config.release.next_tag_name.clone(),
         github: GitHubPlan {
             target_repository,
             source_repository,
@@ -174,6 +182,10 @@ mod tests {
         assert_eq!(plan.github.source_tag, "tool-v1.2.3");
         assert_eq!(plan.commit_message, "release tool-v1.2.3-dist from 1.2.3");
         assert_eq!(plan.merge_message, "merge tool-v1.2.3-dist");
+        assert!(!plan.latest_tag);
+        assert!(!plan.next_tag);
+        assert_eq!(plan.latest_tag_name, "latest");
+        assert_eq!(plan.next_tag_name, "next");
     }
 
     #[test]

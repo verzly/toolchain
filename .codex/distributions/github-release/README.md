@@ -169,6 +169,8 @@ Merges the release branch into the target branch, creates the source tag, option
 | `--notes` | No | Config value | String | Use this text as the GitHub Release body instead of generated notes. Cannot be combined with `--notes-file`. |
 | `--notes-file` | No | none | File path | Read the GitHub Release body from a file instead of generated notes. Cannot be combined with `--notes`. |
 | `--update-floating-tags` | No | `false` | Boolean flag | Update stable major/minor floating tags such as `v1.2` and `v1` after publishing a GitHub Release. Config can enable this without the flag. |
+| `--update-latest-tag` | No | `false` | Boolean flag | Update the configured `latest` tag after publishing. |
+| `--update-next-tag` | No | `false` | Boolean flag | Update the configured `next` tag after publishing. |
 
 #### `publish`
 
@@ -184,19 +186,21 @@ Creates a GitHub Release without preparing or merging a branch. This is the dist
 | `--notes` | No | Config value | String | Use this text as the GitHub Release body instead of generated notes. Cannot be combined with `--notes-file`. |
 | `--notes-file` | No | none | File path | Read the GitHub Release body from a file instead of generated notes. Cannot be combined with `--notes`. |
 | `--update-floating-tags` | No | `false` | Boolean flag | Update stable major/minor floating tags such as `v1.2` and `v1` after publishing. Config can enable this without the flag. |
+| `--update-latest-tag` | No | `false` | Boolean flag | Update the configured `latest` tag after publishing. |
+| `--update-next-tag` | No | `false` | Boolean flag | Update the configured `next` tag after publishing. |
 
 #### `floating-tags`
 
-Creates or repairs moving stable major/minor tags for already-published releases. It never updates prerelease tags. With `tag_prefix = "v"`, publishing or analyzing `v1.2.3` updates `v1.2` and `v1`. With custom prefixes and suffixes, the generated floating tags keep the same shape, for example `tool-v1.2-dist` and `tool-v1-dist` for `tool-v1.2.3-dist`.
+Creates or repairs moving tags for already-published releases. With `tag_prefix = "v"`, publishing or analyzing `v1.2.3` updates `v1.2` and `v1`. When enabled, `latest` points to the highest stable `vX.Y.Z` release, and `next` points to the highest preview release. If no preview exists, `next` points to the same commit as `latest`.
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
-| `-v`, `--version` | No | none | Stable SemVer version | Build the full release tag from config and update its floating tags. Use exactly one of `--version`, `--tag`, or `--all`. |
-| `--tag` | No | none | Full stable tag such as `v1.2.3` | Analyze one existing full release tag and update its matching floating tags. |
-| `--all` | No | `false` | Boolean flag | Scan all matching stable `vX.Y.Z` tags, find the highest release for every `vX.Y` and `vX`, and update the floating tags. |
+| `-v`, `--version` | No | none | SemVer version | Build the full release tag from config and update enabled moving tags. Use exactly one of `--version`, `--tag`, or `--all`. |
+| `--tag` | No | none | Full SemVer tag such as `v1.2.3` or `v1.3.0-rc.1` | Analyze one existing full release tag and update enabled moving tags. |
+| `--all` | No | `false` | Boolean flag | Scan all matching SemVer tags, find the highest release for each enabled moving tag, and update them. |
 | `--repository` | No | Config value | `owner/repo` | Override `github.target_repository`. |
-| `--force` | No | `false` | Boolean flag | Run even when `release.floating_tags` is disabled in config. |
+| `--force` | No | `false` | Boolean flag | Run and enable all moving tag families even when they are disabled in config. |
 | `--dry-run` | No | `false` | Boolean flag | Print planned ref updates without writing tags. |
 
 #### `abort`
@@ -228,6 +232,8 @@ merge_message = "chore(release): merge {tag}"
 cleanup = true
 latest = true
 floating_tags = false
+latest_tag = false
+next_tag = false
 
 [github]
 target_repository = "verzly/my-tool"
@@ -256,6 +262,9 @@ optional = false
 | `release.cleanup` | Boolean | Deletes the release branch after success unless `--keep-branch` is used. |
 | `release.latest` | Boolean | Controls whether the GitHub Release should be marked as latest. |
 | `release.floating_tags` | Boolean | Enables stable moving major/minor tags such as `v1.2` and `v1` for public releases. Defaults to `false` and is ignored for prereleases. |
+| `release.latest_tag` | Boolean | Enables the configured `latest` tag and points it at the highest stable SemVer release. Defaults to `false`. |
+| `release.next_tag` | Boolean | Enables the configured `next` tag and points it at the highest preview SemVer release, or falls back to `latest` when no preview exists. Defaults to `false`. |
+| `release.latest_tag_name` / `release.next_tag_name` | String | Tag names used for the stable and preview channels. Defaults are `latest` and `next`. |
 | `github.target_repository` | `owner/repo` or empty | Repository where the GitHub Release is created. Empty means the current repository context. |
 | `github.source_repository` | `owner/repo` or empty | Repository used for generated release notes. Useful when distribution repositories are source-free. |
 | `github.source_tag_prefix` / `github.source_tag_suffix` | String | Source tag naming when release notes should be generated from a different repository. |
@@ -293,7 +302,7 @@ github-release publish --version 1.4.0 --config crates/my-tool/github-release.to
 
 `publish` does not create source branches or edit source files. It creates a GitHub Release from an existing release context and uploads assets.
 
-When `release.floating_tags = true`, a stable publish also updates moving tags. For `v1.4.0`, the public repository receives or refreshes `v1.4` and `v1` so GitHub Action users can pin to a major or minor line. Prerelease versions such as `v1.4.0-rc.1` are ignored by floating tag updates.
+When `release.floating_tags = true`, a stable publish updates `v1.4` and `v1` so GitHub Action users can pin to a major or minor line. When `release.latest_tag = true`, the `latest` tag points to the highest stable release. When `release.next_tag = true`, the `next` tag points to the highest preview release such as `v1.5.0-rc.1`, or to the same commit as `latest` when no preview exists.
 
 Backfill missing floating tags after older releases already exist:
 

@@ -76,17 +76,71 @@ pub fn create_release(
     Ok(())
 }
 
-pub fn refresh_floating_tags_for_plan(plan: &ReleasePlan, dry_run: bool) -> Result<()> {
+#[derive(Clone, Debug)]
+pub struct FloatingTagOptions {
+    pub stable_line_tags: bool,
+    pub latest_tag: bool,
+    pub next_tag: bool,
+}
+
+impl FloatingTagOptions {
+    pub fn for_plan(plan: &ReleasePlan) -> Self {
+        Self {
+            stable_line_tags: plan.floating_tags,
+            latest_tag: plan.latest_tag,
+            next_tag: plan.next_tag,
+        }
+    }
+
+    pub fn with_overrides(
+        mut self,
+        update_floating_tags: bool,
+        update_latest_tag: bool,
+        update_next_tag: bool,
+    ) -> Self {
+        self.stable_line_tags |= update_floating_tags;
+        self.latest_tag |= update_latest_tag;
+        self.next_tag |= update_next_tag;
+        self
+    }
+
+    pub fn force_all() -> Self {
+        Self {
+            stable_line_tags: true,
+            latest_tag: true,
+            next_tag: true,
+        }
+    }
+
+    pub fn any(&self) -> bool {
+        self.stable_line_tags || self.latest_tag || self.next_tag
+    }
+}
+
+pub fn refresh_floating_tags_for_plan(
+    plan: &ReleasePlan,
+    options: FloatingTagOptions,
+    dry_run: bool,
+) -> Result<()> {
+    if !options.any() {
+        return Ok(());
+    }
+
     let repository = target_repository_for_tag_updates(plan, dry_run)?;
     let version = Version::parse(&plan.version_text)
         .with_context(|| format!("invalid SemVer version: {}", plan.version_text))?;
 
     refresh_floating_tags_for_tag(
-        &repository,
-        &plan.tag,
-        &plan.tag_prefix,
-        &plan.tag_suffix,
-        &version,
+        FloatingTagUpdate {
+            repository: &repository,
+            full_tag: &plan.tag,
+            tag_prefix: &plan.tag_prefix,
+            tag_suffix: &plan.tag_suffix,
+            latest_tag_name: &plan.latest_tag_name,
+            next_tag_name: &plan.next_tag_name,
+            version: &version,
+        },
+        options,
         dry_run,
     )
 }
@@ -103,28 +157,63 @@ fn target_repository_for_tag_updates(plan: &ReleasePlan, dry_run: bool) -> Resul
     current_repository()
 }
 
+pub struct FloatingTagUpdate<'a> {
+    pub repository: &'a str,
+    pub full_tag: &'a str,
+    pub tag_prefix: &'a str,
+    pub tag_suffix: &'a str,
+    pub latest_tag_name: &'a str,
+    pub next_tag_name: &'a str,
+    pub version: &'a Version,
+}
+
 pub fn refresh_floating_tags_for_tag(
-    repository: &str,
-    full_tag: &str,
-    tag_prefix: &str,
-    tag_suffix: &str,
-    version: &Version,
+    update: FloatingTagUpdate<'_>,
+    options: FloatingTagOptions,
     dry_run: bool,
 ) -> Result<()> {
-    let floating_tags = stable_floating_tags(tag_prefix, tag_suffix, version);
-    if floating_tags.is_empty() {
-        println!("skipping floating tags for non-stable release tag {full_tag} in {repository}");
-        return Ok(());
+    let FloatingTagUpdate {
+        repository,
+        full_tag,
+        tag_prefix,
+        tag_suffix,
+        latest_tag_name,
+        next_tag_name,
+        version,
+    } = update;
+    if options.stable_line_tags {
+        let floating_tags = stable_floating_tags(tag_prefix, tag_suffix, version);
+        if floating_tags.is_empty() {
+            println!(
+                "skipping floating tags for non-stable release tag {full_tag} in {repository}"
+            );
+        } else {
+            let target_sha = if dry_run {
+                format!("<resolved target of {full_tag}>")
+            } else {
+                resolve_tag_target_sha(repository, full_tag)?
+            };
+
+            for floating_tag in floating_tags {
+                upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+            }
+        }
     }
 
-    let target_sha = if dry_run {
-        format!("<resolved target of {full_tag}>")
-    } else {
-        resolve_tag_target_sha(repository, full_tag)?
-    };
-
-    for floating_tag in floating_tags {
-        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+    if options.latest_tag || options.next_tag {
+        refresh_highest_floating_tags(
+            repository,
+            tag_prefix,
+            tag_suffix,
+            latest_tag_name,
+            next_tag_name,
+            FloatingTagOptions {
+                stable_line_tags: false,
+                latest_tag: options.latest_tag,
+                next_tag: options.next_tag,
+            },
+            dry_run,
+        )?;
     }
 
     Ok(())
@@ -134,60 +223,147 @@ pub fn refresh_highest_floating_tags(
     repository: &str,
     tag_prefix: &str,
     tag_suffix: &str,
+    latest_tag_name: &str,
+    next_tag_name: &str,
+    options: FloatingTagOptions,
     dry_run: bool,
 ) -> Result<()> {
-    let tags = list_matching_tags(repository, tag_prefix)?;
-    let mut highest_major: HashMap<u64, (Version, String)> = HashMap::new();
-    let mut highest_minor: HashMap<(u64, u64), (Version, String)> = HashMap::new();
-
-    for tag in tags {
-        let Some(version) = stable_version_from_tag(&tag, tag_prefix, tag_suffix) else {
-            continue;
-        };
-
-        let major = version.major;
-        let minor = version.minor;
-        keep_highest(&mut highest_major, major, version.clone(), tag.clone());
-        keep_highest(&mut highest_minor, (major, minor), version, tag);
-    }
-
-    if highest_major.is_empty() && highest_minor.is_empty() {
-        println!(
-            "no stable tags matching {}X.Y.Z{} were found in {repository}",
-            tag_prefix, tag_suffix
-        );
+    if !options.any() {
         return Ok(());
     }
 
-    for (_, (version, tag)) in highest_minor {
-        let target_sha = if dry_run {
-            format!("<resolved target of {tag}>")
-        } else {
-            resolve_tag_target_sha(repository, &tag)?
-        };
-        let floating_tag = format!(
-            "{}{}.{}{}",
-            tag_prefix, version.major, version.minor, tag_suffix
-        );
-        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+    let tags = list_matching_tags(repository, tag_prefix)?;
+    let analysis = analyze_floating_tags(tags, tag_prefix, tag_suffix);
+
+    if options.stable_line_tags {
+        if analysis.highest_major.is_empty() && analysis.highest_minor.is_empty() {
+            println!(
+                "no stable tags matching {}X.Y.Z{} were found in {repository}",
+                tag_prefix, tag_suffix
+            );
+        }
+
+        for (version, tag) in analysis.highest_minor.values() {
+            let target_sha = if dry_run {
+                format!("<resolved target of {tag}>")
+            } else {
+                resolve_tag_target_sha(repository, tag)?
+            };
+            let floating_tag = format!(
+                "{}{}.{}{}",
+                tag_prefix, version.major, version.minor, tag_suffix
+            );
+            upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+        }
+
+        for (version, tag) in analysis.highest_major.values() {
+            let target_sha = if dry_run {
+                format!("<resolved target of {tag}>")
+            } else {
+                resolve_tag_target_sha(repository, tag)?
+            };
+            let floating_tag = format!("{}{}{}", tag_prefix, version.major, tag_suffix);
+            upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+        }
     }
 
-    for (_, (version, tag)) in highest_major {
-        let target_sha = if dry_run {
-            format!("<resolved target of {tag}>")
+    if options.latest_tag {
+        if let Some((_, tag)) = analysis.latest_stable.as_ref() {
+            update_named_floating_tag(repository, latest_tag_name, tag, dry_run)?;
         } else {
-            resolve_tag_target_sha(repository, &tag)?
-        };
-        let floating_tag = format!("{}{}{}", tag_prefix, version.major, tag_suffix);
-        upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
+            println!("no stable release tags were found for latest tag in {repository}");
+        }
+    }
+
+    if options.next_tag {
+        let target_tag = analysis
+            .next_preview
+            .as_ref()
+            .or(analysis.latest_stable.as_ref());
+        if let Some((_, tag)) = target_tag {
+            update_named_floating_tag(repository, next_tag_name, tag, dry_run)?;
+        } else {
+            println!("no preview or stable release tags were found for next tag in {repository}");
+        }
     }
 
     Ok(())
 }
 
-pub fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
+fn update_named_floating_tag(
+    repository: &str,
+    floating_tag: &str,
+    target_tag: &str,
+    dry_run: bool,
+) -> Result<()> {
+    let target_sha = if dry_run {
+        format!("<resolved target of {target_tag}>")
+    } else {
+        resolve_tag_target_sha(repository, target_tag)?
+    };
+    upsert_tag_ref(repository, floating_tag, &target_sha, dry_run)
+}
+
+#[derive(Default)]
+struct FloatingTagAnalysis {
+    highest_major: HashMap<u64, (Version, String)>,
+    highest_minor: HashMap<(u64, u64), (Version, String)>,
+    latest_stable: Option<(Version, String)>,
+    next_preview: Option<(Version, String)>,
+}
+
+fn analyze_floating_tags(
+    tags: Vec<String>,
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> FloatingTagAnalysis {
+    let mut analysis = FloatingTagAnalysis::default();
+
+    for tag in tags {
+        let Some(version) = version_from_tag(&tag, tag_prefix, tag_suffix) else {
+            continue;
+        };
+
+        if is_stable_patch_version(&version) {
+            let major = version.major;
+            let minor = version.minor;
+            keep_highest(
+                &mut analysis.highest_major,
+                major,
+                version.clone(),
+                tag.clone(),
+            );
+            keep_highest(
+                &mut analysis.highest_minor,
+                (major, minor),
+                version.clone(),
+                tag.clone(),
+            );
+            keep_optional_highest(&mut analysis.latest_stable, version, tag);
+        } else {
+            keep_optional_highest(&mut analysis.next_preview, version, tag);
+        }
+    }
+
+    analysis
+}
+
+pub fn version_from_tag_for_release(
+    tag: &str,
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> Option<Version> {
+    version_from_tag(tag, tag_prefix, tag_suffix)
+}
+
+fn version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
     let version_text = tag.strip_prefix(tag_prefix)?.strip_suffix(tag_suffix)?;
-    let version = Version::parse(version_text).ok()?;
+    Version::parse(version_text).ok()
+}
+
+#[cfg(test)]
+fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
+    let version = version_from_tag(tag, tag_prefix, tag_suffix)?;
     if is_stable_patch_version(&version) {
         Some(version)
     } else {
@@ -211,6 +387,17 @@ pub fn stable_floating_tags(tag_prefix: &str, tag_suffix: &str, version: &Versio
 
 fn is_stable_patch_version(version: &Version) -> bool {
     version.pre.is_empty() && version.build.is_empty()
+}
+
+fn keep_optional_highest(target: &mut Option<(Version, String)>, version: Version, tag: String) {
+    let should_replace = target
+        .as_ref()
+        .map(|(current, _)| &version > current)
+        .unwrap_or(true);
+
+    if should_replace {
+        *target = Some((version, tag));
+    }
 }
 
 fn keep_highest<K>(map: &mut HashMap<K, (Version, String)>, key: K, version: Version, tag: String)
@@ -874,6 +1061,10 @@ mod tests {
             commit_message: "prepare v0.1.0".to_string(),
             merge_message: "merge v0.1.0".to_string(),
             floating_tags: false,
+            latest_tag: false,
+            next_tag: false,
+            latest_tag_name: "latest".to_string(),
+            next_tag_name: "next".to_string(),
             github: crate::domain::GitHubPlan {
                 target_repository: Some("verzly/tool".to_string()),
                 source_repository: Some("verzly/toolchain".to_string()),
@@ -1031,6 +1222,38 @@ mod tests {
         );
         assert!(stable_version_from_tag("action-v1.2-dist", "action-v", "-dist").is_none());
         assert!(stable_version_from_tag("action-v1.2.3-rc.1-dist", "action-v", "-dist").is_none());
+    }
+
+    #[test]
+    fn floating_tag_analysis_finds_latest_stable_and_next_preview() {
+        let analysis = analyze_floating_tags(
+            vec![
+                "v1.0.0".to_string(),
+                "v1.1.0".to_string(),
+                "v1.2.0-rc.1".to_string(),
+                "v2.0.0-alpha.1".to_string(),
+                "v1.1".to_string(),
+                "latest".to_string(),
+            ],
+            "v",
+            "",
+        );
+
+        assert_eq!(analysis.latest_stable.expect("latest stable").1, "v1.1.0");
+        assert_eq!(
+            analysis.next_preview.expect("next preview").1,
+            "v2.0.0-alpha.1"
+        );
+    }
+
+    #[test]
+    fn version_from_tag_for_release_keeps_prerelease_tags() {
+        assert_eq!(
+            version_from_tag_for_release("tool-v1.2.3-rc.1-dist", "tool-v", "-dist")
+                .expect("version")
+                .to_string(),
+            "1.2.3-rc.1"
+        );
     }
 
     #[test]

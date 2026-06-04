@@ -159,7 +159,7 @@ publish toolchain release
 
 Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release. Public distribution tags are created only after the matching distribution repository has received a release-specific `chore(distribution)` bump commit, so the public `vX.Y.Z` tag points at that bump commit.
 
-Public distribution configs enable stable floating tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. Prerelease tags such as `v1.2.3-rc.1` never update floating tags.
+Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
 
 ### Release toolchain only
 
@@ -173,17 +173,17 @@ Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository 
 
 ### Update floating tags
 
-Use `.github/workflows/update-floating-tags.yml` to repair or backfill stable floating tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags`, reads each tool's `crates/<tool>/github-release.toml`, and skips any config where `release.floating_tags` is disabled.
+Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags`, reads each tool's `crates/<tool>/github-release.toml`, and skips configs where all moving tag families are disabled.
 
 Modes:
 
 ```text
-all      scan all stable vX.Y.Z tags and point each vX.Y / vX tag at the highest matching release
-version  update vX.Y / vX for one version input such as 1.2.3
-tag      analyze one full tag such as v1.2.3
+all      scan all SemVer tags and repair every enabled moving tag
+version  analyze one version input such as 1.2.3 or 1.3.0-rc.1
+tag      analyze one full tag such as v1.2.3 or v1.3.0-rc.1
 ```
 
-The workflow requires `DISTRIBUTION_REPO_TOKEN` because floating tags are written to the public `verzly/<tool>` repositories. The root `verzly/toolchain` release config keeps floating tags disabled.
+The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The root `verzly/toolchain` release config keeps these tags disabled.
 
 ### Sync distribution repositories
 
@@ -208,13 +208,15 @@ crates/<tool>/cargo-release.toml
 
 `github-release.toml` contains both release contexts. `[source_release]` controls the temporary source branch and source tag in `verzly/toolchain`; `[release]` controls the public `vX.Y.Z` release in `verzly/<tool>`.
 
-For public distribution repositories, `[release]` also enables stable floating tags:
+For public distribution repositories, `[release]` also enables moving tags:
 
 ```toml
 floating_tags = true
+latest_tag = true
+next_tag = true
 ```
 
-With `tag_prefix = "v"` and `tag_suffix = ""`, publishing `v1.2.3` updates `v1.2` and `v1`. If a project uses a custom prefix or suffix, the floating tags keep the same shape, for example `tool-v1.2-dist` and `tool-v1-dist` for `tool-v1.2.3-dist`.
+With `tag_prefix = "v"` and `tag_suffix = ""`, publishing `v1.2.3` updates `v1.2` and `v1`. Stable releases update `latest` to the highest stable `vX.Y.Z`. Preview releases such as `v1.3.0-rc.1` update `next` to the highest preview. If no preview release exists, `next` points to the same commit as `latest`.
 
 ### Release notes
 
