@@ -20,6 +20,29 @@ on:
         description: "Commit message used in distribution repositories."
         required: false
         default: "chore(distribution): bump public surface"
+      force-commit:
+        description: "Create a bump commit even when the distribution files are already up to date."
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tool:
+        description: "Distribution repository to sync, or all."
+        required: true
+        type: string
+      commit-message:
+        description: "Commit message used in distribution repositories."
+        required: true
+        type: string
+      force-commit:
+        description: "Create a bump commit even when the distribution files are already up to date."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      DISTRIBUTION_REPO_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -37,13 +60,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           path: source
+          ref: master
+          fetch-depth: 0
           token: ${{ github.token }}
 
       - name: Sync distribution repositories
         env:
           GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
           SELECTED_TOOL: ${{ inputs.tool }}
-          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          COMMIT_MESSAGE: ${{ inputs['commit-message'] }}
+          FORCE_COMMIT: ${{ inputs['force-commit'] }}
         shell: bash
         run: |
           set -euo pipefail
@@ -52,6 +78,16 @@ jobs:
             echo "::error::DISTRIBUTION_REPO_TOKEN is required to push distribution repository commits."
             exit 1
           fi
+
+          if [ -z "${COMMIT_MESSAGE:-}" ]; then
+            echo "::error::A distribution sync commit message is required."
+            exit 1
+          fi
+
+          case "${FORCE_COMMIT}" in
+            true|false) ;;
+            *) echo "::error::force-commit must be true or false."; exit 1 ;;
+          esac
 
           case "${SELECTED_TOOL}" in
             all) tools="github-release cargo-release tauri-release rust-cache android-signing" ;;
@@ -91,7 +127,12 @@ jobs:
               cd "${target_dir}"
               git add README.md action.yml LICENSE
               if git diff --cached --quiet; then
-                echo "${repository} is already up to date."
+                if [ "${FORCE_COMMIT}" = "true" ]; then
+                  git commit --allow-empty -m "${COMMIT_MESSAGE}"
+                  git push origin HEAD
+                else
+                  echo "${repository} is already up to date."
+                fi
               else
                 git commit -m "${COMMIT_MESSAGE}"
                 git push origin HEAD

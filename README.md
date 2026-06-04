@@ -131,10 +131,11 @@ github-release prepare
 cargo fmt / clippy / test
 cargo-release build
 github-release finalize --merge-strategy squash --skip-github-release
+sync released distribution repository
 github-release publish
 ```
 
-`prepare` creates a temporary source branch and updates only the configured version files. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag before `publish` creates the public release and uploads assets.
+`prepare` creates a temporary source branch and updates only the configured version files. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag. The workflow then syncs the matching public distribution repository with a release-specific bump commit before `publish` creates the public release and uploads assets.
 
 Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits. If the release branch has no source diff because the requested version is already present in `master`, finalization skips the squash commit and creates the release tags from the existing `master` commit.
 
@@ -142,7 +143,7 @@ Source finalization uses a squash merge by default. The release branch may conta
 
 Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
 
-The workflow is a visible two-phase dependency graph. It replaces a stale aggregate source branch from a previous failed run, prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, publish public releases with the already-built assets, and publish the final toolchain release.
+The workflow is a visible two-phase dependency graph. It replaces a stale aggregate source branch from a previous failed run, prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, sync the released public distribution repositories with release-specific bump commits, publish public releases with the already-built assets, and publish the final toolchain release.
 
 ```text
 preflight
@@ -151,11 +152,12 @@ test prepared source branch
 build cargo-release assets
 build github-release / tauri-release / rust-cache / android-signing assets
 github-release finalize-batch
+sync released distribution repositories
 publish all public distribution releases
 publish toolchain release
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release. Public distribution tags are created only after the matching distribution repository has received a release-specific `chore(distribution)` bump commit, so the public `vX.Y.Z` tag points at that bump commit.
 
 Public distribution configs enable stable floating tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. Prerelease tags such as `v1.2.3-rc.1` never update floating tags.
 
@@ -187,7 +189,7 @@ The workflow requires `DISTRIBUTION_REPO_TOKEN` because floating tags are writte
 
 Use `.github/workflows/sync-distributions.yml` when public `README.md`, `action.yml`, or `LICENSE` files need to be pushed to the separate `verzly/<tool>` repositories without creating a release.
 
-The workflow reads `.codex/distributions/<tool>`, clones the matching public repository with `DISTRIBUTION_REPO_TOKEN`, replaces the public surface, and commits with the configured message. The default message is:
+The workflow reads `.codex/distributions/<tool>`, clones the matching public repository with `DISTRIBUTION_REPO_TOKEN`, replaces the public surface, and commits with the configured message. Manual runs skip the commit when nothing changed unless `force-commit` is enabled. Release workflows call it with `force-commit: true` and a version-specific bump message before public tags and GitHub Releases are created. The default manual message is:
 
 ```text
 chore(distribution): bump public surface
