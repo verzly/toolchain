@@ -226,6 +226,8 @@ Distribution `action.yml` files must resolve moving action refs to the concrete 
 
 Public releases can use generated notes, scoped source notes, no notes, or a custom body. Generated and scoped notes normalize pull request URLs so the visible text is `#123` for the current repository or `toolchain#123` for another repository; the full URL stays hidden behind the Markdown link.
 
+Generated notes resolve the previous tag by SemVer within the same tag prefix and suffix, then pass that tag to GitHub as `previous_tag_name`. This keeps `v0.2.0` notes scoped to changes after `v0.1.0` instead of replaying the first release, while ignoring moving tags such as `v0`, `v0.1`, `latest`, and `next`.
+
 The current public tool configs use custom release text that points users back to the exact source comparison in `verzly/toolchain`, for example:
 
 ```text

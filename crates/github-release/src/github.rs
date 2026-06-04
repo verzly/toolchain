@@ -361,6 +361,30 @@ fn version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Ver
     Version::parse(version_text).ok()
 }
 
+fn previous_version_tag<I>(
+    tags: I,
+    current_tag: &str,
+    tag_prefix: &str,
+    tag_suffix: &str,
+    current_version: &Version,
+) -> Option<String>
+where
+    I: IntoIterator<Item = String>,
+{
+    tags.into_iter()
+        .filter(|tag| tag != current_tag)
+        .filter_map(|tag| {
+            let version = version_from_tag(&tag, tag_prefix, tag_suffix)?;
+            if &version < current_version {
+                Some((version, tag))
+            } else {
+                None
+            }
+        })
+        .max_by(|(left, _), (right, _)| left.cmp(right))
+        .map(|(_, tag)| tag)
+}
+
 #[cfg(test)]
 fn stable_version_from_tag(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<Version> {
     let version = version_from_tag(tag, tag_prefix, tag_suffix)?;
@@ -613,8 +637,18 @@ fn write_generated_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathB
         generate_scoped_notes_from_git(plan)
             .unwrap_or_else(|error| fallback_notes(notes_repository, notes_tag, &error.to_string()))
     } else {
-        generate_notes_from_repository(notes_repository, notes_tag, target_commitish)
-            .unwrap_or_else(|error| fallback_notes(notes_repository, notes_tag, &error.to_string()))
+        match previous_generated_notes_tag(plan, notes_repository) {
+            Ok(previous_tag_name) => generate_notes_from_repository(
+                notes_repository,
+                notes_tag,
+                target_commitish,
+                previous_tag_name.as_deref(),
+            )
+            .unwrap_or_else(|error| {
+                fallback_notes(notes_repository, notes_tag, &error.to_string())
+            }),
+            Err(error) => fallback_notes(notes_repository, notes_tag, &error.to_string()),
+        }
     };
     let generated = normalize_release_note_links(&generated, plan);
 
@@ -658,10 +692,38 @@ struct TagResponse {
     object: GitObject,
 }
 
+fn previous_generated_notes_tag(plan: &ReleasePlan, repository: &str) -> Result<Option<String>> {
+    let (current_tag, tag_prefix, tag_suffix) = notes_tag_family(plan);
+    let current_version = Version::parse(&plan.version_text)
+        .with_context(|| format!("invalid SemVer version: {}", plan.version_text))?;
+    let tags = list_matching_tags(repository, tag_prefix)?;
+
+    Ok(previous_version_tag(
+        tags,
+        current_tag,
+        tag_prefix,
+        tag_suffix,
+        &current_version,
+    ))
+}
+
+fn notes_tag_family(plan: &ReleasePlan) -> (&str, &str, &str) {
+    if plan.github.source_repository.is_some() {
+        (
+            &plan.github.source_tag,
+            &plan.github.source_tag_prefix,
+            &plan.github.source_tag_suffix,
+        )
+    } else {
+        (&plan.tag, &plan.tag_prefix, &plan.tag_suffix)
+    }
+}
+
 fn generate_notes_from_repository(
     repository: &str,
     tag: &str,
     target_commitish: Option<&str>,
+    previous_tag_name: Option<&str>,
 ) -> Result<String> {
     let endpoint = format!("repos/{repository}/releases/generate-notes");
     let mut args = vec![
@@ -673,6 +735,10 @@ fn generate_notes_from_repository(
     if let Some(target_commitish) = target_commitish {
         args.push("-f".to_string());
         args.push(format!("target_commitish={target_commitish}"));
+    }
+    if let Some(previous_tag_name) = previous_tag_name {
+        args.push("-f".to_string());
+        args.push(format!("previous_tag_name={previous_tag_name}"));
     }
 
     let output = Command::new("gh")
@@ -850,17 +916,25 @@ fn generate_scoped_notes_from_git(plan: &ReleasePlan) -> Result<String> {
 }
 
 fn previous_source_tag(plan: &ReleasePlan) -> Result<Option<String>> {
-    let pattern = format!(
-        "{}*{}",
-        plan.github.source_tag_prefix, plan.github.source_tag_suffix
-    );
-    let output = git_output(["tag", "--list", &pattern, "--sort=-creatordate"])?;
-    Ok(output
+    let (current_tag, tag_prefix, tag_suffix) = notes_tag_family(plan);
+    let current_version = Version::parse(&plan.version_text)
+        .with_context(|| format!("invalid SemVer version: {}", plan.version_text))?;
+    let pattern = format!("{}*{}", tag_prefix, tag_suffix);
+    let output = git_output(["tag", "--list", &pattern])?;
+    let tags = output
         .lines()
         .map(str::trim)
         .filter(|tag| !tag.is_empty())
-        .find(|tag| *tag != plan.github.source_tag)
-        .map(ToOwned::to_owned))
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+
+    Ok(previous_version_tag(
+        tags,
+        current_tag,
+        tag_prefix,
+        tag_suffix,
+        &current_version,
+    ))
 }
 
 fn commits_in_range(range: &str) -> Result<Vec<CommitEntry>> {
@@ -1254,6 +1328,45 @@ mod tests {
                 .to_string(),
             "1.2.3-rc.1"
         );
+    }
+
+    #[test]
+    fn previous_version_tag_selects_highest_semver_below_current() {
+        let previous = previous_version_tag(
+            vec![
+                "v0".to_string(),
+                "v0.1".to_string(),
+                "v0.1.0".to_string(),
+                "v0.2.0".to_string(),
+                "v0.2.1".to_string(),
+                "v0.3.0".to_string(),
+                "latest".to_string(),
+            ],
+            "v0.2.1",
+            "v",
+            "",
+            &Version::parse("0.2.1").expect("version"),
+        );
+
+        assert_eq!(previous.as_deref(), Some("v0.2.0"));
+    }
+
+    #[test]
+    fn previous_version_tag_respects_prefix_and_suffix() {
+        let previous = previous_version_tag(
+            vec![
+                "v1.9.9".to_string(),
+                "tool-v1.2.3-dist".to_string(),
+                "tool-v1.2.4-rc.1-dist".to_string(),
+                "tool-v1.2.4-dist".to_string(),
+            ],
+            "tool-v1.2.4-dist",
+            "tool-v",
+            "-dist",
+            &Version::parse("1.2.4").expect("version"),
+        );
+
+        assert_eq!(previous.as_deref(), Some("tool-v1.2.4-rc.1-dist"));
     }
 
     #[test]

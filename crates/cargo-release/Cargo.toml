@@ -22,7 +22,7 @@ version = "1.0"
 [package]
 description = "Container-aware release builder for Rust executable artifacts"
 name = "cargo-release"
-version = "0.2.0"
+version = "0.1.0"
 
 [package.edition]
 workspace = true
