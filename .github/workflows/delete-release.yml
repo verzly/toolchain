@@ -1,0 +1,120 @@
+name: Delete Release
+run-name: Delete release v${{ inputs.version }} from ${{ inputs.target }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to delete. Accepts 1.2.3 or v1.2.3."
+        required: true
+      target:
+        description: "Release target to delete. All deletes public tool releases, source tags, and the toolchain release."
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - toolchain
+          - github-release
+          - cargo-release
+          - tauri-release
+          - rust-cache
+          - android-signing
+      confirm:
+        description: "Type DELETE vX.Y.Z to confirm destructive release and tag deletion."
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: delete-release-${{ inputs.target }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+
+jobs:
+  delete:
+    name: Delete release and tags
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete selected release surfaces
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_TOKEN: ${{ github.token }}
+          DISTRIBUTION_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION#v}"
+          release_tag="v${version}"
+          expected_confirmation="DELETE ${release_tag}"
+
+          if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
+            echo "::error::Confirmation mismatch. Type '${expected_confirmation}' to delete release and tag data."
+            exit 1
+          fi
+
+          case "${TARGET}" in
+            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            *) echo "::error::Unsupported delete target: ${TARGET}"; exit 1 ;;
+          esac
+
+          if [ "${TARGET}" != "toolchain" ] && [ -z "${DISTRIBUTION_TOKEN:-}" ]; then
+            echo "::error::DISTRIBUTION_REPO_TOKEN is required to delete public distribution releases and tags."
+            exit 1
+          fi
+
+          delete_release_if_exists() {
+            local repository="$1"
+            local tag="$2"
+            local token="$3"
+
+            if GH_TOKEN="${token}" gh release view "${tag}" --repo "${repository}" >/dev/null 2>&1; then
+              echo "Deleting release ${tag} from ${repository}."
+              GH_TOKEN="${token}" gh release delete "${tag}" --repo "${repository}" --yes --cleanup-tag
+            else
+              echo "::notice::Release ${tag} does not exist in ${repository}."
+            fi
+          }
+
+          delete_tag_if_exists() {
+            local repository="$1"
+            local tag="$2"
+            local token="$3"
+
+            if GH_TOKEN="${token}" gh api "repos/${repository}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              echo "Deleting tag ${tag} from ${repository}."
+              GH_TOKEN="${token}" gh api --method DELETE "repos/${repository}/git/refs/tags/${tag}" >/dev/null
+            else
+              echo "::notice::Tag ${tag} does not exist in ${repository}."
+            fi
+          }
+
+          delete_release_and_tag() {
+            local repository="$1"
+            local tag="$2"
+            local token="$3"
+
+            delete_release_if_exists "${repository}" "${tag}" "${token}"
+            delete_tag_if_exists "${repository}" "${tag}" "${token}"
+          }
+
+          if [ "${TARGET}" = "all" ] || [ "${TARGET}" = "toolchain" ]; then
+            delete_release_and_tag "${SOURCE_REPOSITORY}" "${release_tag}" "${SOURCE_TOKEN}"
+          fi
+
+          for tool in ${TOOLS}; do
+            if [ "${TARGET}" != "all" ] && [ "${TARGET}" != "${tool}" ]; then
+              continue
+            fi
+
+            delete_release_and_tag "verzly/${tool}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
+            delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}" "${SOURCE_TOKEN}"
+          done

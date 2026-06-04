@@ -182,13 +182,15 @@ Expected flow:
 6. `github-release finalize --merge-strategy squash --skip-github-release` squash-merges the branch into one `master` commit and creates `<tool>-vX.Y.Z`.
 7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, and uploads assets.
 
-The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
+The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live. Visible PR references must never show raw URLs: same-repository PRs should render as `#123`, while external repository PRs should render as `toolchain#123` or the matching repository name plus PR number.
 
 A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It must stay readable as a visible two-phase graph: preflight, prepare one aggregate `release/all-vX.Y.Z` source branch, test that prepared branch, build `cargo-release`, build the other executable assets with that freshly built `cargo-release`, run `github-release finalize-batch` to squash merge the aggregate branch into one `master` commit, create every package-prefixed source tag from that commit, publish all public distribution releases with the already-built assets, then publish the toolchain release.
 
 Release All may create multiple preparation commits on the temporary aggregate branch. It must not push those commits individually to `master`; the final `master` commit must be a single squash merge whose body includes a summary of the squashed preparation commits.
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
+
+A `.github/workflows/delete-release.yml` workflow must exist for destructive release cleanup. It must delete both GitHub Releases and their matching Git tags. For `all`, it must remove `vX.Y.Z` from `verzly/toolchain`, remove `vX.Y.Z` from every public `verzly/<tool>` repository, and remove each package-prefixed source tag from `verzly/toolchain`. Public repository deletion must require `DISTRIBUTION_REPO_TOKEN`.
 
 ## Commit and PR title scopes for release notes
 
@@ -316,6 +318,8 @@ The repository must also contain these maintainer workflows:
 .github/workflows/release-toolchain.yml       # publish the private/source repo release, no assets
 .github/workflows/_release-toolchain.yml      # reusable toolchain release workflow
 .github/workflows/release-all.yml             # prepare/build everything first, then finalize/publish releases
+.github/workflows/delete-release.yml          # destructive release and tag cleanup
+.github/workflows/sync-distributions.yml      # push public README/action/LICENSE surfaces
 ```
 
 Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.

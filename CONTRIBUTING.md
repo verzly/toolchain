@@ -101,10 +101,11 @@ Maintainer workflows are:
 ```text
 .github/workflows/release-all.yml
 .github/workflows/release-toolchain.yml
+.github/workflows/delete-release.yml
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created.
+Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `delete-release.yml` only for release cleanup; it removes the selected GitHub Release and the matching tag together.
 
 ## Production Tokens
 
@@ -130,6 +131,7 @@ After the PR is on `master`, run the appropriate workflow:
 release-<tool>.yml       # one public tool
 release-all.yml          # every public tool, then toolchain
 release-toolchain.yml    # toolchain-only release
+delete-release.yml       # destructive release and tag cleanup
 sync-distributions.yml   # public README/action/LICENSE sync only
 ```
 
