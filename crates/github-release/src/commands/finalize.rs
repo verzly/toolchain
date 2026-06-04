@@ -79,7 +79,7 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
             },
             args.dry_run,
         )?;
-        if config.release.floating_tags || args.update_floating_tags {
+        if plan.floating_tags || args.update_floating_tags {
             github::refresh_floating_tags_for_plan(&plan, args.dry_run)?;
         }
     }
