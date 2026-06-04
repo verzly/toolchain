@@ -44,7 +44,7 @@ verzly/android-signing
 
 Distribution repositories do not contain Rust source code, `Cargo.toml`, `CHANGELOG.md`, `VERSION`, release config, test workflows, or release workflows.
 
-The `_repos/<tool>` directories are committed distribution templates. They contain the public repository surface for each tool and nothing else: `README.md`, `action.yml`, and `LICENSE`. Release workflows sync the matching `_repos/<tool>` directory into the corresponding public repository before creating the GitHub Release. There must be no `distribution/` or orchestration `scripts/` directory in `verzly/toolchain`.
+The optional `_repos/<tool>` handoff directory is not part of `verzly/toolchain`. It may exist as a top-level sibling next to an exported `toolchain/` directory when a maintainer wants to update the public repositories manually. Release workflows do not read `_repos`; they publish tags, GitHub Releases, generated notes, and executable assets to the existing public distribution repositories.
 
 ## Release model
 
@@ -70,8 +70,7 @@ A release for one tool follows this lifecycle:
 5. cargo-release builds executable assets from that same branch.
 6. github-release abort deletes the temporary source branch if tests or builds fail.
 7. github-release finalize merges the source branch into master and creates <tool>-vX.Y.Z.
-8. The workflow syncs `_repos/<tool>` to the matching public distribution repository.
-9. github-release publish creates vX.Y.Z in the public distribution repository and uploads assets.
+8. github-release publish creates vX.Y.Z in the public distribution repository and uploads assets.
 ```
 
 Each public tool has one release configuration file:
@@ -130,7 +129,7 @@ github-release.toml
 
 Release workflows use the built-in `GITHUB_TOKEN` for operations in `verzly/toolchain` by default. This avoids requiring a custom token just to run the workflow.
 
-Publishing into separate distribution repositories requires `DISTRIBUTION_REPO_TOKEN` with write access to those repositories. Define it as a repository or organization secret before running any `release-<tool>.yml` workflow or `release-all.yml`. Public repository visibility only makes repositories readable; pushing `README.md`/`action.yml`/`LICENSE`, creating tags, creating releases, and uploading assets still require authenticated write access.
+Publishing into separate distribution repositories requires `DISTRIBUTION_REPO_TOKEN` with write access to those repositories. Define it as a repository or organization secret before running any `release-<tool>.yml` workflow or `release-all.yml`. Public repository visibility only makes repositories readable; creating tags, creating releases, and uploading assets still require authenticated write access.
 
 ## Release notes and PR links
 
@@ -192,7 +191,7 @@ Keep the workspace plain and readable. Avoid build scripts, proc macros, hidden 
 
 ## Distribution repository contents
 
-Distribution repository files are maintained in `_repos/<tool>` inside `verzly/toolchain`:
+Distribution repository files are maintained in the separate public repositories. For maintainer ZIP handoff only, `_repos/<tool>` may be provided as a sibling of `toolchain/`:
 
 ```text
 README.md
@@ -200,7 +199,7 @@ action.yml
 LICENSE
 ```
 
-Release workflows treat these directories as authoritative public-repository templates. Before publishing a public GitHub Release, `_release-tool.yml` checks out the target distribution repository, replaces its contents from `_repos/<tool>`, commits any changes, and pushes `master`. The public repositories should not receive manual source-code changes.
+Release workflows do not sync these files from the private source repository. They assume the public repository already contains its distribution surface and only create the public GitHub Release plus uploaded executable assets.
 
 ## Contributing
 

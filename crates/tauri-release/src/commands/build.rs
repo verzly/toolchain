@@ -18,13 +18,12 @@ pub fn run(args: BuildArgs) -> Result<()> {
     }
 
     if let Some(command) = config.project.frontend_install.as_ref() {
-        {
-            let empty_env = std::collections::BTreeMap::new();
-            process::shell(command, &empty_env, args.dry_run)?;
-        }
+        let empty_env = std::collections::BTreeMap::new();
+        process::shell(command, &empty_env, args.dry_run)?;
     }
 
     let mut records = Vec::new();
+    let mut matched_platform = false;
     for (name, platform) in &config.platforms {
         if !platform.enabled {
             continue;
@@ -34,6 +33,7 @@ pub fn run(args: BuildArgs) -> Result<()> {
                 continue;
             }
         }
+        matched_platform = true;
 
         let strategy = match platform.strategy {
             Strategy::Auto => config.build.default_strategy,
@@ -64,9 +64,61 @@ pub fn run(args: BuildArgs) -> Result<()> {
         }
     }
 
+    if let Some(selected_platform) = args.platform.as_ref() {
+        if !matched_platform {
+            anyhow::bail!("unknown or disabled release platform: {selected_platform}");
+        }
+    }
+
     if !args.dry_run && config.artifacts.manifest {
         manifest::write(&out_dir.join("manifest.json"), records)?;
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_config(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("tauri-release-build-{name}-{suffix}"));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("tauri-release.toml");
+        std::fs::write(
+            &path,
+            toml::to_string_pretty(&crate::config::Config::default()).expect("serialize config"),
+        )
+        .expect("write config");
+        path
+    }
+
+    #[test]
+    fn build_fails_for_unknown_or_disabled_selected_platform() {
+        let unknown = run(BuildArgs {
+            config: temp_config("unknown"),
+            platform: Some("windows".to_string()),
+            dry_run: true,
+        })
+        .expect_err("unknown platform should fail");
+        assert!(unknown
+            .to_string()
+            .contains("unknown or disabled release platform"));
+
+        let disabled = run(BuildArgs {
+            config: temp_config("disabled"),
+            platform: Some("android".to_string()),
+            dry_run: true,
+        })
+        .expect_err("disabled platform should fail");
+        assert!(disabled
+            .to_string()
+            .contains("unknown or disabled release platform"));
+    }
 }

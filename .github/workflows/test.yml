@@ -43,12 +43,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d "_repos"
+          test ! -d "_repos"
           test ! -d "distribution"
           test ! -d "scripts"
+          test -f "Cargo.lock"
           test -f "github-release.toml"
           test -f "rust-cache.toml"
           test -f ".cargo/config.toml"
+          grep -Fq '/_repos/' ".gitignore"
           test ! -f "crates/rust-cache/rust-cache.toml"
           grep -Fq 'target-dir = ".cache/rust/packages/toolchain/target"' ".cargo/config.toml"
           grep -Fq 'target_dir = "rust/packages/{package}/target"' "rust-cache.toml"
@@ -66,10 +68,20 @@ jobs:
           grep -Fq 'REPO: ${{ github.repository }}' ".github/workflows/release-all.yml"
           grep -Fq 'orchestrator=${run_key}' ".github/workflows/release-all.yml"
           grep -Fq 'jq -r --arg key "${run_key}"' ".github/workflows/release-all.yml"
-          grep -Fq 'git clone "https://x-access-token:${DISTRIBUTION_REPO_TOKEN}@github.com/${TARGET_REPOSITORY}.git" distribution' ".github/workflows/_release-tool.yml"
-          grep -Fq 'rsync -a --delete' ".github/workflows/_release-tool.yml"
+          grep -Fq 'cargo metadata --format-version 1 --no-deps' ".github/workflows/_release-tool.yml"
+          ! grep -Fq 'source/_repos' ".github/workflows/_release-tool.yml"
+          ! grep -Fq 'rsync -a --delete' ".github/workflows/_release-tool.yml"
           grep -Fq 'github-release publish' ".github/workflows/_release-tool.yml"
-          ! grep -R -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' ".github/workflows"
+          ! grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' \
+            ".github/workflows/_release-tool.yml" \
+            ".github/workflows/_release-toolchain.yml" \
+            ".github/workflows/release-all.yml" \
+            ".github/workflows/release-android-signing.yml" \
+            ".github/workflows/release-cargo-release.yml" \
+            ".github/workflows/release-github-release.yml" \
+            ".github/workflows/release-rust-cache.yml" \
+            ".github/workflows/release-tauri-release.yml" \
+            ".github/workflows/release-toolchain.yml"
           grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
           grep -Fq "tag_prefix = \"v\"" "github-release.toml"
           for tool in github-release cargo-release tauri-release rust-cache android-signing; do
@@ -87,20 +99,4 @@ jobs:
             grep -Fq "mode = \"scoped\"" "crates/${tool}/github-release.toml"
             grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
             grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"
-            test -d "_repos/${tool}"
-            test -f "_repos/${tool}/README.md"
-            test -f "_repos/${tool}/action.yml"
-            test -f "_repos/${tool}/LICENSE"
-            test "$(find "_repos/${tool}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-            test -z "$(find "_repos/${tool}" -mindepth 1 -type d -print -quit)"
-            test ! -f "_repos/${tool}/CHANGELOG.md"
-            test ! -f "_repos/${tool}/VERSION"
-            test ! -f "_repos/${tool}/github-release.toml"
-            test ! -d "_repos/${tool}/.github"
-            test ! -d "_repos/${tool}/src"
-            grep -Fq 'HOST="linux-x64"' "_repos/${tool}/action.yml"
-            grep -Fq 'HOST="macos-x64"' "_repos/${tool}/action.yml"
-            grep -Fq 'HOST="macos-arm64"' "_repos/${tool}/action.yml"
-            grep -Fq 'HOST="windows-x64"' "_repos/${tool}/action.yml"
-            grep -Fq "PATTERN=\"${tool}-v*-\${HOST}\${EXT}\"" "_repos/${tool}/action.yml"
           done
