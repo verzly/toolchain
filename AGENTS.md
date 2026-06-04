@@ -179,12 +179,14 @@ Expected flow:
 3. Plain `cargo fmt`, `cargo clippy`, and `cargo test` run from that exact branch. Native `.cargo/config.toml` routing keeps build output under `.cache`.
 4. `cargo-release build` builds executable assets from that exact branch.
 5. `github-release abort` deletes the temporary source release branch if anything fails.
-6. `github-release finalize --skip-github-release` merges the branch into `master` and creates `<tool>-vX.Y.Z`.
+6. `github-release finalize --merge-strategy squash --skip-github-release` squash-merges the branch into one `master` commit and creates `<tool>-vX.Y.Z`.
 7. `github-release publish` creates `vX.Y.Z` in the public distribution repository, generates notes from `verzly/toolchain`, and uploads assets.
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It must stay readable as a visible two-phase graph: preflight, prepare every source release branch, test prepared branches, build `cargo-release`, build the other executable assets with that freshly built `cargo-release`, finalize all source branches and tags, publish all public distribution releases with the already-built assets, then publish the toolchain release.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It must stay readable as a visible two-phase graph: preflight, prepare one aggregate `release/all-vX.Y.Z` source branch, test that prepared branch, build `cargo-release`, build the other executable assets with that freshly built `cargo-release`, run `github-release finalize-batch` to squash merge the aggregate branch into one `master` commit, create every package-prefixed source tag from that commit, publish all public distribution releases with the already-built assets, then publish the toolchain release.
+
+Release All may create multiple preparation commits on the temporary aggregate branch. It must not push those commits individually to `master`; the final `master` commit must be a single squash merge whose body includes a summary of the squashed preparation commits.
 
 A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
 
@@ -433,4 +435,4 @@ Do not make public distribution repositories responsible for testing, building, 
 
 Do not make workflows depend on files outside the checked-out `verzly/toolchain` repository.
 
-Release All must not dispatch separate workflow runs and must not publish each tool in a full prepare/build/finalize/publish wave before the next tool starts. It should show the complete release graph in one run, finish every prepare/test/build job first, and publish releases only after all assets exist.
+Release All must not dispatch separate workflow runs and must not publish each tool in a full prepare/build/finalize/publish wave before the next tool starts. It should show the complete release graph in one run, finish every prepare/test/build job first, create exactly one source merge commit on `master`, and publish releases only after all assets exist.

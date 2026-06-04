@@ -135,6 +135,8 @@ sync-distributions.yml   # public README/action/LICENSE sync only
 
 Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions.
 
+Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit.
+
 ## Documentation
 
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.

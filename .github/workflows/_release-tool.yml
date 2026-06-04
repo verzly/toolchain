@@ -227,6 +227,7 @@ jobs:
           github-release finalize
           --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
+          --merge-strategy squash
           --skip-github-release
 
   publish_distribution:
