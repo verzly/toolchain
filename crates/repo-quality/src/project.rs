@@ -562,24 +562,59 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         ));
     }
 
+    let rust_cache_package = profile
+        .stored_config
+        .rust_cache
+        .package
+        .as_deref()
+        .filter(|package| !package.trim().is_empty() && *package != "auto")
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| profile.default_package_name());
+
     out.push_str("\n[rust_cache.cache]\n");
-    out.push_str("dir = \".cache\"\n");
-    out.push_str("package = \"auto\"\n");
-    out.push_str("redirect_cargo_home = false\n");
-    out.push_str("redirect_gradle = true\n\n");
+    out.push_str(&format!(
+        "dir = \"{}\"\n",
+        escape_toml(&profile.stored_config.rust_cache.dir)
+    ));
+    out.push_str(&format!(
+        "package = \"{}\"\n",
+        escape_toml(&rust_cache_package)
+    ));
+    out.push_str(&format!(
+        "redirect_cargo_home = {}\n",
+        bool_literal(profile.stored_config.rust_cache.redirect_cargo_home)
+    ));
+    out.push_str(&format!(
+        "redirect_gradle = {}\n\n",
+        bool_literal(profile.stored_config.rust_cache.redirect_gradle)
+    ));
     out.push_str("[rust_cache.cargo]\n");
-    out.push_str("target_dir = \"rust/packages/{package}/target\"\n\n");
+    out.push_str(&format!(
+        "target_dir = \"{}\"\n\n",
+        escape_toml(&profile.stored_config.rust_cache.cargo_target_dir)
+    ));
     out.push_str("[rust_cache.env]\n");
-    out.push_str("GRADLE_USER_HOME = \"android/gradle\"\n");
-    out.push_str("NPM_CONFIG_CACHE = \"js/npm\"\n");
-    out.push_str("PNPM_STORE_PATH = \"js/pnpm-store\"\n");
-    out.push_str("YARN_CACHE_FOLDER = \"js/yarn\"\n\n");
-    out.push_str("[tauri_release.project]\n");
-    out.push_str("root = \".\"\n");
-    out.push_str("frontend_install = \"aube install\"\n\n");
+    for (key, value) in &profile.stored_config.rust_cache.env {
+        out.push_str(&format!("{key} = \"{}\"\n", escape_toml(value)));
+    }
+    out.push_str("\n[tauri_release.project]\n");
+    out.push_str(&format!(
+        "root = \"{}\"\n",
+        escape_toml(&profile.stored_config.tauri_release.project_root)
+    ));
+    out.push_str(&format!(
+        "frontend_install = \"{}\"\n\n",
+        escape_toml(&profile.stored_config.tauri_release.frontend_install)
+    ));
     out.push_str("[tauri_release.build]\n");
-    out.push_str("out_dir = \"dist\"\n");
-    out.push_str("cache_dir = \".cache/tauri-release\"\n");
+    out.push_str(&format!(
+        "out_dir = \"{}\"\n",
+        escape_toml(&profile.stored_config.tauri_release.out_dir)
+    ));
+    out.push_str(&format!(
+        "cache_dir = \"{}\"\n",
+        escape_toml(&profile.stored_config.tauri_release.cache_dir)
+    ));
 
     out
 }
@@ -1176,6 +1211,27 @@ cargo_binary = "repo-quality"
             profile.stored_config.release.targets[0].name,
             "repo-quality"
         );
+    }
+
+    #[test]
+    fn renders_root_directory_name_as_default_cache_package() {
+        let root = temp_repo("cache-package");
+        fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();
+        fs::write(
+            root.join(DEFAULT_CONFIG_FILE),
+            r#"version = 1
+
+[rust_cache.cache]
+package = "auto"
+"#,
+        )
+        .unwrap();
+
+        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
+        let rendered = render_datarose_config(&profile);
+
+        assert!(!rendered.contains("package = \"auto\""));
+        assert!(rendered.contains(&format!("package = \"{}\"", profile.default_package_name())));
     }
 
     #[test]
