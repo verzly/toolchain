@@ -2,6 +2,7 @@ use crate::cli::DoctorArgs;
 use crate::project::{Language, ProjectProfile};
 use crate::shell;
 use anyhow::{bail, Result};
+use std::path::Path;
 
 pub fn run(args: DoctorArgs) -> Result<()> {
     let profile = ProjectProfile::detect(args.root, &[], crate::cli::JsRunnerArg::Auto)?;
@@ -11,14 +12,26 @@ pub fn run(args: DoctorArgs) -> Result<()> {
     if !profile.root.join("hk.pkl").is_file() {
         failures.push("hk.pkl is missing".to_string());
     }
-    for command in ["mise", "hk", "pkl"] {
-        if !shell::command_exists(command) {
-            failures.push(format!("{command} is not available on PATH"));
+    if !shell::command_exists("mise") {
+        failures.push("mise is not available on PATH".to_string());
+    }
+    for command in ["hk", "pkl"] {
+        if !tool_available(&profile.root, command) {
+            failures.push(format!(
+                "{command} is not available on PATH or through `mise exec -- {command}`"
+            ));
         }
     }
 
     if profile.languages.is_empty() {
         failures.push("no supported language profile was detected".to_string());
+    }
+
+    if let Some(hooks_path) = git_hooks_path(&profile.root) {
+        failures.push(format!(
+            "git core.hooksPath is set to `{hooks_path}`; unset it with \
+             `git config --local --unset-all core.hooksPath` before running `hk install`"
+        ));
     }
 
     if !profile.has_mise_toml {
@@ -91,4 +104,25 @@ fn push_missing_script(
             "JavaScript/TypeScript files were detected; add package script `{script}` using `{command}`"
         ));
     }
+}
+
+fn git_hooks_path(root: &Path) -> Option<String> {
+    let value = shell::output(
+        root,
+        "git",
+        ["config", "--local", "--get", "core.hooksPath"],
+    )
+    .ok()?;
+    let value = value.trim();
+
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn tool_available(root: &Path, command: &str) -> bool {
+    shell::command_exists(command)
+        || shell::succeeds(root, "mise", ["exec", "--", command, "--version"])
 }

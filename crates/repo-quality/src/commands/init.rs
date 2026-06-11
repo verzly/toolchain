@@ -4,6 +4,7 @@ use crate::quality::render_hk_config;
 use crate::shell;
 use anyhow::{bail, Context, Result};
 use std::fs;
+use std::path::Path;
 
 pub fn run(args: InitArgs) -> Result<()> {
     let profile = ProjectProfile::detect(args.root, &args.languages, args.js_runner)?;
@@ -42,9 +43,8 @@ pub fn run(args: InitArgs) -> Result<()> {
         .with_context(|| format!("failed to write {}", hk_path.display()))?;
     println!("Wrote {}", hk_path.display());
 
-    if !args.skip_hk_install && shell::run(&profile.root, "hk", ["install"]).is_err() {
-        shell::run(&profile.root, "mise", ["exec", "--", "hk", "install"])
-            .context("failed to install hk git hooks")?;
+    if !args.skip_hk_install {
+        install_hk_hooks(&profile.root)?;
     }
 
     println!("Repository quality hooks are ready.");
@@ -62,7 +62,15 @@ fn print_plan(profile: &ProjectProfile, config: &str, skip_mise: bool, skip_hk: 
     }
     println!("Would write: {}", profile.root.join("hk.pkl").display());
     if !skip_hk {
-        println!("Would run: hk install");
+        println!("Would run: mise exec -- hk install");
     }
     println!("\n{config}");
+}
+
+fn install_hk_hooks(root: &Path) -> Result<()> {
+    if shell::run(root, "mise", ["exec", "--", "hk", "install"]).is_ok() {
+        return Ok(());
+    }
+
+    shell::run(root, "hk", ["install"]).context("failed to install hk git hooks")
 }

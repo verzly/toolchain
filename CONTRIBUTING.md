@@ -103,8 +103,10 @@ When the preview is correct and you intentionally want to refresh the workspace 
 
 ```sh
 cargo run -p repo-quality -- init --force
-hk check
+mise exec -- hk check
 ```
+
+Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
 
 ## Testing
 

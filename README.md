@@ -92,8 +92,8 @@ The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `r
 
 ```sh
 mise install
-hk install
-hk check
+mise exec -- hk install
+mise exec -- hk check
 ```
 
 For workflow and repository-boundary changes, also verify the model expected by `.github/workflows/test.yml`.

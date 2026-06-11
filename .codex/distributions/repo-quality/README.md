@@ -180,6 +180,13 @@ hk check
 hk run pre-push
 ```
 
+If your shell resolves an older global `hk`, run the same checks through `mise`:
+
+```sh
+mise exec -- hk check
+mise exec -- hk run pre-push
+```
+
 This avoids long test runs during every commit while still preventing bad code from being pushed.
 
 ## Language profiles
