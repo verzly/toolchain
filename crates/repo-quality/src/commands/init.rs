@@ -1,0 +1,66 @@
+use crate::cli::InitArgs;
+use crate::project::ProjectProfile;
+use crate::quality::render_hk_config;
+use crate::shell;
+use anyhow::{bail, Context, Result};
+use std::fs;
+
+pub fn run(args: InitArgs) -> Result<()> {
+    let profile = ProjectProfile::detect(args.root, &args.languages, args.js_runner)?;
+    if profile.languages.is_empty() {
+        bail!(
+            "no supported language profile detected; pass --language rust, \
+             --language js, or --language php"
+        );
+    }
+
+    let config = render_hk_config(&profile);
+    let hk_path = profile.root.join("hk.pkl");
+
+    if args.dry_run {
+        print_plan(&profile, &config, args.skip_mise_use, args.skip_hk_install);
+        return Ok(());
+    }
+
+    if hk_path.exists() && !args.force {
+        bail!(
+            "{} already exists; pass --force to overwrite it",
+            hk_path.display()
+        );
+    }
+
+    if !args.skip_mise_use {
+        shell::run(&profile.root, "mise", ["use", "hk@latest"])
+            .context("failed to install hk through mise")?;
+        shell::run(&profile.root, "mise", ["use", "pkl@latest"])
+            .context("failed to install pkl through mise")?;
+    }
+
+    fs::write(&hk_path, config).with_context(|| format!("failed to write {}", hk_path.display()))?;
+    println!("Wrote {}", hk_path.display());
+
+    if !args.skip_hk_install {
+        if shell::run(&profile.root, "hk", ["install"]).is_err() {
+            shell::run(&profile.root, "mise", ["exec", "--", "hk", "install"])
+                .context("failed to install hk git hooks")?;
+        }
+    }
+
+    println!("Repository quality hooks are ready.");
+    println!("Run `hk check` before pushing or let the pre-push hook run automatically.");
+    Ok(())
+}
+
+fn print_plan(profile: &ProjectProfile, config: &str, skip_mise: bool, skip_hk: bool) {
+    println!("Repository: {}", profile.root.display());
+    println!("Languages: {:?}", profile.languages);
+    if !skip_mise {
+        println!("Would run: mise use hk@latest");
+        println!("Would run: mise use pkl@latest");
+    }
+    println!("Would write: {}", profile.root.join("hk.pkl").display());
+    if !skip_hk {
+        println!("Would run: hk install");
+    }
+    println!("\n{config}");
+}

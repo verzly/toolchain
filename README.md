@@ -42,6 +42,8 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
+`repo-quality` bootstraps repository-local `hk` and `mise` quality gates for Rust, JavaScript, and PHP projects.
+
 ### Repository model
 
 `verzly/toolchain` owns the source:
@@ -55,6 +57,8 @@ Cargo.toml
 Cargo.lock
 github-release.toml
 rust-cache.toml
+hk.pkl
+mise.toml
 ```
 
 Crate-level README files are intentionally not used. Maintainer documentation lives in this README, [AGENTS.md](AGENTS.md), and [CONTRIBUTING.md](CONTRIBUTING.md). Public user documentation lives in `.codex/distributions/<tool>/README.md` and is synchronized to the public repositories.
@@ -84,6 +88,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
+The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repo-quality` result. After installing `mise`, run:
+
+```sh
+mise install
+hk install
+hk check
+```
+
 For workflow and repository-boundary changes, also verify the model expected by `.github/workflows/test.yml`.
 
 ### Run a tool locally
@@ -96,6 +108,7 @@ cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.
 cargo run -p tauri-release -- plan --config crates/tauri-release/tauri-release.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
+cargo run -p repo-quality -- plan
 ```
 
 Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
@@ -123,6 +136,7 @@ Use the matching workflow when one tool needs a public release:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
+.github/workflows/release-repo-quality.yml
 ```
 
 The flow is:
@@ -151,7 +165,7 @@ preflight
 prepare release/all-vX.Y.Z source branch
 test prepared source branch
 build cargo-release assets
-build github-release / tauri-release / rust-cache / android-signing assets
+build github-release / tauri-release / rust-cache / android-signing / repo-quality assets
 github-release finalize-batch
 sync released distribution repositories
 publish all public distribution releases
@@ -267,6 +281,7 @@ verzly/cargo-release
 verzly/tauri-release
 verzly/rust-cache
 verzly/android-signing
+verzly/repo-quality
 ```
 
 They are distribution surfaces only. Development happens in `verzly/toolchain`.

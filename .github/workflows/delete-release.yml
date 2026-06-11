@@ -20,6 +20,7 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
+          - repo-quality
       confirm:
         description: "Type DELETE X.Y.Z to confirm destructive release and tag deletion."
         required: true
@@ -32,7 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repo-quality
 
 jobs:
   delete:
@@ -71,7 +72,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing|repo-quality) ;;
             *) echo "::error::Unsupported delete target: ${TARGET}"; exit 1 ;;
           esac
 

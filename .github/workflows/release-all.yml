@@ -26,7 +26,7 @@ concurrency:
 
 env:
   TOOLCHAIN_REPOSITORY: verzly/toolchain
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repo-quality
 
 jobs:
   preflight:
@@ -187,6 +187,7 @@ jobs:
           - tauri-release
           - rust-cache
           - android-signing
+          - repo-quality
     uses: ./.github/workflows/_release-build-assets.yml
     with:
       tool: ${{ matrix.tool }}
@@ -298,6 +299,7 @@ jobs:
           - tauri-release
           - rust-cache
           - android-signing
+          - repo-quality
 
     steps:
       - uses: actions/checkout@v5

@@ -1,0 +1,20 @@
+//! Entry point for repository quality bootstrap commands.
+
+mod cli;
+mod commands;
+mod project;
+mod quality;
+mod shell;
+
+use anyhow::Result;
+use clap::Parser;
+use cli::{Cli, Commands};
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Init(args) => commands::init::run(args),
+        Commands::Plan(args) => commands::plan::run(args),
+        Commands::Doctor(args) => commands::doctor::run(args),
+    }
+}

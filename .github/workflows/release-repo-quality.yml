@@ -1,0 +1,35 @@
+name: Release Repo Quality
+run-name: Release repo-quality ${{ inputs.version }} ${{ inputs.orchestrator }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v. Examples: 1.2.3, 1.2.3-rc.1"
+        required: true
+      prerelease:
+        description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - "true"
+          - "false"
+      orchestrator:
+        description: "Internal identifier used by release-all to track the dispatched workflow run."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/_release-tool.yml
+    with:
+      tool: repo-quality
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

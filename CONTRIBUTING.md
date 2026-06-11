@@ -12,6 +12,7 @@ rustup default stable
 cargo --version
 git --version
 gh --version
+mise --version
 ```
 
 Clone the source workspace and run checks from the repository root:
@@ -19,6 +20,8 @@ Clone the source workspace and run checks from the repository root:
 ```sh
 git clone git@github.com:verzly/toolchain.git
 cd toolchain
+mise install
+hk install
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
@@ -58,11 +61,18 @@ cargo run -p github-release -- plan --config crates/cargo-release/github-release
 cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
+cargo run -p repo-quality -- plan
 ```
 
 ## Testing
 
 Before opening or merging a PR, run:
+
+```sh
+hk check
+```
+
+This executes the same Rust formatting, clippy, and test gates configured in `hk.pkl`. The equivalent raw commands are:
 
 ```sh
 cargo fmt --all -- --check
@@ -94,6 +104,7 @@ Public tool release workflows are:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
+.github/workflows/release-repo-quality.yml
 ```
 
 Maintainer workflows are:

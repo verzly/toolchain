@@ -49,10 +49,16 @@ jobs:
           test -f "Cargo.lock"
           test -f "github-release.toml"
           test -f "rust-cache.toml"
+          test -f "hk.pkl"
+          test -f "mise.toml"
           test -f ".cargo/config.toml"
           grep -Fq '/_repos/' ".gitignore"
           test ! -f "crates/rust-cache/rust-cache.toml"
           grep -Fq 'target-dir = ".cache/rust/packages/toolchain/target"' ".cargo/config.toml"
+          grep -Fq 'hk = "latest"' "mise.toml"
+          grep -Fq 'pkl = "latest"' "mise.toml"
+          grep -Fq 'windows = "cmd /d /s /c"' "hk.pkl"
+          grep -Fq 'cargo clippy --workspace --all-targets -- -D warnings' "hk.pkl"
           grep -Fq 'target_dir = "rust/packages/{package}/target"' "rust-cache.toml"
           ! grep -R -Fq "rust-cache run" ".github/workflows"
           test -f ".github/workflows/_release-toolchain.yml"
@@ -172,6 +178,7 @@ jobs:
             ".github/workflows/release-cargo-release.yml" \
             ".github/workflows/release-github-release.yml" \
             ".github/workflows/release-rust-cache.yml" \
+            ".github/workflows/release-repo-quality.yml" \
             ".github/workflows/release-tauri-release.yml" \
             ".github/workflows/release-toolchain.yml" \
             ".github/workflows/delete-release.yml" \
@@ -181,7 +188,7 @@ jobs:
           grep -Fq "floating_tags = false" "github-release.toml"
           grep -Fq "latest_tag = false" "github-release.toml"
           grep -Fq "next_tag = false" "github-release.toml"
-          for tool in github-release cargo-release tauri-release rust-cache android-signing; do
+          for tool in github-release cargo-release tauri-release rust-cache android-signing repo-quality; do
             test -f "crates/${tool}/Cargo.toml"
             test ! -f "crates/${tool}/README.md"
             test ! -f "crates/${tool}/source-github-release.toml"
