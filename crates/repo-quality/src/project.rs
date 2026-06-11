@@ -329,7 +329,7 @@ fn visit_source_files(path: &Path, extensions: &[&str], found: &mut bool) -> Res
         if path
             .extension()
             .and_then(|extension| extension.to_str())
-            .map(|extension| extensions.iter().any(|expected| extension == *expected))
+            .map(|extension| extensions.contains(&extension))
             .unwrap_or(false)
         {
             *found = true;
