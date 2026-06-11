@@ -45,7 +45,10 @@ pub fn run(args: PlanArgs) -> Result<()> {
     if profile.release_enabled() {
         println!("Release targets:");
         for target in &profile.stored_config.release.targets {
-            println!("- {} -> {}", target.name, target.repository);
+            println!(
+                "- {} | path={} | strategy={} | workflow={} | repository={}",
+                target.name, target.path, target.strategy, target.workflow, target.repository
+            );
         }
     }
     Ok(())

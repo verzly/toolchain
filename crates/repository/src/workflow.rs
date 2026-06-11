@@ -60,6 +60,21 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
     }
 
     let mut files = Vec::new();
+    let managed_targets = profile
+        .stored_config
+        .release
+        .targets
+        .iter()
+        .filter(|target| {
+            target.workflow == "managed"
+                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
+        })
+        .collect::<Vec<_>>();
+
+    if managed_targets.is_empty() {
+        return files;
+    }
+
     files.push(ManagedFile {
         path: profile
             .root
@@ -68,7 +83,7 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
         force,
     });
 
-    for target in &profile.stored_config.release.targets {
+    for target in &managed_targets {
         files.push(ManagedFile {
             path: profile
                 .root
@@ -78,8 +93,7 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
         });
     }
 
-    if profile.stored_config.release.release_all && profile.stored_config.release.targets.len() > 1
-    {
+    if profile.stored_config.release.release_all && managed_targets.len() > 1 {
         files.push(ManagedFile {
             path: profile.root.join(".github/workflows/release-all.yml"),
             content: render_release_all_workflow(profile),
@@ -330,6 +344,10 @@ fn render_release_all_workflow(profile: &ProjectProfile) -> String {
         .release
         .targets
         .iter()
+        .filter(|target| {
+            target.workflow == "managed"
+                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
+        })
         .map(|target| target.name.as_str())
         .collect::<Vec<_>>()
         .join(", ");
@@ -373,7 +391,16 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
         "  summary:\n    name: Release targets\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          echo \"Targets: {tools}\"\n"
     ));
 
-    for target in &profile.stored_config.release.targets {
+    for target in profile
+        .stored_config
+        .release
+        .targets
+        .iter()
+        .filter(|target| {
+            target.workflow == "managed"
+                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
+        })
+    {
         let job = target.name.replace('-', "_");
         let secret_name = &profile.stored_config.release.secret_name;
         out.push_str(&format!(

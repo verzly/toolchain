@@ -1,5 +1,6 @@
 use crate::cli::CheckArgs;
 use crate::project::{detect_cargo_packages, ProjectProfile, DEFAULT_CONFIG_FILE};
+use crate::release::{STRATEGIES, WORKFLOWS};
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
 use std::fs;
@@ -150,6 +151,63 @@ fn collect_removed_fields(text: &str, issues: &mut Vec<String>) {
 }
 
 fn collect_invalid_values(profile: &ProjectProfile, issues: &mut Vec<String>) -> Result<()> {
+    let mut names = BTreeSet::new();
+    let mut paths = BTreeSet::new();
+    for target in &profile.stored_config.release.targets {
+        if target.name.trim().is_empty() {
+            issues.push("release target has an empty name".into());
+        } else if !names.insert(target.name.as_str()) {
+            issues.push(format!("duplicate release target name `{}`", target.name));
+        }
+
+        if target.path.trim().is_empty() {
+            issues.push(format!("release target `{}` has no path", target.name));
+        } else if !paths.insert(target.path.as_str()) {
+            issues.push(format!("duplicate release target path `{}`", target.path));
+        } else {
+            let full_path = profile.root.join(&target.path);
+            if !full_path.exists() {
+                issues.push(format!(
+                    "release target `{}` path does not exist: {}",
+                    target.name, target.path
+                ));
+            }
+        }
+
+        if !STRATEGIES.contains(&target.strategy.as_str()) {
+            issues.push(format!(
+                "release target `{}` has invalid strategy `{}`",
+                target.name, target.strategy
+            ));
+        }
+        if !WORKFLOWS.contains(&target.workflow.as_str()) {
+            issues.push(format!(
+                "release target `{}` has invalid workflow `{}`",
+                target.name, target.workflow
+            ));
+        }
+        if target.strategy == "distribution-repo" && target.repository.trim().is_empty() {
+            issues.push(format!(
+                "release target `{}` uses distribution-repo but has no repository",
+                target.name
+            ));
+        }
+        if target.workflow == "managed" && !profile.stored_config.release.manage_workflows {
+            issues.push(format!(
+                "release target `{}` is workflow=managed but release.manage_workflows is false",
+                target.name
+            ));
+        }
+        if target.workflow == "managed"
+            && !matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
+        {
+            issues.push(format!(
+                "release target `{}` uses workflow=managed with unsupported strategy `{}`",
+                target.name, target.strategy
+            ));
+        }
+    }
+
     if profile.stored_config.release.manage_cargo_packages {
         let configured = profile
             .stored_config

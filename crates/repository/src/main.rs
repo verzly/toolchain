@@ -4,6 +4,7 @@ mod cli;
 mod commands;
 mod project;
 mod quality;
+mod release;
 mod shell;
 mod standards;
 mod workflow;
@@ -19,6 +20,7 @@ fn main() -> Result<()> {
         Commands::Update(args) => commands::init::run_update(args),
         Commands::Plan(args) => commands::plan::run(args),
         Commands::Check(args) => commands::check::run(args),
+        Commands::Release(args) => commands::release::run(args),
         Commands::Doctor(args) => commands::doctor::run(args),
     }
 }

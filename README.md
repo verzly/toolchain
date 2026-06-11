@@ -119,7 +119,19 @@ repository check --config config/datarose.toml
 
 The check command exits with `1` only when it finds removed, deprecated, or invalid Datarose settings. It is also included in generated `hk` pre-push checks.
 
-`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
+Manage release targets from CLI flags or an interactive terminal editor:
+
+```sh
+repository release list
+repository release show repository
+repository release set --path crates/repository --repository verzly/repository --strategy self-hosted --workflow custom
+repository release remove repository
+repository release tui
+```
+
+Release targets are path-first. In monorepos this lets each app, package, crate, or library keep an explicit release target for its own directory instead of relying on implicit `crates/*` or `packages/*` guesses. The release strategy is explicit too: use `same-repo`, `distribution-repo`, `self-hosted`, or `custom`. Workflow handling is explicit with `managed`, `preserve`, or `custom`, so `repository update` only owns release workflows that the config marks as managed. Managed workflow generation is intentionally limited to `same-repo` and `distribution-repo`; self-hosted and custom releases stay under custom workflows.
+
+`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` only generates GitHub Actions release workflows for targets marked with `workflow = "managed"`; `workflow = "preserve"` and `workflow = "custom"` are protected from overwrite. This lets repositories share the same `github-release` / `cargo-release` orchestration model where appropriate while keeping self-hosted, same-repo, distribution-repo, and custom release topologies explicit in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
