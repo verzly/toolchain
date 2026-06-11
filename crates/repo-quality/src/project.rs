@@ -94,6 +94,7 @@ pub struct ReleaseConfig {
     pub source_repository: String,
     pub secret_name: String,
     pub release_all: bool,
+    pub manage_cargo_packages: bool,
     pub targets: Vec<ReleaseTarget>,
 }
 
@@ -105,6 +106,7 @@ impl Default for ReleaseConfig {
             source_repository: String::new(),
             secret_name: "DISTRIBUTION_REPO_TOKEN".into(),
             release_all: true,
+            manage_cargo_packages: false,
             targets: Vec::new(),
         }
     }
@@ -128,10 +130,59 @@ pub struct ReleaseTarget {
     pub include_paths: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+pub struct RustCacheConfig {
+    pub dir: String,
+    pub package: Option<String>,
+    pub redirect_cargo_home: bool,
+    pub redirect_gradle: bool,
+    pub cargo_target_dir: String,
+    pub env: BTreeMap<String, String>,
+}
+
+impl Default for RustCacheConfig {
+    fn default() -> Self {
+        let mut env = BTreeMap::new();
+        env.insert("GRADLE_USER_HOME".into(), "android/gradle".into());
+        env.insert("NPM_CONFIG_CACHE".into(), "js/npm".into());
+        env.insert("PNPM_STORE_PATH".into(), "js/pnpm-store".into());
+        env.insert("YARN_CACHE_FOLDER".into(), "js/yarn".into());
+        Self {
+            dir: ".cache".into(),
+            package: None,
+            redirect_cargo_home: false,
+            redirect_gradle: true,
+            cargo_target_dir: "rust/packages/{package}/target".into(),
+            env,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TauriReleaseConfig {
+    pub project_root: String,
+    pub frontend_install: String,
+    pub out_dir: String,
+    pub cache_dir: String,
+}
+
+impl Default for TauriReleaseConfig {
+    fn default() -> Self {
+        Self {
+            project_root: ".".into(),
+            frontend_install: "aube install".into(),
+            out_dir: "dist".into(),
+            cache_dir: ".cache/tauri-release".into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct DataroseConfig {
     pub quality: QualityConfig,
     pub release: ReleaseConfig,
+    pub rust_cache: RustCacheConfig,
+    pub tauri_release: TauriReleaseConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -244,6 +295,22 @@ impl ProjectProfile {
 
     pub fn workspace_display(&self) -> String {
         normalize_path(&self.workspace)
+    }
+
+    pub fn config_display(&self) -> String {
+        self.config_path
+            .strip_prefix(&self.root)
+            .map(normalize_path)
+            .unwrap_or_else(|_| normalize_path(&self.config_path))
+    }
+
+    pub fn default_package_name(&self) -> String {
+        self.root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("repository")
+            .to_string()
     }
 
     pub fn release_enabled(&self) -> bool {
@@ -428,6 +495,10 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         "release_all = {}\n",
         bool_literal(profile.stored_config.release.release_all)
     ));
+    out.push_str(&format!(
+        "manage_cargo_packages = {}\n",
+        bool_literal(profile.stored_config.release.manage_cargo_packages)
+    ));
 
     for target in &profile.stored_config.release.targets {
         out.push_str("\n[[release.targets]]\n");
@@ -553,6 +624,15 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
         match section.as_str() {
             "quality" | "" => apply_quality_value(&mut config.quality, key, value),
             "release" => apply_release_value(&mut config.release, key, value),
+            "rust_cache.cache" => apply_rust_cache_value(&mut config.rust_cache, key, value),
+            "rust_cache.cargo" => apply_rust_cache_cargo_value(&mut config.rust_cache, key, value),
+            "rust_cache.env" => apply_rust_cache_env_value(&mut config.rust_cache, key, value),
+            "tauri_release.project" => {
+                apply_tauri_release_project_value(&mut config.tauri_release, key, value)
+            }
+            "tauri_release.build" => {
+                apply_tauri_release_build_value(&mut config.tauri_release, key, value)
+            }
             "release.targets" => {
                 if let Some(target) = current_target.as_mut() {
                     apply_release_target_value(target, key, value);
@@ -567,8 +647,97 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
     }
 
     normalize_release_targets(&mut config.release.targets);
+    if config.release.manage_cargo_packages {
+        if let Some(root) = path.parent() {
+            add_missing_cargo_release_targets(root, &mut config.release.targets)?;
+        }
+    }
 
     Ok(config)
+}
+
+fn add_missing_cargo_release_targets(root: &Path, targets: &mut Vec<ReleaseTarget>) -> Result<()> {
+    let existing = targets
+        .iter()
+        .map(|target| target.cargo_package.as_str())
+        .collect::<BTreeSet<_>>();
+    for package in detect_cargo_packages(root)? {
+        if existing.contains(package.as_str()) {
+            continue;
+        }
+        targets.push(ReleaseTarget {
+            name: package.clone(),
+            repository: format!("verzly/{package}"),
+            distribution_path: format!(".codex/distributions/{package}"),
+            cargo_binary: package.clone(),
+            cargo_package: package.clone(),
+            cargo_out_dir: format!("dist/{package}"),
+            cargo_targets: Vec::new(),
+            prepare_commands: Vec::new(),
+            version_files: None,
+            version_file: String::new(),
+            version_key: String::new(),
+            version_value: String::new(),
+            include_scopes: Vec::new(),
+            include_paths: Vec::new(),
+        });
+    }
+    normalize_release_targets(targets);
+    Ok(())
+}
+
+pub fn detect_cargo_packages(root: &Path) -> Result<Vec<String>> {
+    let mut packages = BTreeSet::new();
+    let crates_dir = root.join("crates");
+    if crates_dir.is_dir() {
+        for entry in fs::read_dir(&crates_dir)
+            .with_context(|| format!("failed to read {}", crates_dir.display()))?
+        {
+            let entry = entry
+                .with_context(|| format!("failed to read entry in {}", crates_dir.display()))?;
+            let manifest = entry.path().join("Cargo.toml");
+            if let Some(name) = read_cargo_package_name(&manifest)? {
+                packages.insert(name);
+            }
+        }
+    }
+
+    if let Some(name) = read_cargo_package_name(&root.join("Cargo.toml"))? {
+        packages.insert(name);
+    }
+
+    Ok(packages.into_iter().collect())
+}
+
+fn read_cargo_package_name(path: &Path) -> Result<Option<String>> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+
+    let text =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut in_package = false;
+    for raw_line in text.lines() {
+        let line = raw_line.split('#').next().unwrap_or_default().trim();
+        if line == "[package]" {
+            in_package = true;
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            in_package = false;
+            continue;
+        }
+        if in_package {
+            if let Some(("name", value)) = line
+                .split_once('=')
+                .map(|(key, value)| (key.trim(), value.trim()))
+            {
+                return Ok(parse_string(value));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
@@ -656,6 +825,63 @@ fn apply_release_value(config: &mut ReleaseConfig, key: &str, value: &str) {
             }
         }
         "release_all" => config.release_all = parse_bool(value).unwrap_or(config.release_all),
+        "manage_cargo_packages" => {
+            config.manage_cargo_packages =
+                parse_bool(value).unwrap_or(config.manage_cargo_packages);
+        }
+        _ => {}
+    }
+}
+
+fn apply_rust_cache_value(config: &mut RustCacheConfig, key: &str, value: &str) {
+    match key {
+        "dir" => config.dir = parse_string(value).unwrap_or_else(|| config.dir.clone()),
+        "package" => config.package = parse_string(value),
+        "redirect_cargo_home" => {
+            config.redirect_cargo_home = parse_bool(value).unwrap_or(config.redirect_cargo_home);
+        }
+        "redirect_gradle" => {
+            config.redirect_gradle = parse_bool(value).unwrap_or(config.redirect_gradle);
+        }
+        _ => {}
+    }
+}
+
+fn apply_rust_cache_cargo_value(config: &mut RustCacheConfig, key: &str, value: &str) {
+    if key == "target_dir" {
+        config.cargo_target_dir =
+            parse_string(value).unwrap_or_else(|| config.cargo_target_dir.clone());
+    }
+}
+
+fn apply_rust_cache_env_value(config: &mut RustCacheConfig, key: &str, value: &str) {
+    if let Some(value) = parse_string(value) {
+        config.env.insert(key.to_string(), value);
+    }
+}
+
+fn apply_tauri_release_project_value(config: &mut TauriReleaseConfig, key: &str, value: &str) {
+    match key {
+        "root" => {
+            config.project_root =
+                parse_string(value).unwrap_or_else(|| config.project_root.clone());
+        }
+        "frontend_install" => {
+            config.frontend_install =
+                parse_string(value).unwrap_or_else(|| config.frontend_install.clone());
+        }
+        _ => {}
+    }
+}
+
+fn apply_tauri_release_build_value(config: &mut TauriReleaseConfig, key: &str, value: &str) {
+    match key {
+        "out_dir" => {
+            config.out_dir = parse_string(value).unwrap_or_else(|| config.out_dir.clone());
+        }
+        "cache_dir" => {
+            config.cache_dir = parse_string(value).unwrap_or_else(|| config.cache_dir.clone());
+        }
         _ => {}
     }
 }

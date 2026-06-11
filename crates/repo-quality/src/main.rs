@@ -18,6 +18,7 @@ fn main() -> Result<()> {
         Commands::Init(args) => commands::init::run(args),
         Commands::Update(args) => commands::init::run_update(args),
         Commands::Plan(args) => commands::plan::run(args),
+        Commands::Check(args) => commands::check::run(args),
         Commands::Doctor(args) => commands::doctor::run(args),
     }
 }

@@ -150,6 +150,16 @@ repo-quality init --skip-hk-install
 
 ### update
 
+
+Validate the Datarose configuration without writing files:
+
+```sh
+repo-quality check
+repo-quality check --config config/datarose.toml
+```
+
+`repo-quality check` exits with `1` for removed, deprecated, or invalid settings and exits with `0` when the configuration is clean. Generated `hk` pre-push hooks run this check before language quality gates.
+
 Refresh managed files from `datarose.toml`:
 
 ```sh
@@ -258,7 +268,7 @@ The root `datarose.toml` stores the workspace path for future updates.
 
 Every generated config file is project-local and can be edited.
 
-`repo-quality update` preserves existing local config files unless `--force` is passed. This lets each project override central defaults without changing the executable.
+`repo-quality update` preserves existing local config files unless `--force` is passed, and prints warnings when deprecated or removed Datarose settings are still present. This lets each project override central defaults without changing the executable.
 
 Examples:
 

@@ -1,0 +1,162 @@
+use crate::cli::CheckArgs;
+use crate::project::{detect_cargo_packages, ProjectProfile, DEFAULT_CONFIG_FILE};
+use anyhow::{bail, Context, Result};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::Path;
+
+pub fn run(args: CheckArgs) -> Result<()> {
+    let profile = ProjectProfile::detect(
+        args.root,
+        args.config,
+        None,
+        &[],
+        crate::cli::JsRunnerArg::Auto,
+    )?;
+    let issues = collect_config_issues(&profile)?;
+
+    if issues.is_empty() {
+        println!("datarose configuration is valid.");
+        return Ok(());
+    }
+
+    eprintln!("datarose configuration has unsupported settings:");
+    for issue in &issues {
+        eprintln!("- {issue}");
+    }
+    bail!("datarose configuration check failed")
+}
+
+pub fn collect_config_issues(profile: &ProjectProfile) -> Result<Vec<String>> {
+    let mut issues = Vec::new();
+
+    if !profile.config_path.is_file() {
+        issues.push(format!(
+            "{} is missing; run `repo-quality init` first",
+            profile.config_path.display()
+        ));
+        return Ok(issues);
+    }
+
+    let text = fs::read_to_string(&profile.config_path)
+        .with_context(|| format!("failed to read {}", profile.config_path.display()))?;
+
+    collect_removed_files(&profile.root, &mut issues);
+    collect_removed_fields(&text, &mut issues);
+    collect_invalid_values(profile, &mut issues)?;
+
+    Ok(issues)
+}
+
+fn collect_removed_files(root: &Path, issues: &mut Vec<String>) {
+    let direct_removed = [
+        ".repo-quality.toml",
+        "github-release.toml",
+        "rust-cache.toml",
+        "tauri-release.toml",
+    ];
+    for path in direct_removed {
+        let full_path = root.join(path);
+        if full_path.exists() {
+            issues.push(format!(
+                "{} is deprecated; move its settings into {DEFAULT_CONFIG_FILE}",
+                full_path.display()
+            ));
+        }
+    }
+
+    for dir in [
+        root.join("crates"),
+        root.join("apps"),
+        root.join("packages"),
+    ] {
+        if !dir.is_dir() {
+            continue;
+        }
+        collect_removed_tool_configs(&dir, root, issues);
+    }
+}
+
+fn collect_removed_tool_configs(path: &Path, root: &Path, issues: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(path) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_removed_tool_configs(&path, root, issues);
+            continue;
+        }
+
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if matches!(file_name, "github-release.toml" | "cargo-release.toml") {
+            let display = path
+                .strip_prefix(root)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| path.display().to_string());
+            issues.push(format!(
+                "{display} is removed; move this release configuration into {DEFAULT_CONFIG_FILE}"
+            ));
+        }
+    }
+}
+
+fn collect_removed_fields(text: &str, issues: &mut Vec<String>) {
+    for (line_number, raw_line) in text.lines().enumerate() {
+        let line = raw_line.split('#').next().unwrap_or_default().trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        match key {
+            "github_release_config" => issues.push(format!(
+                "line {}: `github_release_config` is removed; use the current `[[release.targets]]` fields in {DEFAULT_CONFIG_FILE}",
+                line_number + 1
+            )),
+            "cargo_release_config" => issues.push(format!(
+                "line {}: `cargo_release_config` is removed; put cargo artifact settings directly on the release target",
+                line_number + 1
+            )),
+            "package" if value == "\"auto\"" => issues.push(format!(
+                "line {}: `rust_cache.cache.package = \"auto\"` is removed; use the repository directory name explicitly",
+                line_number + 1
+            )),
+            _ => {}
+        }
+    }
+}
+
+fn collect_invalid_values(profile: &ProjectProfile, issues: &mut Vec<String>) -> Result<()> {
+    if profile.stored_config.release.manage_cargo_packages {
+        let configured = profile
+            .stored_config
+            .release
+            .targets
+            .iter()
+            .map(|target| target.cargo_package.as_str())
+            .collect::<BTreeSet<_>>();
+        for package in detect_cargo_packages(&profile.root)? {
+            if !configured.contains(package.as_str()) {
+                issues.push(format!(
+                    "Cargo package `{package}` has no `[[release.targets]]` entry"
+                ));
+            }
+        }
+    }
+
+    let expected_package = profile.default_package_name();
+    if profile.stored_config.rust_cache.package.is_none() {
+        issues.push(format!(
+            "rust_cache.cache.package is missing; use `{expected_package}` for this repository"
+        ));
+    }
+
+    Ok(())
+}

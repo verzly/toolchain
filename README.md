@@ -109,13 +109,23 @@ cargo run -p repo-quality -- update
 
 Generated project-local files are intentionally overrideable. `repo-quality update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
 
-`datarose.toml` also describes release targets. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
+
+Validate `datarose.toml` without rewriting files:
+
+```sh
+repo-quality check
+repo-quality check --config config/datarose.toml
+```
+
+The check command exits with `1` only when it finds removed, deprecated, or invalid Datarose settings. It is also included in generated `hk` pre-push checks.
+
+`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
 cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config datarose.toml --version 1.2.3
+cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p tauri-release -- plan --config datarose.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate

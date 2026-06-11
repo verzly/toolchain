@@ -13,7 +13,28 @@ struct Step {
 
 pub fn render_hk_config(profile: &ProjectProfile) -> String {
     let mut format_steps = Vec::new();
-    let mut quality_steps = Vec::new();
+    let repo_quality_check = if profile
+        .root
+        .join("crates/repo-quality/Cargo.toml")
+        .is_file()
+    {
+        format!(
+            "cargo run -p repo-quality -- check --config {}",
+            shell_quote(&profile.config_display())
+        )
+    } else {
+        format!(
+            "repo-quality check --config {}",
+            shell_quote(&profile.config_display())
+        )
+    };
+    let mut quality_steps = vec![Step {
+        name: "check-datarose".into(),
+        check: repo_quality_check,
+        fix: None,
+        stage: vec![],
+        depends: vec![],
+    }];
 
     if profile.has_language(&Language::Rust) {
         format_steps.push(Step {
@@ -28,7 +49,7 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
             check: profile.command("cargo clippy --workspace --all-targets -- -D warnings"),
             fix: None,
             stage: vec![],
-            depends: vec!["format-rust".into()],
+            depends: vec!["format-rust".into(), "check-datarose".into()],
         });
         quality_steps.push(Step {
             name: "test-rust".into(),
@@ -108,7 +129,7 @@ fn add_js_steps(
         check: profile.command("oxlint ."),
         fix: None,
         stage: vec![],
-        depends: vec!["format-js".into()],
+        depends: vec!["format-js".into(), "check-datarose".into()],
     });
 
     quality_steps.push(Step {
@@ -138,7 +159,7 @@ fn add_php_steps(
         check: profile.command("composer exec pest"),
         fix: None,
         stage: vec![],
-        depends: vec!["format-php".into()],
+        depends: vec!["format-php".into(), "check-datarose".into()],
     });
 }
 

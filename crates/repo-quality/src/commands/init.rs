@@ -1,4 +1,5 @@
 use crate::cli::{InitArgs, UpdateArgs};
+use crate::commands::check::collect_config_issues;
 use crate::project::{render_datarose_config, ProjectProfile};
 use crate::quality::render_hk_config;
 use crate::shell;
@@ -71,6 +72,17 @@ fn apply(options: ApplyOptions) -> Result<()> {
             "no supported language profile detected; pass --language rust, \
              --language js, or --language php"
         );
+    }
+
+    if options.from_stored_config {
+        let issues = collect_config_issues(&profile)?;
+        if !issues.is_empty() {
+            eprintln!("datarose configuration warnings:");
+            for issue in &issues {
+                eprintln!("- {issue}");
+            }
+            eprintln!("Run `repo-quality check` to fail on these issues in CI or pre-push.");
+        }
     }
 
     let hk_config = render_hk_config(&profile);

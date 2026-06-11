@@ -60,7 +60,7 @@ Run individual tools with `cargo run` while developing:
 
 ```sh
 cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config datarose.toml --version 1.2.3
+cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
 cargo run -p repo-quality -- plan
@@ -105,7 +105,8 @@ When the preview is correct and you intentionally want to refresh the workspace 
 ```sh
 cargo run -p repo-quality -- init --force
 cargo run -p repo-quality -- update
-mise exec -- hk check
+mise exec -- repo-quality check
+hk check
 ```
 
 Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
@@ -209,3 +210,6 @@ Public distribution actions must also support those moving refs at runtime. When
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.
 
 Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.
+
+
+`repo-quality update` prints warnings for deprecated, removed, or invalid `datarose.toml` settings. `repo-quality check` is the non-mutating CI/pre-push guard and exits with `1` only for those configuration problems.

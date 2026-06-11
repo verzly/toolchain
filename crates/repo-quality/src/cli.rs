@@ -25,6 +25,8 @@ pub enum Commands {
     Update(UpdateArgs),
     /// Print the detected quality profile without changing files.
     Plan(PlanArgs),
+    /// Check datarose.toml for deprecated, removed, or invalid settings.
+    Check(CheckArgs),
     /// Check whether the repository has the expected quality tooling.
     Doctor(DoctorArgs),
 }
@@ -130,6 +132,17 @@ pub struct PlanArgs {
     /// Configure a subdirectory as the quality workspace for the preview.
     #[arg(long)]
     pub workspace: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+pub struct CheckArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]

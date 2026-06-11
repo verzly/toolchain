@@ -17,9 +17,14 @@ local formatSteps = new Mapping<String, Step> {
 }
 
 local qualitySteps = new Mapping<String, Step> {
+  ["check-datarose"] {
+    shell = defaultShell
+    check = "cargo run -p repo-quality -- check --config datarose.toml"
+  }
+
   ["lint-rust"] {
     shell = defaultShell
-    depends = List("format-rust")
+    depends = List("format-rust", "check-datarose")
     check = "cargo clippy --workspace --all-targets -- -D warnings"
   }
 
@@ -32,6 +37,7 @@ local qualitySteps = new Mapping<String, Step> {
 
 local fullQualitySteps = new Mapping<String, Step> {
   ["format-rust"] = formatSteps["format-rust"]
+  ["check-datarose"] = qualitySteps["check-datarose"]
   ["lint-rust"] = qualitySteps["lint-rust"]
   ["test-rust"] = qualitySteps["test-rust"]
 }
