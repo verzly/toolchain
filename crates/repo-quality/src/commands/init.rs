@@ -30,21 +30,21 @@ pub fn run(args: InitArgs) -> Result<()> {
     }
 
     if !args.skip_mise_use {
-        shell::run(&profile.root, "mise", ["use", "hk@latest"])
-            .context("failed to install hk through mise")?;
-        shell::run(&profile.root, "mise", ["use", "pkl@latest"])
-            .context("failed to install pkl through mise")?;
+        for recommendation in profile.missing_mise_tools() {
+            let spec = format!("{}@{}", recommendation.tool, recommendation.version);
+            shell::run(&profile.root, "mise", ["use", spec.as_str()]).with_context(|| {
+                format!("failed to install {} through mise", recommendation.tool)
+            })?;
+        }
     }
 
     fs::write(&hk_path, config)
         .with_context(|| format!("failed to write {}", hk_path.display()))?;
     println!("Wrote {}", hk_path.display());
 
-    if !args.skip_hk_install {
-        if shell::run(&profile.root, "hk", ["install"]).is_err() {
-            shell::run(&profile.root, "mise", ["exec", "--", "hk", "install"])
-                .context("failed to install hk git hooks")?;
-        }
+    if !args.skip_hk_install && shell::run(&profile.root, "hk", ["install"]).is_err() {
+        shell::run(&profile.root, "mise", ["exec", "--", "hk", "install"])
+            .context("failed to install hk git hooks")?;
     }
 
     println!("Repository quality hooks are ready.");
@@ -56,8 +56,9 @@ fn print_plan(profile: &ProjectProfile, config: &str, skip_mise: bool, skip_hk: 
     println!("Repository: {}", profile.root.display());
     println!("Languages: {:?}", profile.languages);
     if !skip_mise {
-        println!("Would run: mise use hk@latest");
-        println!("Would run: mise use pkl@latest");
+        for recommendation in profile.missing_mise_tools() {
+            println!("Would run: {}", recommendation.command());
+        }
     }
     println!("Would write: {}", profile.root.join("hk.pkl").display());
     if !skip_hk {

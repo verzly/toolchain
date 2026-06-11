@@ -70,24 +70,32 @@ A typical setup is:
 repo-quality init
 ```
 
-The command detects repository files such as:
+The command detects repository manifests and source files such as:
 
 ```text
 Cargo.toml
+*.rs
 package.json
 aube-workspace.yaml
+*.js / *.ts / *.vue
 composer.json
+*.php
 ```
 
-Then it prepares quality hooks:
+Then it prepares quality hooks and missing `mise` tools:
 
 ```text
 repo-quality
 → mise use hk@latest
 → mise use pkl@latest
+→ mise use rust@stable      when Rust files are detected
+→ mise use aube@latest      when JS/TS files are detected and no runner is configured
+→ mise use php@latest       when PHP files are detected
 → write hk.pkl
 → hk install
 ```
+
+If the repository already uses another JavaScript runner, such as `pnpm`, `bun`, or `yarn`, `repo-quality` keeps that runner instead of forcing `aube`.
 
 If a repository already has `hk.pkl`, pass `--force` to replace it.
 
@@ -147,6 +155,8 @@ Check whether the repository has the expected setup:
 repo-quality doctor
 ```
 
+`doctor` reports missing required pieces and prints setup recommendations. For example, it can suggest creating `mise.toml`, adding `rust@stable` for Rust files, adding `aube` for JavaScript/TypeScript files, adding `php` for PHP files, or adding the preferred package scripts for Oxlint, Oxfmt, Vitest, Rector, and Pest.
+
 ## Generated hooks
 
 The generated model is intentionally simple:
@@ -204,11 +214,12 @@ Recommended scripts are:
 Runner detection prefers:
 
 ```text
-aube-workspace.yaml → aube
-pnpm-lock.yaml     → pnpm
-yarn.lock          → yarn
-bun.lock / bun.lockb → bun
-fallback           → npm
+aube-workspace.yaml      → aube
+pnpm-lock.yaml           → pnpm
+yarn.lock                → yarn
+bun.lock / bun.lockb     → bun
+package-lock.json        → npm / node
+no configured runner     → aube
 ```
 
 Supported script names include:

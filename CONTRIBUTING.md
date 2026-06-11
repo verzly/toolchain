@@ -27,6 +27,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
+The local `mise.toml` should include `hk`, `pkl`, and `rust@stable`. `repo-quality doctor` is expected to suggest missing language tools instead of silently assuming they are globally installed.
+
 Build output is intentionally local to `.cache` through `.cargo/config.toml`. Do not wrap normal Cargo commands with `rust-cache run`.
 
 ## Development

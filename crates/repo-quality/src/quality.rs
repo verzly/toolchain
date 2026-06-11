@@ -263,6 +263,14 @@ mod tests {
             ]),
             has_rector: true,
             has_pest: true,
+            has_mise_toml: true,
+            mise_tools: BTreeSet::from([
+                "hk".into(),
+                "pkl".into(),
+                "rust".into(),
+                "aube".into(),
+                "php".into(),
+            ]),
         };
 
         let config = render_hk_config(&profile);

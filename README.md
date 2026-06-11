@@ -88,7 +88,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repo-quality` result. After installing `mise`, run:
+The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repo-quality` result. `mise.toml` pins `hk`, `pkl`, and `rust@stable` for local quality gates. After installing `mise`, run:
 
 ```sh
 mise install
@@ -118,6 +118,8 @@ cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
 cargo run -p repo-quality -- plan
 cargo run -p repo-quality -- doctor
 ```
+
+`repo-quality doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
 
 Build and run the local executable when you want to test the exact binary entry point:
 

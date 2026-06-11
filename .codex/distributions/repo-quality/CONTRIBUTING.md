@@ -29,6 +29,8 @@ cargo run -p repo-quality -- init --dry-run
 cargo run -p repo-quality -- doctor
 ```
 
+`doctor` should remain advisory for language setup. It should recommend missing `mise.toml` entries such as `rust@stable`, `aube`, or `php`, and preferred quality tools such as Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
+
 ## Documentation
 
 User-facing documentation belongs in `.codex/distributions/repo-quality/README.md`.

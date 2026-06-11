@@ -11,6 +11,15 @@ pub fn run(args: PlanArgs) -> Result<()> {
     println!("Package scripts: {:?}", profile.package_scripts);
     println!("Rector detected: {}", profile.has_rector);
     println!("Pest detected: {}", profile.has_pest);
+    println!("mise.toml detected: {}", profile.has_mise_toml);
+    println!("Mise tools: {:?}", profile.mise_tools);
+    let recommendations = profile.missing_mise_tools();
+    if !recommendations.is_empty() {
+        println!("Mise recommendations:");
+        for recommendation in recommendations {
+            println!("- {} ({})", recommendation.command(), recommendation.reason);
+        }
+    }
     println!("\n{}", render_hk_config(&profile));
     Ok(())
 }
