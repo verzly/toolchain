@@ -38,7 +38,12 @@ pub fn run(args: DoctorArgs) -> Result<()> {
 
     if profile.has_language(&Language::Js) {
         push_missing_script(&mut suggestions, &profile, "format:js", "oxfmt");
-        push_missing_script(&mut suggestions, &profile, "format:js:check", "oxfmt --check");
+        push_missing_script(
+            &mut suggestions,
+            &profile,
+            "format:js:check",
+            "oxfmt --check",
+        );
         push_missing_script(&mut suggestions, &profile, "lint:js", "oxlint");
         push_missing_script(&mut suggestions, &profile, "test:js", "vitest");
     }

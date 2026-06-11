@@ -152,7 +152,13 @@ impl ProjectProfile {
                     "npm project files were detected; npm is provided by Node.js",
                 ),
             };
-            push_missing_tool(&mut recommendations, &self.mise_tools, tool, "latest", reason);
+            push_missing_tool(
+                &mut recommendations,
+                &self.mise_tools,
+                tool,
+                "latest",
+                reason,
+            );
         }
 
         if self.has_language(&Language::Php) {
@@ -191,8 +197,8 @@ fn read_package_scripts(root: &Path) -> Result<BTreeSet<String>> {
         return Ok(BTreeSet::new());
     }
 
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     let json: Value = serde_json::from_str(&text)
         .with_context(|| format!("failed to parse {}", path.display()))?;
     let scripts = json
@@ -210,8 +216,8 @@ fn read_composer_dependencies(root: &Path) -> Result<BTreeMap<String, String>> {
         return Ok(BTreeMap::new());
     }
 
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     let json: Value = serde_json::from_str(&text)
         .with_context(|| format!("failed to parse {}", path.display()))?;
     let mut dependencies = BTreeMap::new();
@@ -236,8 +242,8 @@ fn read_mise_tools(root: &Path) -> Result<(bool, BTreeSet<String>)> {
         return Ok((false, BTreeSet::new()));
     };
 
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     let mut in_tools = false;
     let mut tools = BTreeSet::new();
 
@@ -416,7 +422,11 @@ mod tests {
     #[test]
     fn recommends_mise_tools_for_detected_languages() {
         let root = temp_repo("mise");
-        fs::write(root.join("mise.toml"), "[tools]\nhk = \"latest\"\npkl = \"latest\"\n").unwrap();
+        fs::write(
+            root.join("mise.toml"),
+            "[tools]\nhk = \"latest\"\npkl = \"latest\"\n",
+        )
+        .unwrap();
         fs::write(root.join("src.rs"), "fn main() {}\n").unwrap();
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
         fs::write(root.join("index.php"), "<?php\n").unwrap();
