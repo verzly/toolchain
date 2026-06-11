@@ -55,7 +55,7 @@ jobs:
 }
 
 pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
-    if !profile.release_enabled() {
+    if !profile.release_enabled() || !profile.stored_config.release.manage_workflows {
         return Vec::new();
     }
 
@@ -309,7 +309,7 @@ jobs:
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
-          --assets-dir dist/release
+          --assets dist/release
 
       - name: Publish public release
         env:
@@ -319,7 +319,7 @@ jobs:
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
-          --assets-dir dist/release
+          --assets dist/release
 "#
     .replace("__TARGET_BRANCH__", target_branch)
 }

@@ -210,16 +210,16 @@ Source finalization uses a squash merge by default. The release branch may conta
 
 Use `.github/workflows/release-all.yml` to release every configured public distribution target from `datarose.toml` with one version input.
 
-The generated workflow runs the shared `_release-datarose-tool.yml` workflow once per target. Each target prepares its source release branch, runs the quality gate, builds assets from its `datarose.toml` target, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
+The generated workflow can run the shared `_release-tool.yml` workflow once per target when release workflow management is enabled. Each target prepares its source release branch, runs the quality gate, builds assets from its `datarose.toml` target, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
 
 ```text
 release-all.yml
-→ _release-datarose-tool.yml for github-release
-→ _release-datarose-tool.yml for cargo-release
-→ _release-datarose-tool.yml for tauri-release
-→ _release-datarose-tool.yml for rust-cache
-→ _release-datarose-tool.yml for android-signing
-→ _release-datarose-tool.yml for repository
+→ _release-tool.yml for github-release
+→ _release-tool.yml for cargo-release
+→ _release-tool.yml for tauri-release
+→ _release-tool.yml for rust-cache
+→ _release-tool.yml for android-signing
+→ _release-tool.yml for repository
 ```
 
 Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.

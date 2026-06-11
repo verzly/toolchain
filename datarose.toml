@@ -12,6 +12,7 @@ source_repository = "verzly/toolchain"
 secret_name = "DISTRIBUTION_REPO_TOKEN"
 release_all = true
 manage_cargo_packages = true
+manage_workflows = false
 
 [[release.targets]]
 name = "github-release"
@@ -114,6 +115,27 @@ source_tag_prefix = "repository-v"
 generate_notes = false
 include_scopes = ["repository", "all"]
 include_paths = ["crates/repository/"]
+
+[[release.targets]]
+name = "toolchain"
+repository = "verzly/toolchain"
+source_repository = ""
+distribution_path = ""
+cargo_binary = ""
+cargo_package = ""
+cargo_out_dir = ""
+cargo_targets = []
+prepare_commands = []
+version_files = false
+source_tag_prefix = "v"
+release_name_prefix = "toolchain v"
+source_release = false
+generate_notes = true
+floating_tags = false
+latest_tag = false
+next_tag = false
+include_scopes = ["all"]
+include_paths = ["."]
 
 [rust_cache.cache]
 dir = ".cache"

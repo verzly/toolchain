@@ -235,29 +235,40 @@ fn load_datarose_config(
     let repository = string_field(target_table, "repository")
         .or_else(|| string_field(target_table, "target_repository"))
         .unwrap_or_else(|| format!("verzly/{name}"));
-    let source_repository = string_field(release, "source_repository").unwrap_or_default();
+    let source_repository = string_field(target_table, "source_repository")
+        .or_else(|| string_field(release, "source_repository"))
+        .unwrap_or_default();
     let target_branch = string_field(release, "target_branch").unwrap_or_else(|| "master".into());
     let source_tag_prefix =
         string_field(target_table, "source_tag_prefix").unwrap_or_else(|| format!("{name}-v"));
 
+    let default_release = || ReleaseConfig {
+        target_branch: target_branch.clone(),
+        tag_prefix: string_field(target_table, "release_tag_prefix").unwrap_or_else(|| "v".into()),
+        name_prefix: string_field(target_table, "release_name_prefix").unwrap_or_default(),
+        floating_tags: bool_field(target_table, "floating_tags").unwrap_or(true),
+        latest_tag: bool_field(target_table, "latest_tag").unwrap_or(true),
+        next_tag: bool_field(target_table, "next_tag").unwrap_or(true),
+        ..ReleaseConfig::default()
+    };
+    let default_source_release = || ReleaseConfig {
+        target_branch: target_branch.clone(),
+        tag_prefix: source_tag_prefix.clone(),
+        name_prefix: format!("{name} v"),
+        latest: false,
+        ..ReleaseConfig::default()
+    };
+
     let mut config = Config {
         prepare_commands: string_array_field(target_table, "prepare_commands"),
         files: datarose_version_files(target_table, &name)?,
-        release: decode_table_field(target_table, "release")?.unwrap_or_else(|| ReleaseConfig {
-            target_branch: target_branch.clone(),
-            floating_tags: true,
-            latest_tag: true,
-            next_tag: true,
-            ..ReleaseConfig::default()
-        }),
+        release: decode_table_field(target_table, "release")?.unwrap_or_else(default_release),
         source_release: decode_table_field(target_table, "source_release")?.or_else(|| {
-            Some(ReleaseConfig {
-                target_branch: target_branch.clone(),
-                tag_prefix: source_tag_prefix.clone(),
-                name_prefix: format!("{name} v"),
-                latest: false,
-                ..ReleaseConfig::default()
-            })
+            if bool_field(target_table, "source_release") == Some(false) {
+                None
+            } else {
+                Some(default_source_release())
+            }
         }),
         github: decode_table_field(target_table, "github")?.unwrap_or_else(GitHubConfig::default),
     };

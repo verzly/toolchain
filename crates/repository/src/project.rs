@@ -95,6 +95,7 @@ pub struct ReleaseConfig {
     pub secret_name: String,
     pub release_all: bool,
     pub manage_cargo_packages: bool,
+    pub manage_workflows: bool,
     pub targets: Vec<ReleaseTarget>,
 }
 
@@ -107,6 +108,7 @@ impl Default for ReleaseConfig {
             secret_name: "DISTRIBUTION_REPO_TOKEN".into(),
             release_all: true,
             manage_cargo_packages: false,
+            manage_workflows: true,
             targets: Vec::new(),
         }
     }
@@ -116,6 +118,7 @@ impl Default for ReleaseConfig {
 pub struct ReleaseTarget {
     pub name: String,
     pub repository: String,
+    pub source_repository: Option<String>,
     pub distribution_path: String,
     pub cargo_binary: String,
     pub cargo_package: String,
@@ -126,6 +129,13 @@ pub struct ReleaseTarget {
     pub version_file: String,
     pub version_key: String,
     pub version_value: String,
+    pub source_tag_prefix: String,
+    pub release_name_prefix: String,
+    pub source_release: Option<bool>,
+    pub generate_notes: Option<bool>,
+    pub floating_tags: Option<bool>,
+    pub latest_tag: Option<bool>,
+    pub next_tag: Option<bool>,
     pub include_scopes: Vec<String>,
     pub include_paths: Vec<String>,
 }
@@ -499,6 +509,10 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         "manage_cargo_packages = {}\n",
         bool_literal(profile.stored_config.release.manage_cargo_packages)
     ));
+    out.push_str(&format!(
+        "manage_workflows = {}\n",
+        bool_literal(profile.stored_config.release.manage_workflows)
+    ));
 
     for target in &profile.stored_config.release.targets {
         out.push_str("\n[[release.targets]]\n");
@@ -507,6 +521,12 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
             "repository = \"{}\"\n",
             escape_toml(&target.repository)
         ));
+        if let Some(source_repository) = &target.source_repository {
+            out.push_str(&format!(
+                "source_repository = \"{}\"\n",
+                escape_toml(source_repository)
+            ));
+        }
         out.push_str(&format!(
             "distribution_path = \"{}\"\n",
             escape_toml(&target.distribution_path)
@@ -547,11 +567,42 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
                 escape_toml(&target.version_value)
             ));
         }
-        out.push_str(&format!(
-            "source_tag_prefix = \"{}-v\"\n",
-            escape_toml(&target.name)
-        ));
-        out.push_str("generate_notes = false\n");
+        if !target.source_tag_prefix.is_empty() {
+            out.push_str(&format!(
+                "source_tag_prefix = \"{}\"\n",
+                escape_toml(&target.source_tag_prefix)
+            ));
+        }
+        if !target.release_name_prefix.is_empty() {
+            out.push_str(&format!(
+                "release_name_prefix = \"{}\"\n",
+                escape_toml(&target.release_name_prefix)
+            ));
+        }
+        if let Some(source_release) = target.source_release {
+            out.push_str(&format!(
+                "source_release = {}\n",
+                bool_literal(source_release)
+            ));
+        }
+        if let Some(generate_notes) = target.generate_notes {
+            out.push_str(&format!(
+                "generate_notes = {}\n",
+                bool_literal(generate_notes)
+            ));
+        }
+        if let Some(floating_tags) = target.floating_tags {
+            out.push_str(&format!(
+                "floating_tags = {}\n",
+                bool_literal(floating_tags)
+            ));
+        }
+        if let Some(latest_tag) = target.latest_tag {
+            out.push_str(&format!("latest_tag = {}\n", bool_literal(latest_tag)));
+        }
+        if let Some(next_tag) = target.next_tag {
+            out.push_str(&format!("next_tag = {}\n", bool_literal(next_tag)));
+        }
         out.push_str(&format!(
             "include_scopes = [{}]\n",
             render_string_array(&target.include_scopes)
@@ -682,43 +733,8 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
     }
 
     normalize_release_targets(&mut config.release.targets);
-    if config.release.manage_cargo_packages {
-        if let Some(root) = path.parent() {
-            add_missing_cargo_release_targets(root, &mut config.release.targets)?;
-        }
-    }
 
     Ok(config)
-}
-
-fn add_missing_cargo_release_targets(root: &Path, targets: &mut Vec<ReleaseTarget>) -> Result<()> {
-    let mut existing = targets
-        .iter()
-        .map(|target| target.cargo_package.clone())
-        .collect::<BTreeSet<_>>();
-    for package in detect_cargo_packages(root)? {
-        if !existing.insert(package.clone()) {
-            continue;
-        }
-        targets.push(ReleaseTarget {
-            name: package.clone(),
-            repository: format!("verzly/{package}"),
-            distribution_path: format!(".codex/distributions/{package}"),
-            cargo_binary: package.clone(),
-            cargo_package: package.clone(),
-            cargo_out_dir: format!("dist/{package}"),
-            cargo_targets: Vec::new(),
-            prepare_commands: Vec::new(),
-            version_files: None,
-            version_file: String::new(),
-            version_key: String::new(),
-            version_value: String::new(),
-            include_scopes: Vec::new(),
-            include_paths: Vec::new(),
-        });
-    }
-    normalize_release_targets(targets);
-    Ok(())
 }
 
 pub fn detect_cargo_packages(root: &Path) -> Result<Vec<String>> {
@@ -777,27 +793,35 @@ fn read_cargo_package_name(path: &Path) -> Result<Option<String>> {
 
 fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
     for target in targets {
-        if target.distribution_path.is_empty() && !target.name.is_empty() {
+        let assetless = target.version_files == Some(false)
+            && target.cargo_binary.is_empty()
+            && target.cargo_package.is_empty()
+            && target.cargo_out_dir.is_empty()
+            && target.cargo_targets.is_empty();
+
+        if target.distribution_path.is_empty() && !target.name.is_empty() && !assetless {
             target.distribution_path = format!(".codex/distributions/{}", target.name);
         }
-        if target.cargo_binary.is_empty() && !target.name.is_empty() {
-            target.cargo_binary = target.name.clone();
+        if !assetless {
+            if target.cargo_binary.is_empty() && !target.name.is_empty() {
+                target.cargo_binary = target.name.clone();
+            }
+            if target.cargo_package.is_empty() && !target.name.is_empty() {
+                target.cargo_package = target.name.clone();
+            }
+            if target.cargo_out_dir.is_empty() && !target.name.is_empty() {
+                target.cargo_out_dir = format!("dist/{}", target.name);
+            }
+            if target.cargo_targets.is_empty() {
+                target.cargo_targets = vec![
+                    "linux-x64".into(),
+                    "macos-x64".into(),
+                    "macos-arm64".into(),
+                    "windows-x64".into(),
+                ];
+            }
         }
-        if target.cargo_package.is_empty() && !target.name.is_empty() {
-            target.cargo_package = target.name.clone();
-        }
-        if target.cargo_out_dir.is_empty() && !target.name.is_empty() {
-            target.cargo_out_dir = format!("dist/{}", target.name);
-        }
-        if target.cargo_targets.is_empty() {
-            target.cargo_targets = vec![
-                "linux-x64".into(),
-                "macos-x64".into(),
-                "macos-arm64".into(),
-                "windows-x64".into(),
-            ];
-        }
-        if target.prepare_commands.is_empty() {
+        if target.prepare_commands.is_empty() && target.version_files != Some(false) {
             target
                 .prepare_commands
                 .push("cargo generate-lockfile".into());
@@ -813,11 +837,14 @@ fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
                 target.version_value = "{version}".into();
             }
         }
+        if target.source_tag_prefix.is_empty() && !target.name.is_empty() {
+            target.source_tag_prefix = format!("{}-v", target.name);
+        }
         if target.include_scopes.is_empty() && !target.name.is_empty() {
             target.include_scopes.push(target.name.clone());
             target.include_scopes.push("all".into());
         }
-        if target.include_paths.is_empty() && !target.name.is_empty() {
+        if target.include_paths.is_empty() && !target.name.is_empty() && !assetless {
             target
                 .include_paths
                 .push(format!("crates/{}/", target.name));
@@ -863,6 +890,9 @@ fn apply_release_value(config: &mut ReleaseConfig, key: &str, value: &str) {
         "manage_cargo_packages" => {
             config.manage_cargo_packages =
                 parse_bool(value).unwrap_or(config.manage_cargo_packages);
+        }
+        "manage_workflows" => {
+            config.manage_workflows = parse_bool(value).unwrap_or(config.manage_workflows);
         }
         _ => {}
     }
@@ -928,6 +958,11 @@ fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str
         "include_scopes" => target.include_scopes = parse_string_array(value),
         "include_paths" => target.include_paths = parse_string_array(value),
         "version_files" => target.version_files = parse_bool(value),
+        "source_release" => target.source_release = parse_bool(value),
+        "generate_notes" => target.generate_notes = parse_bool(value),
+        "floating_tags" => target.floating_tags = parse_bool(value),
+        "latest_tag" => target.latest_tag = parse_bool(value),
+        "next_tag" => target.next_tag = parse_bool(value),
         _ => {
             let Some(value) = parse_string(value) else {
                 return;
@@ -935,6 +970,7 @@ fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str
             match key {
                 "name" => target.name = value,
                 "repository" | "target_repository" => target.repository = value,
+                "source_repository" => target.source_repository = Some(value),
                 "distribution_path" => target.distribution_path = value,
                 "cargo_binary" => target.cargo_binary = value,
                 "cargo_package" => target.cargo_package = value,
@@ -942,7 +978,8 @@ fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str
                 "version_file" => target.version_file = value,
                 "version_key" => target.version_key = value,
                 "version_value" => target.version_value = value,
-                "source_tag_prefix" | "generate_notes" => {}
+                "source_tag_prefix" => target.source_tag_prefix = value,
+                "release_name_prefix" => target.release_name_prefix = value,
                 _ => {}
             }
         }

@@ -200,7 +200,7 @@ hk.pkl
 .github/workflows/test.yml
 .github/workflows/release-*.yml
 .github/workflows/release-all.yml
-.github/workflows/_release-datarose-tool.yml
+.github/workflows/_release-tool.yml
 .editorconfig
 rustfmt.toml
 .oxfmtrc.json

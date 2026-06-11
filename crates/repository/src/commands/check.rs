@@ -54,6 +54,7 @@ fn collect_removed_files(root: &Path, issues: &mut Vec<String>) {
         "github-release.toml",
         "rust-cache.toml",
         "tauri-release.toml",
+        ".github/workflows/_release-datarose-tool.yml",
         ".github/workflows/release-repo-quality.yml",
     ];
     for path in direct_removed {
