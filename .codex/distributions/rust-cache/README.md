@@ -58,7 +58,7 @@ Use `rust-cache` when you want to:
 ```yaml
 - uses: verzly/rust-cache@v1
   with:
-    args: run --config rust-cache.toml -- cargo test --workspace
+    args: run --config datarose.toml -- cargo test --workspace
 ```
 
 Install and use later:
@@ -68,7 +68,7 @@ Install and use later:
   with:
     install-only: "true"
 
-- run: rust-cache run --config crates/rust-cache/rust-cache.toml -- cargo build --workspace
+- run: rust-cache run --config datarose.toml -- cargo build --workspace
 ```
 
 The composite action detects the runner operating system and CPU architecture, maps that host to a Rust-style target name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
@@ -100,10 +100,10 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 
 ```sh
 rust-cache init
-rust-cache env --config rust-cache.toml
-rust-cache run --config rust-cache.toml -- cargo test --workspace
-rust-cache clean --config rust-cache.toml
-rust-cache doctor --config rust-cache.toml
+rust-cache env --config datarose.toml
+rust-cache run --config datarose.toml -- cargo test --workspace
+rust-cache clean --config datarose.toml
+rust-cache doctor --config datarose.toml
 ```
 
 
@@ -124,33 +124,33 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `rust-cache.toml` | File path | Where the starter config should be written. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Where the starter config should be written. |
 | `-f`, `--force` | No | `false` | Boolean flag | Overwrite an existing config file. |
 
 #### `env`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `rust-cache.toml` | File path | Prints the environment variables that would be applied by `run`. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Prints the environment variables that would be applied by `run`. |
 
 #### `run`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `rust-cache.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `--` followed by command | Yes | none | Any command and arguments | Command to execute with the planned cache environment. The separator is required so the command is not parsed as `rust-cache` options. |
 
 #### `clean`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `rust-cache.toml` | File path | Removes the configured cache directory. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Removes the configured cache directory. |
 
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `rust-cache.toml` | File path | Prints detected workspace root, selected package key, cache root, and planned environment. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Prints detected workspace root, selected package key, cache root, and planned environment. |
 
 ## Configuration
 
@@ -187,7 +187,7 @@ Generated paths normally look like this:
 ### Run Cargo with project-local cache routing
 
 ```sh
-rust-cache run --config rust-cache.toml -- cargo test --workspace
+rust-cache run --config datarose.toml -- cargo test --workspace
 ```
 
 The command after `--` receives environment variables such as `CARGO_TARGET_DIR`. This keeps generated build output under the configured cache root instead of the normal project `target/` folder.
@@ -195,7 +195,7 @@ The command after `--` receives environment variables such as `CARGO_TARGET_DIR`
 ### Print the planned environment
 
 ```sh
-rust-cache env --config rust-cache.toml
+rust-cache env --config datarose.toml
 ```
 
 Use this in CI debugging to verify exactly which cache paths would be used before running a long build.
@@ -203,7 +203,7 @@ Use this in CI debugging to verify exactly which cache paths would be used befor
 ### Clean generated cache
 
 ```sh
-rust-cache clean --config rust-cache.toml
+rust-cache clean --config datarose.toml
 ```
 
 This removes the configured cache root. It should not remove source files or project-owned configuration.

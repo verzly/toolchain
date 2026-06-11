@@ -157,15 +157,65 @@ impl ContainerEngine {
 pub fn load(path: &Path) -> Result<Config> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let value: toml::Value =
+        toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
+
+    if value.get("tauri_release").is_some() {
+        return Ok(load_datarose_config(&value));
+    }
+
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
+}
+
+fn load_datarose_config(value: &toml::Value) -> Config {
+    let mut config = Config::default();
+    let Some(root) = value.get("tauri_release") else {
+        return config;
+    };
+
+    if let Some(project) = root.get("project").and_then(toml::Value::as_table) {
+        if let Some(path) = string_field(project, "root") {
+            config.project.root = PathBuf::from(path);
+        }
+        config.project.frontend_install = string_field(project, "frontend_install");
+    }
+
+    if let Some(build) = root.get("build").and_then(toml::Value::as_table) {
+        if let Some(path) = string_field(build, "out_dir") {
+            config.build.out_dir = PathBuf::from(path);
+        }
+        if let Some(path) = string_field(build, "cache_dir") {
+            config.build.cache_dir = PathBuf::from(path);
+        }
+    }
+
+    config
+}
+
+fn string_field(table: &toml::value::Table, key: &str) -> Option<String> {
+    table.get(key)?.as_str().map(ToOwned::to_owned)
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     if path.exists() && !force {
         anyhow::bail!("config already exists: {}", path.display());
     }
-    fs::write(path, toml::to_string_pretty(&Config::default())?)?;
+    fs::write(path, render_datarose_default_config())?;
     Ok(())
+}
+
+fn render_datarose_default_config() -> String {
+    r#"version = 1
+
+[tauri_release.project]
+root = "."
+frontend_install = "aube install"
+
+[tauri_release.build]
+out_dir = "dist"
+cache_dir = ".cache/tauri-release"
+"#
+    .to_string()
 }
 
 #[cfg(test)]

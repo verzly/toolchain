@@ -1,7 +1,7 @@
 //! TOML configuration model. Defaults are conservative so a generated config is safe to inspect before the first release.
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -181,10 +181,228 @@ pub enum VersionFileKind {
     Text,
 }
 
-pub fn load(path: &Path) -> Result<Config> {
+pub fn load(path: &Path, release_target: Option<&str>) -> Result<Config> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let value: toml::Value =
+        toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
+
+    if is_datarose_config(&value) {
+        return load_datarose_config(&value, release_target, path);
+    }
+
+    if release_target.is_some() {
+        anyhow::bail!(
+            "--release-target can only be used with datarose.toml style configs: {}",
+            path.display()
+        );
+    }
+
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
+}
+
+fn is_datarose_config(value: &toml::Value) -> bool {
+    value
+        .get("release")
+        .and_then(|release| release.get("targets"))
+        .and_then(toml::Value::as_array)
+        .is_some()
+}
+
+fn load_datarose_config(
+    value: &toml::Value,
+    release_target: Option<&str>,
+    path: &Path,
+) -> Result<Config> {
+    let release = value
+        .get("release")
+        .and_then(toml::Value::as_table)
+        .with_context(|| format!("{} is missing [release]", path.display()))?;
+    let targets = release
+        .get("targets")
+        .and_then(toml::Value::as_array)
+        .with_context(|| format!("{} is missing [[release.targets]]", path.display()))?;
+    let target = select_datarose_target(targets, release_target, path)?;
+    let target_table = target
+        .as_table()
+        .with_context(|| format!("invalid release target in {}", path.display()))?;
+    let name = string_field(target_table, "name").with_context(|| {
+        format!(
+            "release target in {} is missing the required `name` field",
+            path.display()
+        )
+    })?;
+    let repository = string_field(target_table, "repository")
+        .or_else(|| string_field(target_table, "target_repository"))
+        .unwrap_or_else(|| format!("verzly/{name}"));
+    let source_repository = string_field(release, "source_repository").unwrap_or_default();
+    let target_branch = string_field(release, "target_branch").unwrap_or_else(|| "master".into());
+    let source_tag_prefix =
+        string_field(target_table, "source_tag_prefix").unwrap_or_else(|| format!("{name}-v"));
+
+    let mut config = Config {
+        prepare_commands: string_array_field(target_table, "prepare_commands"),
+        files: datarose_version_files(target_table, &name)?,
+        release: decode_table_field(target_table, "release")?.unwrap_or_else(|| ReleaseConfig {
+            target_branch: target_branch.clone(),
+            floating_tags: true,
+            latest_tag: true,
+            next_tag: true,
+            ..ReleaseConfig::default()
+        }),
+        source_release: decode_table_field(target_table, "source_release")?.or_else(|| {
+            Some(ReleaseConfig {
+                target_branch: target_branch.clone(),
+                tag_prefix: source_tag_prefix.clone(),
+                name_prefix: format!("{name} v"),
+                latest: false,
+                ..ReleaseConfig::default()
+            })
+        }),
+        github: decode_table_field(target_table, "github")?.unwrap_or_else(GitHubConfig::default),
+    };
+
+    if config.github.target_repository.is_empty() {
+        config.github.target_repository = repository;
+    }
+    if config.github.source_repository.is_empty() {
+        config.github.source_repository = source_repository;
+    }
+    if config.github.source_tag_prefix.is_empty() {
+        config.github.source_tag_prefix = source_tag_prefix;
+    }
+    if string_field(target_table, "generate_notes").is_some() {
+        // Ignore string values. This field is supported through [release.targets.github].
+    }
+    if let Some(value) = bool_field(target_table, "generate_notes") {
+        config.github.generate_notes = value;
+    } else if !target_table.contains_key("github") {
+        config.github.generate_notes = false;
+    }
+    if config.github.notes_body.is_empty() {
+        config.github.notes_body = default_distribution_notes_body();
+    }
+    if config.github.notes.include_scopes.is_empty() {
+        config.github.notes.include_scopes = string_array_field(target_table, "include_scopes");
+    }
+    if config.github.notes.include_paths.is_empty() {
+        config.github.notes.include_paths = string_array_field(target_table, "include_paths");
+    }
+    if !config.github.notes.include_scopes.is_empty()
+        || !config.github.notes.include_paths.is_empty()
+    {
+        config.github.notes.mode = NotesMode::Scoped;
+    }
+
+    Ok(config)
+}
+
+fn select_datarose_target<'a>(
+    targets: &'a [toml::Value],
+    release_target: Option<&str>,
+    path: &Path,
+) -> Result<&'a toml::Value> {
+    if let Some(release_target) = release_target {
+        for target in targets {
+            let Some(table) = target.as_table() else {
+                continue;
+            };
+            if string_field(table, "name").as_deref() == Some(release_target) {
+                return Ok(target);
+            }
+        }
+        anyhow::bail!(
+            "release target `{}` was not found in {}",
+            release_target,
+            path.display()
+        );
+    }
+
+    if targets.len() == 1 {
+        return Ok(&targets[0]);
+    }
+
+    anyhow::bail!(
+        "{} contains multiple release targets; pass --release-target <name>",
+        path.display()
+    )
+}
+
+fn datarose_version_files(
+    target_table: &toml::Table,
+    name: &str,
+) -> Result<Vec<VersionFileConfig>> {
+    if bool_field(target_table, "version_files") == Some(false) {
+        return Ok(Vec::new());
+    }
+
+    if let Some(files) = target_table.get("files") {
+        return files
+            .clone()
+            .try_into()
+            .context("failed to parse release target files");
+    }
+
+    let path = string_field(target_table, "version_file")
+        .unwrap_or_else(|| format!("crates/{name}/Cargo.toml"));
+    Ok(vec![VersionFileConfig {
+        path: PathBuf::from(path),
+        kind: VersionFileKind::Toml,
+        key: string_field(target_table, "version_key").unwrap_or_else(|| "package.version".into()),
+        value: string_field(target_table, "version_value").unwrap_or_else(|| "{version}".into()),
+        optional: bool_field(target_table, "version_file_optional").unwrap_or(false),
+        ..VersionFileConfig::default()
+    }])
+}
+
+fn decode_table_field<T>(table: &toml::Table, key: &str) -> Result<Option<T>>
+where
+    T: DeserializeOwned,
+{
+    let Some(value) = table.get(key) else {
+        return Ok(None);
+    };
+    value
+        .clone()
+        .try_into()
+        .with_context(|| format!("failed to parse `{key}` release target section"))
+        .map(Some)
+}
+
+fn string_field(table: &toml::Table, key: &str) -> Option<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn bool_field(table: &toml::Table, key: &str) -> Option<bool> {
+    table.get(key).and_then(toml::Value::as_bool)
+}
+
+fn string_array_field(table: &toml::Table, key: &str) -> Vec<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn default_distribution_notes_body() -> String {
+    r#"This version was developed in `verzly/toolchain`.
+
+Source changes for this package can be reviewed from `{previous_source_tag}` to `{source_tag}`:
+{source_compare_url}
+
+The distribution repository contains the public GitHub Action surface and release assets. Source changes and pull requests live in `verzly/toolchain`.
+"#
+    .into()
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
@@ -263,5 +481,38 @@ mod tests {
         assert_eq!(source.release.tag_prefix, "v");
         assert_eq!(source.github.target_repository, "verzly/example");
         assert!(source.github.generate_notes);
+    }
+    #[test]
+    fn loads_release_target_from_datarose_config() {
+        let raw = r#"version = 1
+
+[release]
+target_branch = "master"
+source_repository = "verzly/toolchain"
+
+[[release.targets]]
+name = "repository"
+repository = "verzly/repository"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/repository/Cargo.toml"
+include_scopes = ["repository", "all"]
+include_paths = ["crates/repository/"]
+"#;
+        let value: toml::Value = toml::from_str(raw).unwrap();
+
+        let config =
+            load_datarose_config(&value, Some("repository"), Path::new("datarose.toml")).unwrap();
+        let source = config.source_view();
+
+        assert_eq!(config.github.target_repository, "verzly/repository");
+        assert_eq!(config.github.source_repository, "verzly/toolchain");
+        assert_eq!(config.github.source_tag_prefix, "repository-v");
+        assert_eq!(config.github.notes.mode, NotesMode::Scoped);
+        assert_eq!(config.prepare_commands, vec!["cargo generate-lockfile"]);
+        assert_eq!(source.release.tag_prefix, "repository-v");
+        assert_eq!(
+            source.files[0].path,
+            PathBuf::from("crates/repository/Cargo.toml")
+        );
     }
 }

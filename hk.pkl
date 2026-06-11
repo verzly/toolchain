@@ -1,0 +1,63 @@
+amends "package://github.com/jdx/hk/releases/download/v1.47.0/hk@1.47.0#/Config.pkl"
+
+local defaultShell = new Script {
+  linux = "sh -o errexit -c"
+  macos = "sh -o errexit -c"
+  windows = "cmd /d /s /c"
+  other = "sh -o errexit -c"
+}
+
+local formatSteps = new Mapping<String, Step> {
+  ["format-rust"] {
+    shell = defaultShell
+    check = "cargo fmt --all -- --check"
+    fix = "cargo fmt --all"
+    stage = List("**/*.rs")
+  }
+}
+
+local qualitySteps = new Mapping<String, Step> {
+  ["check-datarose"] {
+    shell = defaultShell
+    check = "cargo run -p repository -- check --config \"datarose.toml\""
+  }
+
+  ["lint-rust"] {
+    shell = defaultShell
+    depends = List("format-rust", "check-datarose")
+    check = "cargo clippy --workspace --all-targets -- -D warnings"
+  }
+
+  ["test-rust"] {
+    shell = defaultShell
+    depends = List("format-rust", "lint-rust")
+    check = "cargo test --workspace --all-targets"
+  }
+}
+
+local fullQualitySteps = new Mapping<String, Step> {
+  ["format-rust"] = formatSteps["format-rust"]
+  ["check-datarose"] = qualitySteps["check-datarose"]
+  ["lint-rust"] = qualitySteps["lint-rust"]
+  ["test-rust"] = qualitySteps["test-rust"]
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps = formatSteps
+  }
+
+  ["pre-push"] {
+    steps = fullQualitySteps
+  }
+
+  ["fix"] {
+    fix = true
+    steps = formatSteps
+  }
+
+  ["check"] {
+    steps = fullQualitySteps
+  }
+}

@@ -12,6 +12,7 @@ rustup default stable
 cargo --version
 git --version
 gh --version
+mise --version
 ```
 
 Clone the source workspace and run checks from the repository root:
@@ -19,10 +20,14 @@ Clone the source workspace and run checks from the repository root:
 ```sh
 git clone git@github.com:verzly/toolchain.git
 cd toolchain
+mise install
+hk install
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
+
+The local `mise.toml` should include `hk`, `pkl`, and `rust@stable`. `repository doctor` is expected to suggest missing language tools instead of silently assuming they are globally installed.
 
 Build output is intentionally local to `.cache` through `.cargo/config.toml`. Do not wrap normal Cargo commands with `rust-cache run`.
 
@@ -54,15 +59,69 @@ chore(deps): update Rust dependencies
 Run individual tools with `cargo run` while developing:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
-cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
+cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
+cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
+cargo run -p repository -- plan
 ```
+
+A public release is not required for local testing. Cargo runs the current source directly:
+
+```sh
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- doctor
+```
+
+Build and run the local binary when you need to test the same executable path a release would expose:
+
+```sh
+cargo build -p repository
+.cache/rust/packages/toolchain/target/debug/repository plan
+```
+
+On Windows:
+
+```pwsh
+.\.cache\rust\packages\toolchain\target\debug\repository.exe plan
+```
+
+You can install the current source locally without publishing a release:
+
+```sh
+cargo install --path crates/repository --force
+repository plan
+```
+
+For a safe self-hosting check, preview the generated model first:
+
+```sh
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+```
+
+When the preview is correct and you intentionally want to refresh the workspace hook model, run:
+
+```sh
+cargo run -p repository -- init --force
+cargo run -p repository -- update
+mise exec -- repository check
+hk check
+```
+
+Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
+
+`repository` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repository update` preserves existing copies unless `--force` is passed. Use `datarose.toml` to store monorepo workspace paths and optional release targets for repeatable updates.
 
 ## Testing
 
 Before opening or merging a PR, run:
+
+```sh
+hk check
+```
+
+This executes the same formatting, linting, and test gates configured in `hk.pkl`. The toolchain repository is Rust-only, but `repository` can generate JS/TS/Vue and PHP gates for other repositories. The equivalent raw commands are:
 
 ```sh
 cargo fmt --all -- --check
@@ -70,12 +129,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-For workflow, config, and repository-boundary changes, also check the model guarded by `.github/workflows/test.yml`. Important invariants include:
+For release workflow and distribution changes, also keep the repository-boundary invariants intact. Important invariants include:
 
 ```text
 .codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
-crates/<tool>/github-release.toml exists
-crates/<tool>/cargo-release.toml exists
+datarose.toml contains one [[release.targets]] entry for each public tool
+datarose.toml exists
 crates/<tool>/README.md does not exist
 distribution/ and scripts/ do not exist
 ```
@@ -84,7 +143,7 @@ Prefer unit tests for planning, config, path handling, release note rendering, a
 
 ## GitHub Actions
 
-The main checks run through `.github/workflows/test.yml` on pull requests. It runs Rust checks and repository-model checks.
+The main checks run through `.github/workflows/test.yml` on pull requests. It runs the same `mise exec -- hk check` quality gate used locally.
 
 Public tool release workflows are:
 
@@ -94,19 +153,19 @@ Public tool release workflows are:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
+.github/workflows/release-repository.yml
 ```
 
 Maintainer workflows are:
 
 ```text
 .github/workflows/release-all.yml
-.github/workflows/release-toolchain.yml
 .github/workflows/delete-release.yml
 .github/workflows/update-floating-tags.yml
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/CONTRIBUTING/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
+Use `sync-distributions.yml` when only public README/CONTRIBUTING/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created from `datarose.toml` release targets. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 Generated release notes should compare against the previous full SemVer release tag from the same tag family. Do not use creation date ordering for notes ranges, because moving tags and repaired releases can make chronological tag order misleading.
 
@@ -132,20 +191,17 @@ After the PR is on `master`, run the appropriate workflow:
 
 ```text
 release-<tool>.yml       # one public tool
-release-all.yml          # every public tool, then toolchain
-release-toolchain.yml    # toolchain-only release
+release-all.yml          # every public tool
 delete-release.yml       # destructive release and tag cleanup
 sync-distributions.yml   # public README/CONTRIBUTING/action/LICENSE sync only
 update-floating-tags.yml # moving tag repair for public repositories
 ```
 
-Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public distribution bump commits, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
+Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions from `datarose.toml` release targets.
 
-Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit. If a re-release has no source diff because `master` already contains the requested version, finalization skips the squash commit and tags the current `master` commit instead.
+Single-tool releases squash-merge their temporary source branch back into `master`. `release-all.yml` runs the same reusable workflow once for each configured public target.
 
-After all required builds pass and before public `vX.Y.Z` tags are created, release workflows run `sync-distributions.yml` only for the repositories being released. The sync uses a release-specific `chore(distribution)` commit message and forces a bump commit even when the public files are already up to date, so the public release tag lands on the release bump commit.
-
-Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview. The root toolchain config keeps these disabled because the source repository should not receive moving distribution tags.
+Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview.
 
 Public distribution actions must also support those moving refs at runtime. When a workflow uses `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`, the composite action should resolve the requested action ref to the concrete version release tag on the same commit, then download executable assets from that immutable release.
 
@@ -154,3 +210,6 @@ Public distribution actions must also support those moving refs at runtime. When
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.
 
 Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.
+
+
+`repository update` prints warnings for deprecated, removed, or invalid `datarose.toml` settings. `repository check` is the non-mutating CI/pre-push guard and exits with `1` only for those configuration problems.

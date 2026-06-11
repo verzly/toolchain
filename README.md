@@ -15,7 +15,6 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 - [Release workflows](#release-workflows)
   - [Release one public tool](#release-one-public-tool)
   - [Release all tools](#release-all-tools)
-  - [Release toolchain only](#release-toolchain-only)
   - [Delete a release](#delete-a-release)
   - [Update floating tags](#update-floating-tags)
   - [Sync distribution repositories](#sync-distribution-repositories)
@@ -42,6 +41,8 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
+`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
+
 ### Repository model
 
 `verzly/toolchain` owns the source:
@@ -53,8 +54,10 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 crates/
 Cargo.toml
 Cargo.lock
-github-release.toml
-rust-cache.toml
+datarose.toml
+datarose.toml
+hk.pkl
+mise.toml
 ```
 
 Crate-level README files are intentionally not used. Maintainer documentation lives in this README, [AGENTS.md](AGENTS.md), and [CONTRIBUTING.md](CONTRIBUTING.md). Public user documentation lives in `.codex/distributions/<tool>/README.md` and is synchronized to the public repositories.
@@ -84,18 +87,80 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-For workflow and repository-boundary changes, also verify the model expected by `.github/workflows/test.yml`.
+The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repository` result. `mise.toml` pins `hk`, `pkl`, and `rust@stable` for local quality gates. After installing `mise`, run:
+
+```sh
+mise install
+mise exec -- hk install
+mise exec -- hk check
+```
+
+GitHub Actions use the same `mise exec -- hk check` gate that `repository` writes into repositories. The workflow cancels older PR runs when a newer push arrives and stops early for WIP commit subjects.
 
 ### Run a tool locally
+
+
+`repository` can also initialize monorepo subdirectories. The root `datarose.toml` stores the selected workspace path so future updates do not need it again:
+
+```sh
+cargo run -p repository -- init --workspace workspace/app
+cargo run -p repository -- update
+```
+
+Generated project-local files are intentionally overrideable. `repository update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
+
+
+Validate `datarose.toml` without rewriting files:
+
+```sh
+repository check
+repository check --config config/datarose.toml
+```
+
+The check command exits with `1` only when it finds removed, deprecated, or invalid Datarose settings. It is also included in generated `hk` pre-push checks.
+
+`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
-cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
-cargo run -p tauri-release -- plan --config crates/tauri-release/tauri-release.toml
+cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
+cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
+cargo run -p tauri-release -- plan --config datarose.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
+cargo run -p repository -- plan
+```
+
+A tool does not need a public release before you can test it locally. Cargo can run the current source directly:
+
+```sh
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- plan
+cargo run -p repository -- doctor
+```
+
+`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
+
+Build and run the local executable when you want to test the exact binary entry point:
+
+```sh
+cargo build -p repository
+.cache/rust/packages/toolchain/target/debug/repository plan
+```
+
+On Windows, run the built executable with `.exe`:
+
+```pwsh
+.\.cache\rust\packages\toolchain\target\debug\repository.exe plan
+```
+
+You can also install the current source into your local Cargo bin directory without a GitHub Release:
+
+```sh
+cargo install --path crates/repository --force
+repository plan
 ```
 
 Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
@@ -109,7 +174,7 @@ Cargo output is routed by the checked-in config:
 target-dir = ".cache/rust/packages/toolchain/target"
 ```
 
-The root `rust-cache.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`.
+The root `datarose.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`.
 
 ## Release Workflows
 
@@ -123,6 +188,7 @@ Use the matching workflow when one tool needs a public release:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
+.github/workflows/release-repository.yml
 ```
 
 The flow is:
@@ -142,31 +208,25 @@ Source finalization uses a squash merge by default. The release branch may conta
 
 ### Release all tools
 
-Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
+Use `.github/workflows/release-all.yml` to release every configured public distribution target from `datarose.toml` with one version input.
 
-The workflow is a visible two-phase dependency graph. It replaces a stale aggregate source branch from a previous failed run, prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, sync the released public distribution repositories with release-specific bump commits, publish public releases with the already-built assets, and publish the final toolchain release.
+The generated workflow runs the shared `_release-datarose-tool.yml` workflow once per target. Each target prepares its source release branch, runs the quality gate, builds assets from its `datarose.toml` target, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
 
 ```text
-preflight
-prepare release/all-vX.Y.Z source branch
-test prepared source branch
-build cargo-release assets
-build github-release / tauri-release / rust-cache / android-signing assets
-github-release finalize-batch
-sync released distribution repositories
-publish all public distribution releases
-publish toolchain release
+release-all.yml
+→ _release-datarose-tool.yml for github-release
+→ _release-datarose-tool.yml for cargo-release
+→ _release-datarose-tool.yml for tauri-release
+→ _release-datarose-tool.yml for rust-cache
+→ _release-datarose-tool.yml for android-signing
+→ _release-datarose-tool.yml for repository
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release. Public distribution tags are created only after the matching distribution repository has received a release-specific `chore(distribution)` bump commit, so the public `vX.Y.Z` tag points at that bump commit.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
 
 Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
 
 The public composite actions support those moving refs as action pins. A workflow can use `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`; the action reads the requested ref, resolves it to the concrete version tag on the same commit, and downloads the executable from that release. Executable assets remain attached to immutable `vX.Y.Z` releases instead of duplicated onto moving tags.
-
-### Release toolchain only
-
-Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in `verzly/toolchain` without executable assets. It uses the root `github-release.toml` and creates the clean source tag `vX.Y.Z`.
 
 ### Delete a release
 
@@ -176,7 +236,7 @@ Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository 
 
 ### Update floating tags
 
-Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags`, reads each tool's `crates/<tool>/github-release.toml`, and skips configs where all moving tag families are disabled.
+Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags --config datarose.toml --release-target <tool>` and skips targets where all moving tag families are disabled.
 
 Modes:
 
@@ -186,7 +246,7 @@ version  analyze one version input such as 1.2.3 or 1.3.0-rc.1
 tag      analyze one full tag such as v1.2.3 or v1.3.0-rc.1
 ```
 
-The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The root `verzly/toolchain` release config keeps these tags disabled.
+The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The source repository does not update distribution moving tags.
 
 ### Sync distribution repositories
 
@@ -205,11 +265,11 @@ chore(distribution): bump public surface
 Each public tool owns:
 
 ```text
-crates/<tool>/github-release.toml
-crates/<tool>/cargo-release.toml
+datarose.toml
+datarose.toml
 ```
 
-`github-release.toml` contains both release contexts. `[source_release]` controls the temporary source branch and source tag in `verzly/toolchain`; `[release]` controls the public `vX.Y.Z` release in `verzly/<tool>`.
+`datarose.toml` contains the per-tool `github-release` context. Each `[[release.targets]]` entry controls the source tag prefix, public repository, version file, scoped release notes, and prepare commands for one public distribution. `datarose.toml` also contains the executable artifact build configuration.
 
 For public distribution repositories, `[release]` also enables moving tags:
 
@@ -267,6 +327,7 @@ verzly/cargo-release
 verzly/tauri-release
 verzly/rust-cache
 verzly/android-signing
+verzly/repository
 ```
 
 They are distribution surfaces only. Development happens in `verzly/toolchain`.

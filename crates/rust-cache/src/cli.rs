@@ -29,7 +29,7 @@ pub enum Commands {
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
 pub struct InitArgs {
-    #[arg(short, long, default_value = "rust-cache.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     #[arg(short, long, default_value_t = false)]
@@ -39,14 +39,14 @@ pub struct InitArgs {
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
 pub struct CommonArgs {
-    #[arg(short, long, default_value = "rust-cache.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
 pub struct RunArgs {
-    #[arg(short, long, default_value = "rust-cache.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Command to run after `--`.
@@ -66,7 +66,7 @@ mod tests {
             "rust-cache",
             "run",
             "--config",
-            "cache.toml",
+            "datarose.toml",
             "--",
             "cargo",
             "test",
@@ -77,7 +77,7 @@ mod tests {
             panic!("expected run command");
         };
 
-        assert_eq!(args.config, PathBuf::from("cache.toml"));
+        assert_eq!(args.config, PathBuf::from("datarose.toml"));
         assert_eq!(args.command, vec!["cargo", "test", "--workspace"]);
     }
 }

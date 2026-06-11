@@ -17,7 +17,7 @@ pub fn run(args: PublishArgs) -> Result<()> {
         anyhow::bail!("use either --notes or --notes-file, not both");
     }
 
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config, args.release_target.as_deref())?;
     let plan = domain::build_plan(&config, &args.version, None, None, Some(args.prerelease))?;
 
     output::print_plan(&plan);

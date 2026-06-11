@@ -38,7 +38,7 @@ It is intentionally focused on building and collecting artifacts. It does not cr
 
 ### How it works
 
-`cargo-release` reads `cargo-release.toml`, resolves enabled targets, runs each target's build command either on the host or inside a configured Docker/Podman container, copies configured artifact paths into `dist/<tool>`, writes `.sha256` files when enabled, and writes a JSON manifest when enabled.
+`cargo-release` reads `datarose.toml`, resolves enabled targets, runs each target's build command either on the host or inside a configured Docker/Podman container, copies configured artifact paths into `dist/<tool>`, writes `.sha256` files when enabled, and writes a JSON manifest when enabled.
 
 The tool separates target planning from release publishing. That makes it useful locally, in CI, and inside larger workflows that publish artifacts only after all builds succeed.
 
@@ -60,7 +60,7 @@ Use `cargo-release` when you want to:
 ```yaml
 - uses: verzly/cargo-release@v1
   with:
-    args: build --version 1.2.3 --config cargo-release.toml
+    args: build --version 1.2.3 --config datarose.toml
 ```
 
 Install and run later:
@@ -70,7 +70,7 @@ Install and run later:
   with:
     install-only: "true"
 
-- run: cargo-release build --version 1.2.3 --config crates/my-tool/cargo-release.toml
+- run: cargo-release build --version 1.2.3 --config datarose.toml
 ```
 
 The composite action detects the runner operating system and CPU architecture, maps that host to a Rust-style target name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
@@ -102,11 +102,11 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 
 ```sh
 cargo-release init
-cargo-release plan --config cargo-release.toml
-cargo-release build --version 1.2.3 --config cargo-release.toml
+cargo-release plan --config datarose.toml
+cargo-release build --version 1.2.3 --config datarose.toml
 cargo-release build --version 1.2.3 --target linux-x64
-cargo-release clean --config cargo-release.toml
-cargo-release doctor --config cargo-release.toml
+cargo-release clean --config datarose.toml
+cargo-release doctor --config datarose.toml
 ```
 
 
@@ -127,20 +127,20 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `cargo-release.toml` | File path | Where the starter config should be written. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Where the starter config should be written. |
 | `-f`, `--force` | No | `false` | Boolean flag | Overwrite an existing config file. |
 
 #### `plan`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `cargo-release.toml` | File path | Config file to read. Prints enabled targets, strategies, commands, and artifacts. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. Prints enabled targets, strategies, commands, and artifacts. |
 
 #### `build`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `cargo-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `-v`, `--version` | No | Package/runtime value when available | Version string such as `1.2.3` | Used in artifact file names through the `{version}` template value. |
 | `--target` | No | all enabled targets | Target key from `[targets.<key>]`, for example `linux-x64` | Builds only one configured target. Fails if the key is unknown or disabled. |
 | `--dry-run` | No | `false` | Boolean flag | Prints commands and planned artifact work without running build commands or copying files. |
@@ -149,13 +149,13 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `cargo-release.toml` | File path | Reads the config and removes generated output directories owned by this tool. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Reads the config and removes generated output directories owned by this tool. |
 
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `cargo-release.toml` | File path | Checks local tool availability and reports obvious target configuration issues. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Checks local tool availability and reports obvious target configuration issues. |
 
 ## Configuration
 
@@ -207,7 +207,7 @@ artifacts = ["target/release/my-tool"]
 ### Build all configured targets
 
 ```sh
-cargo-release build --config cargo-release.toml --version 1.4.0
+cargo-release build --config datarose.toml --version 1.4.0
 ```
 
 This runs every enabled target, copies matching artifacts into the configured output directory, writes checksums when enabled, and writes a manifest when enabled.
@@ -215,8 +215,8 @@ This runs every enabled target, copies matching artifacts into the configured ou
 ### Build one target while debugging
 
 ```sh
-cargo-release build --config cargo-release.toml --version 1.4.0 --target linux-x64 --dry-run
-cargo-release build --config cargo-release.toml --version 1.4.0 --target linux-x64
+cargo-release build --config datarose.toml --version 1.4.0 --target linux-x64 --dry-run
+cargo-release build --config datarose.toml --version 1.4.0 --target linux-x64
 ```
 
 Use `--dry-run` before changing container images or commands. It shows what would run without creating artifacts.
@@ -224,7 +224,7 @@ Use `--dry-run` before changing container images or commands. It shows what woul
 ### Keep local machines clean
 
 ```sh
-rust-cache run --config rust-cache.toml -- cargo-release build --config cargo-release.toml --version 1.4.0
+rust-cache run --config datarose.toml -- cargo-release build --config datarose.toml --version 1.4.0
 ```
 
 `cargo-release` owns artifact production. `rust-cache` can wrap it when you want `target/` and related cache paths outside the source tree.

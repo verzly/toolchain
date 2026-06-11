@@ -6,7 +6,7 @@ use anyhow::Result;
 use std::fs;
 
 pub fn run(args: CommonArgs) -> Result<()> {
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config, args.release_target.as_deref())?;
     let path = &config.build.out_dir;
     if path.exists() {
         fs::remove_dir_all(path)?;

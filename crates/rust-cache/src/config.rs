@@ -87,18 +87,95 @@ pub fn load(path: &Path) -> Result<Config> {
     }
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let mut config: Config =
+    let value: toml::Value =
         toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
+    let mut config: Config = if is_datarose_config(&value) {
+        load_datarose_config(&value)
+    } else {
+        toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?
+    };
     config.apply_env_defaults();
     Ok(config)
+}
+
+fn is_datarose_config(value: &toml::Value) -> bool {
+    value.get("rust_cache").is_some()
+}
+
+fn load_datarose_config(value: &toml::Value) -> Config {
+    let mut config = Config::default();
+    let Some(root) = value.get("rust_cache") else {
+        return config;
+    };
+
+    if let Some(cache) = root.get("cache").and_then(toml::Value::as_table) {
+        if let Some(dir) = string_field(cache, "dir") {
+            config.cache.dir = PathBuf::from(dir);
+        }
+        if let Some(package) = string_field(cache, "package") {
+            config.cache.package = package;
+        }
+        if let Some(value) = bool_field(cache, "redirect_cargo_home") {
+            config.cache.redirect_cargo_home = value;
+        }
+        if let Some(value) = bool_field(cache, "redirect_gradle") {
+            config.cache.redirect_gradle = value;
+        }
+    }
+
+    if let Some(cargo) = root.get("cargo").and_then(toml::Value::as_table) {
+        if let Some(target_dir) = string_field(cargo, "target_dir") {
+            config.cargo.target_dir = target_dir;
+        }
+    }
+
+    if let Some(env) = root.get("env").and_then(toml::Value::as_table) {
+        config.env.clear();
+        for (key, value) in env {
+            if let Some(value) = value.as_str() {
+                config.env.insert(key.clone(), value.to_string());
+            }
+        }
+    }
+
+    config
+}
+
+fn string_field(table: &toml::value::Table, key: &str) -> Option<String> {
+    table.get(key)?.as_str().map(ToOwned::to_owned)
+}
+
+fn bool_field(table: &toml::value::Table, key: &str) -> Option<bool> {
+    table.get(key)?.as_bool()
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
     if path.exists() && !force {
         anyhow::bail!("config already exists: {}", path.display());
     }
-    fs::write(path, toml::to_string_pretty(&Config::default())?)?;
+    fs::write(path, render_datarose_default_config())?;
     Ok(())
+}
+
+fn render_datarose_default_config() -> String {
+    r#"version = 1
+
+[rust_cache.cache]
+dir = ".cache"
+package = "auto"
+redirect_cargo_home = false
+redirect_gradle = true
+
+[rust_cache.cargo]
+target_dir = "rust/packages/{package}/target"
+
+[rust_cache.env]
+GRADLE_USER_HOME = "android/gradle"
+NPM_CONFIG_CACHE = "js/npm"
+YARN_CACHE_FOLDER = "js/yarn"
+PNPM_STORE_PATH = "js/pnpm-store"
+"#
+    .to_string()
 }
 
 pub fn ensure_config(path: &Path, force: bool) -> Result<Config> {

@@ -16,6 +16,7 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
+          - repository
       mode:
         description: "How to choose release tags for moving tag repair."
         required: true
@@ -45,7 +46,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repository
 
 jobs:
   update:
@@ -82,7 +83,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            all|github-release|cargo-release|tauri-release|rust-cache|android-signing|repository) ;;
             *) echo "::error::Unsupported target: ${TARGET}"; exit 1 ;;
           esac
 
@@ -117,7 +118,7 @@ jobs:
               exit 1
             fi
 
-            args=(floating-tags --config "crates/${tool}/github-release.toml")
+            args=(floating-tags --config datarose.toml --release-target "${tool}")
             case "${MODE}" in
               all) args+=(--all) ;;
               version) args+=(--version "${VERSION#v}") ;;

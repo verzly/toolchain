@@ -19,7 +19,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Write a starter tauri-release.toml file.
+    /// Write Tauri release defaults into a datarose.toml file.
     Init(InitArgs),
     /// Print the configured build plan.
     Plan(CommonArgs),
@@ -34,7 +34,7 @@ pub enum Commands {
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct InitArgs {
-    #[arg(short, long, default_value = "tauri-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     #[arg(short, long, default_value_t = false)]
@@ -44,14 +44,14 @@ pub struct InitArgs {
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct CommonArgs {
-    #[arg(short, long, default_value = "tauri-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct BuildArgs {
-    #[arg(short, long, default_value = "tauri-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Build only this platform key.
@@ -74,7 +74,7 @@ mod tests {
             "tauri-release",
             "build",
             "--config",
-            "tauri-release.toml",
+            "datarose.toml",
             "--platform",
             "android",
             "--dry-run",
@@ -84,7 +84,7 @@ mod tests {
             panic!("expected build command");
         };
 
-        assert_eq!(args.config, PathBuf::from("tauri-release.toml"));
+        assert_eq!(args.config, PathBuf::from("datarose.toml"));
         assert_eq!(args.platform.as_deref(), Some("android"));
         assert!(args.dry_run);
     }

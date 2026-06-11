@@ -1,11 +1,11 @@
-name: Release Toolchain
-run-name: Release toolchain ${{ inputs.version }} ${{ inputs.orchestrator }}
+name: Release Repository
+run-name: Release repository ${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, without the leading v. Examples: 1.2.3, 1.2.3-rc.1"
+        description: "Version to release, without the leading v."
         required: true
       prerelease:
         description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
@@ -16,17 +16,17 @@ on:
           - auto
           - "true"
           - "false"
-      orchestrator:
-        description: "Internal identifier used by release-all to track the dispatched workflow run."
-        required: false
-        default: ""
 
 permissions:
   contents: write
 
 jobs:
   release:
-    uses: ./.github/workflows/_release-toolchain.yml
+    uses: ./.github/workflows/_release-datarose-tool.yml
     with:
+      tool: repository
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
+      distribution-path: .codex/distributions/repository
+    secrets:
+      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

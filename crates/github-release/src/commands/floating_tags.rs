@@ -13,7 +13,7 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
         anyhow::bail!("use exactly one of --version, --tag, or --all");
     }
 
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config, args.release_target.as_deref())?;
     let options = if args.force {
         FloatingTagOptions::force_all()
     } else {

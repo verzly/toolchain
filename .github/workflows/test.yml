@@ -14,206 +14,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
-    name: Rust workspace
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --workspace --all-targets
-
-  repository-model:
-    name: Repository model
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Validate repository boundaries
+      - name: Stop WIP commits
         shell: bash
         run: |
           set -euo pipefail
-          test ! -d "_repos"
-          test ! -d "distribution"
-          test ! -d "scripts"
-          test -f "Cargo.lock"
-          test -f "github-release.toml"
-          test -f "rust-cache.toml"
-          test -f ".cargo/config.toml"
-          grep -Fq '/_repos/' ".gitignore"
-          test ! -f "crates/rust-cache/rust-cache.toml"
-          grep -Fq 'target-dir = ".cache/rust/packages/toolchain/target"' ".cargo/config.toml"
-          grep -Fq 'target_dir = "rust/packages/{package}/target"' "rust-cache.toml"
-          ! grep -R -Fq "rust-cache run" ".github/workflows"
-          test -f ".github/workflows/_release-toolchain.yml"
-          test -f ".github/workflows/_release-build-assets.yml"
-          test -f ".github/workflows/release-toolchain.yml"
-          test -f ".github/workflows/release-all.yml"
-          test -f ".github/workflows/delete-release.yml"
-          test -f ".github/workflows/update-floating-tags.yml"
-          test -f ".github/workflows/sync-distributions.yml"
-          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to push distribution repository commits' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'workflow_call:' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'force-commit:' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'chore(distribution): bump public surface' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'git commit --allow-empty -m "${COMMIT_MESSAGE}"' ".github/workflows/sync-distributions.yml"
-          grep -Fq '.codex/distributions/${tool}' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'CONTRIBUTING.md' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'git clone "https://x-access-token:${GH_TOKEN}@github.com/${repository}.git"' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'find "${target_dir}" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +' ".github/workflows/sync-distributions.yml"
-          grep -Fq 'DISTRIBUTION_REPO_TOKEN:' ".github/workflows/_release-tool.yml"
-          grep -Fq 'required: false' ".github/workflows/_release-tool.yml"
-          grep -Fq 'GH_TOKEN:' ".github/workflows/_release-tool.yml"
-          grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN' ".github/workflows/_release-tool.yml"
-          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required' ".github/workflows/release-all.yml"
-          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to update public distribution floating tags' ".github/workflows/update-floating-tags.yml"
-          grep -Fq 'github-release "${args[@]}"' ".github/workflows/update-floating-tags.yml"
-          grep -Fq 'args=(floating-tags --config "crates/${tool}/github-release.toml")' ".github/workflows/update-floating-tags.yml"
-          grep -Fq 'DISTRIBUTION_REPO_TOKEN is required to delete public distribution releases and tags' ".github/workflows/delete-release.yml"
-          grep -Fq 'run-name: Delete release ' ".github/workflows/delete-release.yml"
-          ! grep -Fq 'run-name: Delete release v' ".github/workflows/delete-release.yml"
-          grep -Fq 'Version to delete without the v prefix' ".github/workflows/delete-release.yml"
-          grep -Fq 'Version must be provided without the v prefix' ".github/workflows/delete-release.yml"
-          grep -Fq 'expected_confirmation="DELETE ${version}"' ".github/workflows/delete-release.yml"
-          grep -Fq 'check_repository_access "verzly/${tool}" "${DISTRIBUTION_TOKEN}" "DISTRIBUTION_REPO_TOKEN"' ".github/workflows/delete-release.yml"
-          grep -Fq 'repos/${repository}/releases/tags/${tag}' ".github/workflows/delete-release.yml"
-          grep -Fq 'gh api --method DELETE "repos/${repository}/releases/${release_id}"' ".github/workflows/delete-release.yml"
-          ! grep -Fq -- '--cleanup-tag' ".github/workflows/delete-release.yml"
-          grep -Fq 'gh api --method DELETE "repos/${repository}/git/refs/tags/${tag}"' ".github/workflows/delete-release.yml"
-          grep -Fq 'delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}"' ".github/workflows/delete-release.yml"
-          grep -Fq 'Release All must be run from master' ".github/workflows/release-all.yml"
-          grep -Fq 'Deleting stale aggregate source release branch' ".github/workflows/release-all.yml"
-          grep -Fq 'Release workflows must be run from master' ".github/workflows/_release-tool.yml"
-          grep -Fq 'git ls-remote --exit-code --tags' ".github/workflows/_release-tool.yml"
-          grep -Fq 'name: Release all preflight' ".github/workflows/release-all.yml"
-          grep -Fq 'uses: ./.github/workflows/_release-toolchain.yml' ".github/workflows/release-all.yml"
-          grep -Fq 'prepare_source_branch:' ".github/workflows/release-all.yml"
-          grep -Fq 'test_sources:' ".github/workflows/release-all.yml"
-          grep -Fq 'build_cargo_release:' ".github/workflows/release-all.yml"
-          grep -Fq 'build_assets:' ".github/workflows/release-all.yml"
-          grep -Fq 'finalize_source_batch:' ".github/workflows/release-all.yml"
-          grep -Fq 'sync_distributions:' ".github/workflows/release-all.yml"
-          grep -Fq 'publish_distributions:' ".github/workflows/release-all.yml"
-          grep -Fq 'release/all-v${VERSION}' ".github/workflows/release-all.yml"
-          grep -Fq -- '--reuse-branch' ".github/workflows/release-all.yml"
-          grep -Fq 'github-release finalize-batch' ".github/workflows/release-all.yml"
-          grep -Fq "needs.finalize_source_batch.result == 'failure'" ".github/workflows/release-all.yml"
-          grep -Fq 'release branch {} has no source changes to squash' "crates/github-release/src/commands/finalize.rs"
-          grep -Fq 'failed to delete release branch after finalize error' "crates/github-release/src/commands/finalize.rs"
-          grep -Fq 'source_tag_args+=(--source-tag "${tool}-v${VERSION}")' ".github/workflows/release-all.yml"
-          grep -Fq 'Squashed commits:' "crates/github-release/src/commands/finalize.rs"
-          grep -Fq 'normalize_pull_request_links' "crates/github-release/src/github.rs"
-          grep -Fq 'is_markdown_link_destination' "crates/github-release/src/github.rs"
-          grep -Fq 'previous_generated_notes_tag' "crates/github-release/src/github.rs"
-          grep -Fq 'previous_tag_name={previous_tag_name}' "crates/github-release/src/github.rs"
-          grep -Fq 'previous_version_tag' "crates/github-release/src/github.rs"
-          grep -Fq 'latest_tag_name' "crates/github-release/src/github.rs"
-          grep -Fq 'next_tag_name' "crates/github-release/src/github.rs"
-          grep -Fq 'version_from_tag_for_release' "crates/github-release/src/github.rs"
-          grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/_release-tool.yml"
-          grep -Fq 'uses: ./.github/workflows/_release-build-assets.yml' ".github/workflows/release-all.yml"
-          grep -Fq 'use_prebuilt_cargo_release: true' ".github/workflows/release-all.yml"
-          grep -Fq 'use_prebuilt_cargo_release: false' ".github/workflows/release-all.yml"
-          grep -Fq 'name: Add built cargo-release to PATH' ".github/workflows/_release-build-assets.yml"
-          grep -Fq 'macos-15-intel' ".github/workflows/_release-build-assets.yml"
-          ! grep -Fq 'macos-13' ".github/workflows/_release-build-assets.yml"
-          grep -Fq 'github-release prepare' ".github/workflows/release-all.yml"
-          grep -Fq 'cargo-release build' ".github/workflows/_release-build-assets.yml"
-          grep -Fq -- '--merge-strategy squash' ".github/workflows/_release-tool.yml"
-          grep -Fq 'github-release publish' ".github/workflows/release-all.yml"
-          grep -Fq 'uses: ./.github/workflows/sync-distributions.yml' ".github/workflows/release-all.yml"
-          version_expression="$(printf '%s%s %s %s' '$' '{{' 'inputs.version' '}}')"
-          action_ref_expression="$(printf '%s%s %s %s' '$' '{{' 'github.action_ref' '}}')"
-          distribution_release_message="commit-message: \"chore(distribution): bump public surface for v${version_expression} release\""
-          grep -Fq "${distribution_release_message}" ".github/workflows/release-all.yml"
-          grep -Fq 'force-commit: true' ".github/workflows/release-all.yml"
-          grep -Fq 'name: Build cargo-release assets' ".github/workflows/release-all.yml"
-          grep -Fq -- '- build_cargo_release' ".github/workflows/release-all.yml"
-          grep -Fq -- '- sync_distributions' ".github/workflows/release-all.yml"
-          grep -Fq 'needs: publish_distributions' ".github/workflows/release-all.yml"
-          grep -Fq 'MergeStrategy::Squash' "crates/github-release/src/cli.rs"
-          grep -Fq 'FinalizeBatch' "crates/github-release/src/cli.rs"
-          grep -Fq '"merge", "--squash"' "crates/github-release/src/commands/finalize.rs"
-          grep -Fq 'squash_merge_body' "crates/github-release/src/commands/finalize.rs"
-          grep -Fq 'reuse_branch' "crates/github-release/src/commands/prepare.rs"
-          ! grep -Fq 'gh workflow run' ".github/workflows/release-all.yml"
-          ! grep -Fq 'gh run watch' ".github/workflows/release-all.yml"
-          ! grep -Fq 'Refresh source lockfile' ".github/workflows/_release-tool.yml"
-          ! grep -Fq 'Refresh source lockfile' ".github/workflows/release-all.yml"
-          grep -Fq 'prepare_commands = ["cargo generate-lockfile"]' "crates/github-release/github-release.toml"
-          grep -Fq 'run_prepare_commands' "crates/github-release/src/commands/prepare.rs"
-          ! grep -Fq 'source/_repos' ".github/workflows/_release-tool.yml"
-          ! grep -Fq 'rsync -a --delete' ".github/workflows/_release-tool.yml"
-          grep -Fq 'sync_distribution:' ".github/workflows/_release-tool.yml"
-          grep -Fq 'uses: ./.github/workflows/sync-distributions.yml' ".github/workflows/_release-tool.yml"
-          grep -Fq "${distribution_release_message}" ".github/workflows/_release-tool.yml"
-          grep -Fq 'force-commit: true' ".github/workflows/_release-tool.yml"
-          grep -Fq 'github-release publish' ".github/workflows/_release-tool.yml"
-          grep -Fq 'actions/upload-artifact@v7' ".github/workflows/_release-build-assets.yml"
-          grep -Fq 'actions/download-artifact@v8' ".github/workflows/_release-tool.yml"
-          ! grep -Fq 'actions/upload-artifact@v4' ".github/workflows/_release-tool.yml"
-          ! grep -Fq 'actions/download-artifact@v4' ".github/workflows/_release-tool.yml"
-          ! grep -Fq 'secrets.DISTRIBUTION_REPO_TOKEN || github.token' \
-            ".github/workflows/_release-tool.yml" \
-            ".github/workflows/_release-build-assets.yml" \
-            ".github/workflows/_release-toolchain.yml" \
-            ".github/workflows/release-all.yml" \
-            ".github/workflows/release-android-signing.yml" \
-            ".github/workflows/release-cargo-release.yml" \
-            ".github/workflows/release-github-release.yml" \
-            ".github/workflows/release-rust-cache.yml" \
-            ".github/workflows/release-tauri-release.yml" \
-            ".github/workflows/release-toolchain.yml" \
-            ".github/workflows/delete-release.yml" \
-            ".github/workflows/update-floating-tags.yml"
-          grep -Fq "target_repository = \"verzly/toolchain\"" "github-release.toml"
-          grep -Fq "tag_prefix = \"v\"" "github-release.toml"
-          grep -Fq "floating_tags = false" "github-release.toml"
-          grep -Fq "latest_tag = false" "github-release.toml"
-          grep -Fq "next_tag = false" "github-release.toml"
-          for tool in github-release cargo-release tauri-release rust-cache android-signing; do
-            test -f "crates/${tool}/Cargo.toml"
-            test ! -f "crates/${tool}/README.md"
-            test ! -f "crates/${tool}/source-github-release.toml"
-            test -f "crates/${tool}/github-release.toml"
-            test -f "crates/${tool}/cargo-release.toml"
-            test -f ".codex/distributions/${tool}/README.md"
-            test -f ".codex/distributions/${tool}/CONTRIBUTING.md"
-            test -f ".codex/distributions/${tool}/action.yml"
-            test -f ".codex/distributions/${tool}/LICENSE"
-            grep -Fq "${tool} --help" ".codex/distributions/${tool}/README.md"
-            grep -Fq "${tool} <command> --help" ".codex/distributions/${tool}/README.md"
-            ! grep -Fq "## Contributing" ".codex/distributions/${tool}/README.md"
-            distribution_file_count="$(find ".codex/distributions/${tool}" -maxdepth 1 -type f | wc -l)"
-            test "${distribution_file_count}" -eq 4
-            grep -Fq "target_repository = \"verzly/${tool}\"" "crates/${tool}/github-release.toml"
-            grep -Fq "source_repository = \"verzly/toolchain\"" "crates/${tool}/github-release.toml"
-            grep -Fq "[source_release]" "crates/${tool}/github-release.toml"
-            grep -Fq "tag_prefix = \"${tool}-v\"" "crates/${tool}/github-release.toml"
-            grep -Fq "path = \"crates/${tool}/Cargo.toml\"" "crates/${tool}/github-release.toml"
-            grep -Fq "tag_prefix = \"v\"" "crates/${tool}/github-release.toml"
-            grep -Fq "floating_tags = true" "crates/${tool}/github-release.toml"
-            grep -Fq "latest_tag = true" "crates/${tool}/github-release.toml"
-            grep -Fq "next_tag = true" "crates/${tool}/github-release.toml"
-            grep -Fq "ACTION_REF: ${action_ref_expression}" ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'resolve_release_tag_for_selector' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'candidate_prefix_for_selector' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'semver_sort_key' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'is_exact_release_tag "${selector}" && release_has_asset "${selector}" "${pattern}"' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'release_has_asset "${candidate}" "${pattern}"' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'Resolved ${REPOSITORY}@${TAG} to release ${RELEASE_TAG}.' ".codex/distributions/${tool}/action.yml"
-            grep -Fq 'gh release download "${RELEASE_TAG}"' ".codex/distributions/${tool}/action.yml"
-            grep -Fq "mode = \"scoped\"" "crates/${tool}/github-release.toml"
-            grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
-            grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"
-          done
+          subject="$(git log -1 --pretty=%s)"
+          normalized="$(printf '%s' "${subject}" | tr '[:upper:]' '[:lower:]')"
+          case "${normalized}" in
+            wip|wip:*|wip\ -*|wip\ *)
+              echo "::error::WIP commit detected: ${subject}"
+              echo "Rename the commit before running the full quality workflow."
+              exit 1
+              ;;
+          esac
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Quality gate
+        run: mise exec -- hk check

@@ -8,7 +8,7 @@ on:
         description: "Version to delete without the v prefix. Example: 1.2.3."
         required: true
       target:
-        description: "Release target to delete. All deletes public tool releases, source tags, and the toolchain release."
+        description: "Release target to delete. All deletes public tool releases and package-prefixed source tags."
         required: true
         type: choice
         default: all
@@ -20,6 +20,7 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
+          - repository
       confirm:
         description: "Type DELETE X.Y.Z to confirm destructive release and tag deletion."
         required: true
@@ -32,7 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repository
 
 jobs:
   delete:
@@ -71,7 +72,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing) ;;
+            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing|repository) ;;
             *) echo "::error::Unsupported delete target: ${TARGET}"; exit 1 ;;
           esac
 
