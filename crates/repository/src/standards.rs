@@ -58,6 +58,32 @@ pub fn style_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
     files
 }
 
+pub fn write_files(files: &[ManagedFile]) -> Result<Vec<WriteOutcome>> {
+    let mut outcomes = Vec::new();
+
+    for file in files {
+        if file.path.exists() && !file.force {
+            outcomes.push(WriteOutcome::Kept(file.path.clone()));
+            continue;
+        }
+
+        if let Some(parent) = file.path.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!(
+                    "failed to create parent directory for {}",
+                    file.path.display()
+                )
+            })?;
+        }
+
+        fs::write(&file.path, &file.content)
+            .with_context(|| format!("failed to write {}", file.path.display()))?;
+        outcomes.push(WriteOutcome::Wrote(file.path.clone()));
+    }
+
+    Ok(outcomes)
+}
+
 pub fn editorconfig() -> String {
     r#"root = true
 
