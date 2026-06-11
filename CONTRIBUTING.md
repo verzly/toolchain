@@ -110,7 +110,7 @@ mise exec -- hk check
 
 Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
 
-`repo-quality` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repo-quality update` preserves existing copies unless `--force` is passed. Use `.repo-quality.toml` to store monorepo workspace paths for repeatable updates.
+`repo-quality` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repo-quality update` preserves existing copies unless `--force` is passed. Use `datarose.toml` to store monorepo workspace paths and optional release targets for repeatable updates.
 
 ## Testing
 

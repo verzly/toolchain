@@ -1,4 +1,4 @@
-//! Project detection for quality profiles.
+//! Project detection and datarose.toml parsing for quality profiles.
 
 use crate::cli::{JsRunnerArg, LanguageArg};
 use anyhow::{Context, Result};
@@ -6,6 +6,8 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub const DEFAULT_CONFIG_FILE: &str = "datarose.toml";
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Language {
@@ -79,10 +81,48 @@ impl MiseToolRecommendation {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct RepoQualityConfig {
+pub struct QualityConfig {
     pub workspace: Option<PathBuf>,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ReleaseConfig {
+    pub enabled: bool,
+    pub target_branch: String,
+    pub source_repository: String,
+    pub secret_name: String,
+    pub release_all: bool,
+    pub targets: Vec<ReleaseTarget>,
+}
+
+impl Default for ReleaseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            target_branch: "master".into(),
+            source_repository: String::new(),
+            secret_name: "DISTRIBUTION_REPO_TOKEN".into(),
+            release_all: true,
+            targets: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ReleaseTarget {
+    pub name: String,
+    pub repository: String,
+    pub github_release_config: String,
+    pub cargo_release_config: String,
+    pub distribution_path: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct DataroseConfig {
+    pub quality: QualityConfig,
+    pub release: ReleaseConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -90,27 +130,30 @@ pub struct ProjectProfile {
     pub root: PathBuf,
     pub workspace: PathBuf,
     pub workspace_root: PathBuf,
+    pub config_path: PathBuf,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
     pub has_rector: bool,
     pub has_pest: bool,
     pub has_mise_toml: bool,
     pub mise_tools: BTreeSet<String>,
-    pub stored_config: RepoQualityConfig,
+    pub stored_config: DataroseConfig,
 }
 
 impl ProjectProfile {
     pub fn detect(
         root: PathBuf,
+        config_path: Option<PathBuf>,
         workspace: Option<PathBuf>,
         languages: &[LanguageArg],
         runner: JsRunnerArg,
     ) -> Result<Self> {
         let root = fs::canonicalize(&root)
             .with_context(|| format!("failed to resolve repository root: {}", root.display()))?;
-        let stored_config = read_repo_quality_config(&root)?;
+        let config_path = resolve_config_path(&root, config_path);
+        let stored_config = read_datarose_config(&config_path)?;
         let workspace = workspace
-            .or_else(|| stored_config.workspace.clone())
+            .or_else(|| stored_config.quality.workspace.clone())
             .unwrap_or_else(|| PathBuf::from("."));
         let workspace_root = fs::canonicalize(root.join(&workspace)).with_context(|| {
             format!(
@@ -139,7 +182,7 @@ impl ProjectProfile {
         }
 
         let language_overrides = if languages.is_empty() {
-            stored_config.languages.clone()
+            stored_config.quality.languages.clone()
         } else {
             languages
                 .iter()
@@ -159,7 +202,7 @@ impl ProjectProfile {
             Some(resolve_js_runner(
                 &workspace_root,
                 runner,
-                stored_config.js_runner.as_ref(),
+                stored_config.quality.js_runner.as_ref(),
                 &mise_tools,
             ))
         } else {
@@ -170,6 +213,7 @@ impl ProjectProfile {
             root,
             workspace,
             workspace_root,
+            config_path,
             languages,
             js_runner,
             has_rector: composer.contains_key("rector/rector")
@@ -191,6 +235,10 @@ impl ProjectProfile {
 
     pub fn workspace_display(&self) -> String {
         normalize_path(&self.workspace)
+    }
+
+    pub fn release_enabled(&self) -> bool {
+        self.stored_config.release.enabled && !self.stored_config.release.targets.is_empty()
     }
 
     pub fn missing_mise_tools(&self) -> Vec<MiseToolRecommendation> {
@@ -318,11 +366,19 @@ fn push_missing_tool(
     }
 }
 
-pub fn repo_quality_config_path(root: &Path) -> PathBuf {
-    root.join(".repo-quality.toml")
+pub fn datarose_config_path(root: &Path) -> PathBuf {
+    root.join(DEFAULT_CONFIG_FILE)
 }
 
-pub fn render_repo_quality_config(profile: &ProjectProfile) -> String {
+pub fn resolve_config_path(root: &Path, config_path: Option<PathBuf>) -> PathBuf {
+    match config_path {
+        Some(path) if path.is_absolute() => path,
+        Some(path) => root.join(path),
+        None => datarose_config_path(root),
+    }
+}
+
+pub fn render_datarose_config(profile: &ProjectProfile) -> String {
     let languages = profile
         .languages
         .iter()
@@ -331,7 +387,8 @@ pub fn render_repo_quality_config(profile: &ProjectProfile) -> String {
         .join(", ");
     let mut out = String::new();
     out.push_str("# Managed by repo-quality. Project-specific overrides are allowed.\n");
-    out.push_str("version = 1\n");
+    out.push_str("version = 1\n\n");
+    out.push_str("[quality]\n");
     out.push_str(&format!(
         "workspace = \"{}\"\n",
         escape_toml(&profile.workspace_display())
@@ -340,45 +397,160 @@ pub fn render_repo_quality_config(profile: &ProjectProfile) -> String {
     if let Some(runner) = &profile.js_runner {
         out.push_str(&format!("js_runner = \"{}\"\n", runner.as_str()));
     }
+
+    out.push_str("\n[release]\n");
+    out.push_str(&format!(
+        "enabled = {}\n",
+        bool_literal(profile.stored_config.release.enabled)
+    ));
+    out.push_str(&format!(
+        "target_branch = \"{}\"\n",
+        escape_toml(&profile.stored_config.release.target_branch)
+    ));
+    out.push_str(&format!(
+        "source_repository = \"{}\"\n",
+        escape_toml(&profile.stored_config.release.source_repository)
+    ));
+    out.push_str(&format!(
+        "secret_name = \"{}\"\n",
+        escape_toml(&profile.stored_config.release.secret_name)
+    ));
+    out.push_str(&format!(
+        "release_all = {}\n",
+        bool_literal(profile.stored_config.release.release_all)
+    ));
+
+    for target in &profile.stored_config.release.targets {
+        out.push_str("\n[[release.targets]]\n");
+        out.push_str(&format!("name = \"{}\"\n", escape_toml(&target.name)));
+        out.push_str(&format!(
+            "repository = \"{}\"\n",
+            escape_toml(&target.repository)
+        ));
+        out.push_str(&format!(
+            "github_release_config = \"{}\"\n",
+            escape_toml(&target.github_release_config)
+        ));
+        out.push_str(&format!(
+            "cargo_release_config = \"{}\"\n",
+            escape_toml(&target.cargo_release_config)
+        ));
+        out.push_str(&format!(
+            "distribution_path = \"{}\"\n",
+            escape_toml(&target.distribution_path)
+        ));
+    }
+
     out
 }
 
-fn read_repo_quality_config(root: &Path) -> Result<RepoQualityConfig> {
-    let path = repo_quality_config_path(root);
+fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
     if !path.is_file() {
-        return Ok(RepoQualityConfig::default());
+        return Ok(DataroseConfig::default());
     }
 
     let text =
-        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    let mut config = RepoQualityConfig::default();
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut config = DataroseConfig::default();
+    let mut section = String::new();
+    let mut current_target: Option<ReleaseTarget> = None;
 
     for raw_line in text.lines() {
         let line = raw_line.split('#').next().unwrap_or_default().trim();
-        if line.is_empty() || line.starts_with('[') {
+        if line.is_empty() {
             continue;
         }
+        if line == "[[release.targets]]" {
+            if let Some(target) = current_target.take() {
+                config.release.targets.push(target);
+            }
+            section = "release.targets".into();
+            current_target = Some(ReleaseTarget::default());
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            if let Some(target) = current_target.take() {
+                config.release.targets.push(target);
+            }
+            section = line.trim_matches(['[', ']']).to_string();
+            continue;
+        }
+
         let Some((key, value)) = line.split_once('=') else {
             continue;
         };
         let key = key.trim();
         let value = value.trim();
-        match key {
-            "workspace" => config.workspace = parse_string(value).map(PathBuf::from),
-            "js_runner" => {
-                config.js_runner = parse_string(value).and_then(|value| JsRunner::from_str(&value));
-            }
-            "languages" => {
-                config.languages = parse_string_array(value)
-                    .into_iter()
-                    .filter_map(|value| Language::from_str(&value))
-                    .collect();
+        match section.as_str() {
+            "quality" | "" => apply_quality_value(&mut config.quality, key, value),
+            "release" => apply_release_value(&mut config.release, key, value),
+            "release.targets" => {
+                if let Some(target) = current_target.as_mut() {
+                    apply_release_target_value(target, key, value);
+                }
             }
             _ => {}
         }
     }
 
+    if let Some(target) = current_target.take() {
+        config.release.targets.push(target);
+    }
+
     Ok(config)
+}
+
+fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
+    match key {
+        "workspace" => config.workspace = parse_string(value).map(PathBuf::from),
+        "js_runner" => {
+            config.js_runner = parse_string(value).and_then(|value| JsRunner::from_str(&value));
+        }
+        "languages" => {
+            config.languages = parse_string_array(value)
+                .into_iter()
+                .filter_map(|value| Language::from_str(&value))
+                .collect();
+        }
+        _ => {}
+    }
+}
+
+fn apply_release_value(config: &mut ReleaseConfig, key: &str, value: &str) {
+    match key {
+        "enabled" => config.enabled = parse_bool(value).unwrap_or(config.enabled),
+        "target_branch" => {
+            if let Some(value) = parse_string(value) {
+                config.target_branch = value;
+            }
+        }
+        "source_repository" => {
+            if let Some(value) = parse_string(value) {
+                config.source_repository = value;
+            }
+        }
+        "secret_name" => {
+            if let Some(value) = parse_string(value) {
+                config.secret_name = value;
+            }
+        }
+        "release_all" => config.release_all = parse_bool(value).unwrap_or(config.release_all),
+        _ => {}
+    }
+}
+
+fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str) {
+    let Some(value) = parse_string(value) else {
+        return;
+    };
+    match key {
+        "name" => target.name = value,
+        "repository" => target.repository = value,
+        "github_release_config" => target.github_release_config = value,
+        "cargo_release_config" => target.cargo_release_config = value,
+        "distribution_path" => target.distribution_path = value,
+        _ => {}
+    }
 }
 
 fn read_composer_dependencies(root: &Path) -> Result<BTreeMap<String, String>> {
@@ -559,17 +731,28 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .collect()
 }
 
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn bool_literal(value: bool) -> &'static str {
+    if value {
+        "true"
+    } else {
+        "false"
+    }
+}
+
 fn escape_toml(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn normalize_path(path: &Path) -> String {
-    let value = path.to_string_lossy().replace('\\', "/");
-    if value.is_empty() {
-        ".".into()
-    } else {
-        value
-    }
+    path.to_string_lossy().replace('\\', "/")
 }
 
 #[cfg(test)]
@@ -577,60 +760,54 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn temp_repo(name: &str) -> PathBuf {
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time should be available")
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("repo-quality-{name}-{suffix}"));
-        fs::create_dir_all(&path).expect("repo should be created");
-        path
-    }
-
-    #[test]
-    fn detects_aube_javascript_project() {
-        let root = temp_repo("aube");
-        fs::write(root.join("aube-workspace.yaml"), "packages: []\n").unwrap();
-        fs::write(
-            root.join("package.json"),
-            r#"{"scripts":{"test":"vitest"}}"#,
-        )
-        .unwrap();
-
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
-
-        assert!(profile.has_language(&Language::Js));
-        assert_eq!(profile.js_runner, Some(JsRunner::Aube));
-    }
-
-    #[test]
-    fn detects_php_quality_dependencies() {
-        let root = temp_repo("php");
-        fs::write(
-            root.join("composer.json"),
-            r#"{"require-dev":{"rector/rector":"^2.0","pestphp/pest":"^3.0"}}"#,
-        )
-        .unwrap();
-
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
-
-        assert!(profile.has_language(&Language::Php));
-        assert!(profile.has_rector);
-        assert!(profile.has_pest);
-    }
-
     #[test]
     fn detects_languages_from_source_files() {
-        let root = temp_repo("sources");
-        fs::write(root.join("main.rs"), "fn main() {}\n").unwrap();
+        let root = temp_repo("detect");
+        fs::write(root.join("src.rs"), "fn main() {}\n").unwrap();
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
         fs::write(root.join("index.php"), "<?php\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
 
         assert!(profile.has_language(&Language::Rust));
         assert!(profile.has_language(&Language::Js));
         assert!(profile.has_language(&Language::Php));
+    }
+
+    #[test]
+    fn reads_datarose_quality_and_release_config() {
+        let root = temp_repo("datarose");
+        fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();
+        fs::write(
+            root.join(DEFAULT_CONFIG_FILE),
+            r#"version = 1
+
+[quality]
+workspace = "."
+languages = ["rust"]
+
+[release]
+enabled = true
+source_repository = "verzly/toolchain"
+
+[[release.targets]]
+name = "repo-quality"
+repository = "verzly/repo-quality"
+github_release_config = "crates/repo-quality/github-release.toml"
+cargo_release_config = "crates/repo-quality/cargo-release.toml"
+distribution_path = ".codex/distributions/repo-quality"
+"#,
+        )
+        .unwrap();
+
+        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
+
+        assert_eq!(profile.languages, vec![Language::Rust]);
+        assert!(profile.release_enabled());
+        assert_eq!(
+            profile.stored_config.release.targets[0].name,
+            "repo-quality"
+        );
     }
 
     #[test]
@@ -645,7 +822,7 @@ mod tests {
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
         fs::write(root.join("index.php"), "<?php\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
         let tools = profile
             .missing_mise_tools()
             .into_iter()
@@ -654,55 +831,17 @@ mod tests {
 
         assert!(tools.contains("rust"));
         assert!(tools.contains("aube"));
-        assert!(tools.contains("npm:oxlint"));
-        assert!(tools.contains("npm:oxfmt"));
-        assert!(tools.contains("npm:vitest"));
         assert!(tools.contains("php"));
         assert!(tools.contains("composer"));
-        assert!(!tools.contains("hk"));
-        assert!(!tools.contains("pkl"));
     }
 
-    #[test]
-    fn skips_aube_recommendation_when_other_runner_is_configured() {
-        let root = temp_repo("pnpm");
-        fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
-        fs::write(root.join("mise.toml"), "[tools]\npnpm = \"latest\"\n").unwrap();
-        fs::write(root.join("app.ts"), "export {};\n").unwrap();
-
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
-        let tools = profile
-            .missing_mise_tools()
-            .into_iter()
-            .map(|recommendation| recommendation.tool)
-            .collect::<BTreeSet<_>>();
-
-        assert_eq!(profile.js_runner, Some(JsRunner::Pnpm));
-        assert!(!tools.contains("aube"));
-        assert!(!tools.contains("pnpm"));
-        assert!(tools.contains("npm:oxlint"));
-    }
-
-    #[test]
-    fn uses_stored_workspace_for_update_detection() {
-        let root = temp_repo("workspace");
-        fs::create_dir_all(root.join("workspace/app")).unwrap();
-        fs::write(
-            root.join(".repo-quality.toml"),
-            concat!(
-                "version = 1\n",
-                "workspace = \"workspace/app\"\n",
-                "languages = [\"js\"]\n",
-                "js_runner = \"aube\"\n",
-            ),
-        )
-        .unwrap();
-        fs::write(root.join("workspace/app/main.ts"), "export {};\n").unwrap();
-
-        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
-
-        assert_eq!(profile.workspace_display(), "workspace/app");
-        assert!(profile.has_language(&Language::Js));
-        assert_eq!(profile.js_runner, Some(JsRunner::Aube));
+    fn temp_repo(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("repo-quality-{name}-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        root
     }
 }

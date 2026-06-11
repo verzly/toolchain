@@ -1,15 +1,16 @@
 use crate::cli::{InitArgs, UpdateArgs};
-use crate::project::{render_repo_quality_config, repo_quality_config_path, ProjectProfile};
+use crate::project::{render_datarose_config, ProjectProfile};
 use crate::quality::render_hk_config;
 use crate::shell;
 use crate::standards::{self, ManagedFile, WriteOutcome};
-use crate::workflow::render_test_workflow;
+use crate::workflow::{release_workflow_files, render_test_workflow};
 use anyhow::{bail, Context, Result};
 use std::path::Path;
 
 pub fn run(args: InitArgs) -> Result<()> {
     let options = ApplyOptions {
         root: args.root,
+        config: args.config,
         workspace: args.workspace,
         languages: args.languages,
         js_runner: args.js_runner,
@@ -27,6 +28,7 @@ pub fn run(args: InitArgs) -> Result<()> {
 pub fn run_update(args: UpdateArgs) -> Result<()> {
     let options = ApplyOptions {
         root: args.root,
+        config: args.config,
         workspace: None,
         languages: Vec::new(),
         js_runner: crate::cli::JsRunnerArg::Auto,
@@ -43,6 +45,7 @@ pub fn run_update(args: UpdateArgs) -> Result<()> {
 
 struct ApplyOptions {
     root: std::path::PathBuf,
+    config: Option<std::path::PathBuf>,
     workspace: Option<std::path::PathBuf>,
     languages: Vec<crate::cli::LanguageArg>,
     js_runner: crate::cli::JsRunnerArg,
@@ -58,6 +61,7 @@ struct ApplyOptions {
 fn apply(options: ApplyOptions) -> Result<()> {
     let profile = ProjectProfile::detect(
         options.root,
+        options.config,
         options.workspace,
         &options.languages,
         options.js_runner,
@@ -70,9 +74,9 @@ fn apply(options: ApplyOptions) -> Result<()> {
     }
 
     let hk_config = render_hk_config(&profile);
-    let repo_config = render_repo_quality_config(&profile);
+    let repo_config = render_datarose_config(&profile);
     let hk_path = profile.root.join("hk.pkl");
-    let repo_config_path = repo_quality_config_path(&profile.root);
+    let repo_config_path = profile.config_path.clone();
     let actions_path = profile.root.join(".github/workflows/test.yml");
 
     let mut managed_files = vec![
@@ -97,6 +101,10 @@ fn apply(options: ApplyOptions) -> Result<()> {
             content: render_test_workflow(&profile),
             force: options.force || options.from_stored_config,
         });
+        managed_files.extend(release_workflow_files(
+            &profile,
+            options.force || options.from_stored_config,
+        ));
     }
 
     if options.dry_run {
@@ -109,10 +117,7 @@ fn apply(options: ApplyOptions) -> Result<()> {
         return Ok(());
     }
 
-    if options.from_stored_config
-        && profile.stored_config.workspace.is_none()
-        && !repo_config_path.exists()
-    {
+    if options.from_stored_config && !repo_config_path.exists() {
         bail!(
             "{} is missing; run `repo-quality init` once before `repo-quality update`",
             repo_config_path.display()

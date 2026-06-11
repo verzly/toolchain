@@ -55,6 +55,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 crates/
 Cargo.toml
 Cargo.lock
+datarose.toml
 github-release.toml
 rust-cache.toml
 hk.pkl
@@ -101,7 +102,7 @@ GitHub Actions use the same `mise exec -- hk check` gate that `repo-quality` wri
 ### Run a tool locally
 
 
-`repo-quality` can also initialize monorepo subdirectories. The root `.repo-quality.toml` stores the selected workspace path so future updates do not need it again:
+`repo-quality` can also initialize monorepo subdirectories. The root `datarose.toml` stores the selected workspace path so future updates do not need it again:
 
 ```sh
 cargo run -p repo-quality -- init --workspace workspace/app
@@ -109,6 +110,8 @@ cargo run -p repo-quality -- update
 ```
 
 Generated project-local files are intentionally overrideable. `repo-quality update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
+
+`datarose.toml` can also describe release targets. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, config paths, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 

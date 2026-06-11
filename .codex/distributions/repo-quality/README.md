@@ -68,7 +68,38 @@ repo-quality init --workspace apps/mobile
 repo-quality update
 ```
 
-`repo-quality init` writes `.repo-quality.toml` at the repository root. `repo-quality update` reads it, so the workspace path does not need to be repeated.
+`repo-quality init` writes `datarose.toml` at the repository root. `repo-quality update` reads it, so the workspace path does not need to be repeated.
+
+## Configuration file
+
+By default, `repo-quality` reads and writes `datarose.toml` in the repository root. Use `--config <path>` with `init`, `update`, `plan`, or `doctor` when a repository needs a custom config location.
+
+The same file stores quality settings and optional release targets:
+
+```toml
+version = 1
+
+[quality]
+workspace = "."
+languages = ["rust", "js", "php"]
+js_runner = "aube"
+
+[release]
+enabled = true
+target_branch = "master"
+source_repository = "verzly/toolchain"
+secret_name = "DISTRIBUTION_REPO_TOKEN"
+release_all = true
+
+[[release.targets]]
+name = "repo-quality"
+repository = "verzly/repo-quality"
+github_release_config = "crates/repo-quality/github-release.toml"
+cargo_release_config = "crates/repo-quality/cargo-release.toml"
+distribution_path = ".codex/distributions/repo-quality"
+```
+
+`repo-quality update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
 
 ## Commands
 
@@ -113,7 +144,7 @@ repo-quality init --skip-hk-install
 
 ### update
 
-Refresh managed files from `.repo-quality.toml`:
+Refresh managed files from `datarose.toml`:
 
 ```sh
 repo-quality update
@@ -146,9 +177,12 @@ repo-quality doctor
 Depending on detected languages, `repo-quality` can manage:
 
 ```text
-.repo-quality.toml
+datarose.toml
 hk.pkl
 .github/workflows/test.yml
+.github/workflows/release-*.yml
+.github/workflows/release-all.yml
+.github/workflows/_release-datarose-tool.yml
 .editorconfig
 rustfmt.toml
 .oxfmtrc.json
@@ -212,7 +246,7 @@ cd "workspace/app" && oxfmt --check .
 cd "workspace/app" && vitest run
 ```
 
-The root `.repo-quality.toml` stores the workspace path for future updates.
+The root `datarose.toml` stores the workspace path for future updates.
 
 ## Project overrides
 

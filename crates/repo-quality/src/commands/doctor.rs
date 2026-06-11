@@ -1,23 +1,29 @@
 use crate::cli::DoctorArgs;
-use crate::project::{repo_quality_config_path, Language, ProjectProfile};
+use crate::project::{Language, ProjectProfile};
 use crate::shell;
 use anyhow::{bail, Result};
 use std::path::Path;
 
 pub fn run(args: DoctorArgs) -> Result<()> {
-    let profile = ProjectProfile::detect(args.root, None, &[], crate::cli::JsRunnerArg::Auto)?;
+    let profile = ProjectProfile::detect(
+        args.root,
+        args.config,
+        None,
+        &[],
+        crate::cli::JsRunnerArg::Auto,
+    )?;
     let mut failures = Vec::new();
     let mut suggestions = Vec::new();
 
     if !profile.root.join("hk.pkl").is_file() {
         failures.push("hk.pkl is missing".to_string());
     }
-    if !repo_quality_config_path(&profile.root).is_file() {
-        suggestions.push(
-            ".repo-quality.toml is missing; run `repo-quality init` once so future \
-             `repo-quality update` runs can reuse the workspace path"
-                .to_string(),
-        );
+    if !profile.config_path.is_file() {
+        suggestions.push(format!(
+            "{} is missing; run `repo-quality init` once so future `repo-quality update` \
+             runs can reuse the configured workspace and release targets",
+            profile.config_path.display()
+        ));
     }
     if !shell::command_exists("mise") {
         failures.push("mise is not available on PATH".to_string());
@@ -97,6 +103,20 @@ pub fn run(args: DoctorArgs) -> Result<()> {
     if !profile.root.join(".github/workflows/test.yml").is_file() {
         suggestions
             .push(".github/workflows/test.yml is missing; run `repo-quality update`".to_string());
+    }
+
+    if profile.release_enabled() {
+        for target in &profile.stored_config.release.targets {
+            let path = profile
+                .root
+                .join(format!(".github/workflows/release-{}.yml", target.name));
+            if !path.is_file() {
+                suggestions.push(format!(
+                    "{} is missing; run `repo-quality update`",
+                    path.display()
+                ));
+            }
+        }
     }
 
     if !suggestions.is_empty() {

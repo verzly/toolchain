@@ -239,7 +239,7 @@ fn escape_pkl(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::project::{JsRunner, Language, ProjectProfile, RepoQualityConfig};
+    use crate::project::{DataroseConfig, JsRunner, Language, ProjectProfile};
     use std::collections::BTreeSet;
     use std::path::PathBuf;
 
@@ -249,6 +249,7 @@ mod tests {
             root: PathBuf::from("."),
             workspace: PathBuf::from("workspace/app"),
             workspace_root: PathBuf::from("workspace/app"),
+            config_path: PathBuf::from("datarose.toml"),
             languages: vec![Language::Rust, Language::Js, Language::Php],
             js_runner: Some(JsRunner::Aube),
             has_rector: true,
@@ -261,7 +262,7 @@ mod tests {
                 "aube".into(),
                 "php".into(),
             ]),
-            stored_config: RepoQualityConfig::default(),
+            stored_config: DataroseConfig::default(),
         };
 
         let config = render_hk_config(&profile);

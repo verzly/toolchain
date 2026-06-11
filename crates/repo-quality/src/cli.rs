@@ -19,9 +19,9 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Write managed quality files, install mise tools, and install git hooks.
+    /// Write managed quality files, release workflows, install mise tools, and install git hooks.
     Init(InitArgs),
-    /// Refresh managed quality files from the stored .repo-quality.toml profile.
+    /// Refresh managed quality files and release workflows from datarose.toml.
     Update(UpdateArgs),
     /// Print the detected quality profile without changing files.
     Plan(PlanArgs),
@@ -34,6 +34,10 @@ pub enum Commands {
 pub struct InitArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
 
     /// Overwrite an existing hk.pkl.
     #[arg(short, long, default_value_t = false)]
@@ -78,6 +82,10 @@ pub struct UpdateArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
 
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+
     /// Overwrite project-local quality files even when they already exist.
     #[arg(short, long, default_value_t = false)]
     pub force: bool,
@@ -109,6 +117,10 @@ pub struct PlanArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
 
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+
     #[arg(long = "language", value_enum)]
     pub languages: Vec<LanguageArg>,
 
@@ -125,6 +137,10 @@ pub struct PlanArgs {
 pub struct DoctorArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
