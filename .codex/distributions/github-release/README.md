@@ -2,7 +2,7 @@
 
 `github-release` is a reusable release branch, tag, and GitHub Release orchestrator for projects that need predictable release automation without writing large workflow files.
 
-This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
+This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `CONTRIBUTING.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
 
 The public repository intentionally does not contain `src/`, `Cargo.toml`, build workflows, or release configuration. That separation keeps the user-facing repository small while allowing all tools to share the same release infrastructure in `verzly/toolchain`.
 
@@ -16,6 +16,7 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Action inputs](#action-inputs)
   - [Action outputs](#action-outputs)
   - [CLI usage](#cli-usage)
+  - [Command help](#command-help)
   - [CLI commands and arguments](#cli-commands-and-arguments)
 - [Configuration](#configuration)
 - [Practical workflows](#practical-workflows)
@@ -24,7 +25,6 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Operational notes](#operational-notes)
-- [Contributing](#contributing)
 
 ## Overview
 
@@ -40,7 +40,7 @@ It was created for the Verzly toolchain model where source code can live in `ver
 
 The tool has two release modes.
 
-For a normal source repository, `prepare` creates a temporary release branch and updates configured version files. After the project-specific build succeeds, `finalize` merges the release branch into the target branch, creates the tag, optionally creates the GitHub Release, and removes the temporary branch. If the build fails, `abort` deletes the temporary release branch.
+For a normal source repository, `prepare` creates a temporary release branch, updates configured version files, and runs optional prepare commands such as `cargo generate-lockfile`. After the project-specific build succeeds, `finalize` merges the release branch into the target branch, creates the tag, optionally creates the GitHub Release, and removes the temporary branch. If the build fails, `abort` deletes the temporary release branch.
 
 For a distribution repository, `publish` can create a GitHub Release directly from an already-prepared source tag. This is useful when the source repository and public release repository are different repositories. In that model, release notes can still point to the source repository, so pull request references stay connected to the real code review history.
 
@@ -51,6 +51,7 @@ Use `github-release` when you want to:
 - keep release workflow YAML short and readable;
 - standardize release branch names, tag names, release names, and cleanup behavior across repositories;
 - update version files before the build runs;
+- run post-version-update prepare commands before committing, such as lockfile regeneration;
 - publish release assets after a successful build;
 - generate public release notes from a source repository tag;
 - release several public distribution repositories from one private or internal source monorepo.
@@ -117,6 +118,18 @@ github-release abort --version 1.2.3 --config github-release.toml
 
 Top-level automatic options include `--help` and `--version`.
 
+
+### Command help
+
+Every top-level and subcommand help output points back to this README:
+
+```sh
+github-release --help
+github-release <command> --help
+```
+
+Use the README for workflow-level guidance and the command help for the exact arguments supported by the installed executable version.
+
 ### CLI commands and arguments
 
 #### `init`
@@ -141,7 +154,7 @@ Prints the calculated release plan without changing files, branches, tags, or Gi
 
 #### `prepare`
 
-Creates the release branch and applies configured version file changes before the project build starts.
+Creates the release branch, applies configured version file changes, and runs configured prepare commands before the project build starts.
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
@@ -151,6 +164,7 @@ Creates the release branch and applies configured version file changes before th
 | `--release-branch` | No | Generated | Branch name | Override the release branch. |
 | `--dry-run` | No | `false` | Boolean flag | Print planned Git and file operations without executing them. |
 | `--force-branch` | No | `false` | Boolean flag | Allow recreating an existing local release branch. Remote branch checks still protect against accidental collisions. |
+| `--reuse-branch` | No | `false` | Boolean flag | Continue an existing release branch instead of recreating it from the target branch. |
 | `--commit-message` | No | Config template | String | Override the version update commit message. Template values such as `{tag}` are normally supplied by config. |
 
 #### `finalize`
@@ -222,6 +236,8 @@ Deletes a temporary release branch after a failed build.
 A `github-release.toml` file has three main areas.
 
 ```toml
+prepare_commands = ["cargo generate-lockfile"]
+
 [release]
 target_branch = "master"
 branch_prefix = "release/"
@@ -267,6 +283,7 @@ optional = false
 | `release.latest_tag` | Boolean | Enables the configured `latest` tag and points it at the highest stable SemVer release. Defaults to `false`. |
 | `release.next_tag` | Boolean | Enables the configured `next` tag and points it at the highest preview SemVer release, or falls back to `latest` when no preview exists. Defaults to `false`. |
 | `release.latest_tag_name` / `release.next_tag_name` | String | Tag names used for the stable and preview channels. Defaults are `latest` and `next`. |
+| `prepare_commands` | Array of shell command strings | Commands to run after version files are updated and before the release commit is created. Use this for generated files that must be committed with the version bump, such as `cargo generate-lockfile`. |
 | `github.target_repository` | `owner/repo` or empty | Repository where the GitHub Release is created. Empty means the current repository context. |
 | `github.source_repository` | `owner/repo` or empty | Repository used for generated release notes. Useful when distribution repositories are source-free. |
 | `github.source_tag_prefix` / `github.source_tag_suffix` | String | Source tag naming when release notes should be generated from a different repository. |
@@ -292,7 +309,7 @@ cargo test --workspace
 github-release finalize --version 1.4.0 --config crates/my-tool/github-release.toml --skip-github-release
 ```
 
-`prepare` creates the release branch and updates configured version files before the build starts. `finalize` merges the release branch and creates the source tag only after the build and tests succeed.
+`prepare` creates the release branch, updates configured version files, and runs configured prepare commands before the build starts. This keeps generated version artifacts such as `Cargo.lock` in the same release commit. `finalize` merges the release branch and creates the source tag only after the build and tests succeed.
 
 ### Public distribution release
 
@@ -358,10 +375,6 @@ Checksum files use the same name with `.sha256` appended. The action verifies th
 ### Operational notes
 
 `github-release` shells out to `git` and `gh`. CI jobs must check out the repository with enough history and must provide a token that can push branches, push tags, and create releases. For distribution repositories, the token also needs access to the public target repository.
-
-## Contributing
-
-Contribution guidelines live in the `verzly/toolchain` `CONTRIBUTING.md`. Source changes are made in `verzly/toolchain`; this repository is the public distribution surface.
 
 ## License
 

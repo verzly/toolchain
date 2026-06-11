@@ -2,7 +2,7 @@
 
 Verzly Toolchain is the private source workspace for the release tools that build Rust executables, prepare Tauri installers, route build caches, generate Android signing material, and publish GitHub Releases.
 
-Public repositories stay intentionally small. Their user-facing `README.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
+Public repositories stay intentionally small. Their user-facing `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
 
 - [Overview](#overview)
   - [Tools](#tools)
@@ -65,6 +65,7 @@ Each `.codex/distributions/<tool>` directory contains exactly:
 
 ```text
 README.md
+CONTRIBUTING.md
 action.yml
 LICENSE
 ```
@@ -97,7 +98,7 @@ cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
 ```
 
-Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts.
+Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
 
 ### Cache layout
 
@@ -135,7 +136,7 @@ sync released distribution repository
 github-release publish
 ```
 
-`prepare` creates a temporary source branch and updates only the configured version files. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag. The workflow then syncs the matching public distribution repository with a release-specific bump commit before `publish` creates the public release and uploads assets.
+`prepare` creates a temporary source branch, updates the configured version files, and runs configured prepare commands such as `cargo generate-lockfile` before committing. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag. The workflow then syncs the matching public distribution repository with a release-specific bump commit before `publish` creates the public release and uploads assets.
 
 Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits. If the release branch has no source diff because the requested version is already present in `master`, finalization skips the squash commit and creates the release tags from the existing `master` commit.
 

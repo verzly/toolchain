@@ -1,58 +1,92 @@
 # android-signing
 
-`android-signing` helps generate, inspect, and export Android release keystores for CI workflows.
+`android-signing` prepares and validates Android release signing keys for CI-based Android releases.
 
-This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
+This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo. This repository contains the public surface needed by users: `README.md`, `CONTRIBUTING.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
 
 The public repository intentionally does not contain `src/`, `Cargo.toml`, build workflows, or release configuration. That separation keeps the user-facing repository small while allowing all tools to share the same release infrastructure in `verzly/toolchain`.
 
 - [Overview](#overview)
-  - [Why this exists](#why-this-exists)
-  - [How it works](#how-it-works)
-  - [Use cases](#use-cases)
+  - [What this tool does](#what-this-tool-does)
+  - [What this tool does not do](#what-this-tool-does-not-do)
+  - [How Android release signing should work](#how-android-release-signing-should-work)
+  - [Local setup versus CI release](#local-setup-versus-ci-release)
 - [Get started](#get-started)
   - [GitHub Action](#github-action)
 - [Usage](#usage)
   - [Action inputs](#action-inputs)
   - [Action outputs](#action-outputs)
   - [CLI usage](#cli-usage)
+  - [Command help](#command-help)
   - [CLI commands and arguments](#cli-commands-and-arguments)
 - [Practical workflows](#practical-workflows)
-  - [Practical signing workflows](#practical-signing-workflows)
+  - [Create a release keystore locally](#create-a-release-keystore-locally)
+  - [Prepare GitHub Actions secrets](#prepare-github-actions-secrets)
+  - [Validate the release key in CI](#validate-the-release-key-in-ci)
+  - [Use with a Tauri Android release job](#use-with-a-tauri-android-release-job)
 - [Reference](#reference)
+  - [Required GitHub secrets and variables](#required-github-secrets-and-variables)
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Security notes](#security-notes)
-- [Contributing](#contributing)
 
 ## Overview
 
-### Why this exists
+### What this tool does
 
-Android release signing is easy to get wrong because signing keys are long-lived secrets. Projects need repeatable commands for generating a keystore, printing fingerprints, exporting base64 for CI secrets, and writing non-password environment values without accidentally leaking passwords.
+`android-signing` is a small helper around Android release keystore handling. It helps you:
 
-`android-signing` gives those tasks one small executable. It is designed to be used before Tauri Android releases, but it is not tied to Tauri.
+- create one long-lived Android release keystore for an app;
+- export that keystore as base64 for CI secret transport;
+- print the signing certificate fingerprint;
+- verify in CI that the restored keystore still matches the expected fingerprint;
+- write safe, non-password signing values to `$GITHUB_ENV`.
 
-### How it works
+The signing key is the Android release identity of your app. Once an app has been released with a package name and release key, future APK updates for the same package must be signed with the same key.
 
-The tool wraps Android `keytool` operations and keeps secret handling explicit. It can generate a keystore, prompt for passwords when they are not provided, generate random passwords, export the keystore as base64, print SHA fingerprints, and write safe values to `$GITHUB_ENV`.
+### What this tool does not do
 
-It never treats base64 as encryption. Base64 output is meant for CI secret transport only. Password values should be stored separately in your CI secret store.
+`android-signing` is not a build tool and not a release manager. It does not:
 
-### Use cases
+- build APKs or app bundles;
+- run Tauri;
+- generate a GitHub Release;
+- create GitHub Secrets automatically;
+- generate a new signing key during a release workflow;
+- replace `tauri-release`, Gradle, or Android Studio.
 
-Use `android-signing` when you want to:
+If required signing secrets are missing in CI, the release should fail. A release workflow must not silently generate a new key, because that would create a different Android app signing identity.
 
-- create an Android release keystore for a new app;
-- avoid accidentally overwriting an existing signing key;
-- export a keystore as base64 for GitHub Actions secrets;
-- print a release key fingerprint for Play Console or documentation;
-- write non-password Android signing environment variables into GitHub Actions;
-- standardize signing setup across Tauri Android projects.
+### How Android release signing should work
+
+Use one release keystore per Android app identity. For example:
+
+```text
+net.datarose.nutrino.mobile      -> production release key
+net.datarose.nutrino.mobile.dev  -> development/debug identity
+```
+
+For production releases, the keystore, alias, and signing certificate fingerprint must stay stable across versions.
+
+The typical release chain is:
+
+```text
+android-signing  -> prepare and verify the release key
+tauri-release    -> build the Android artifact using that key
+github-release   -> publish the release only after signing/build checks pass
+```
+
+### Local setup versus CI release
+
+Run `android-signing generate`, `fingerprint`, and `print-secrets` locally when setting up a new app release key.
+
+Run `verify-fingerprint` in CI before building a release. CI should only restore and validate an existing key from secrets. It should not create a replacement key.
 
 ## Get started
 
 ### GitHub Action
+
+Run the tool directly:
 
 ```yaml
 - uses: verzly/android-signing@v1
@@ -70,7 +104,7 @@ Install and use later:
 - run: android-signing fingerprint release.jks --alias release-key
 ```
 
-The composite action detects the runner operating system and CPU architecture, maps that host to a Rust-style target name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
+The composite action detects the runner operating system and CPU architecture, maps that host to a release asset name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
 
 The action does not build from source. It does not clone `verzly/toolchain`. It only consumes the release assets published here.
 
@@ -93,7 +127,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | Output | Value | Purpose |
 | --- | --- | --- |
 | `bin-path` | Absolute path to the installed executable | Use this when a later step should invoke the exact binary path instead of relying on `PATH`. |
-| `host-target` | Rust-style host target such as `x86_64-unknown-linux-gnu` | Shows which release asset was selected for the current runner. |
+| `host-target` | Host target such as `linux-x64`, `macos-arm64`, or `windows-x64` | Shows which release asset was selected for the current runner. |
 
 ### CLI usage
 
@@ -103,9 +137,22 @@ android-signing generate --output android-release.jks --alias release-key
 android-signing generate --generate-passwords --print-base64
 android-signing base64 android-release.jks --output keystore.base64
 android-signing fingerprint android-release.jks --alias release-key
+android-signing verify-fingerprint android-release.jks --alias release-key --expected-sha256 AA:BB:CC
 android-signing print-secrets android-release.jks --alias release-key
 android-signing write-github-env android-release.jks --alias release-key
 ```
+
+
+### Command help
+
+Every top-level and subcommand help output points back to this README:
+
+```sh
+android-signing --help
+android-signing <command> --help
+```
+
+Use the README for workflow-level guidance and the command help for the exact arguments supported by the installed executable version.
 
 ### CLI commands and arguments
 
@@ -148,6 +195,17 @@ Prints the key fingerprint by calling `keytool` for an existing keystore.
 | `-a`, `--alias` | No | `release-key` | String | Key alias to inspect. |
 | `--store-password` | No | Prompted | String | Keystore password. |
 
+#### `verify-fingerprint`
+
+Checks that an existing keystore still matches the expected SHA-256 signing certificate fingerprint.
+
+| Argument | Required | Default | Accepted values | Purpose |
+| --- | --- | --- | --- | --- |
+| `path` | Yes | none | File path | Keystore file to inspect. |
+| `-a`, `--alias` | No | `release-key` | String | Key alias to inspect. |
+| `--store-password` | No | Prompted | String | Keystore password. |
+| `--expected-sha256` | Yes | none | SHA-256 fingerprint | Expected release signing certificate fingerprint. |
+
 #### `print-secrets`
 
 Prints the environment variable names normally needed by CI. Password placeholders are printed as placeholders, not recovered from the keystore.
@@ -174,50 +232,111 @@ Writes non-password signing values to the file referenced by `$GITHUB_ENV`.
 
 ## Practical workflows
 
-### Practical signing workflows
-
-### Generate a new keystore locally
+### Create a release keystore locally
 
 ```sh
-android-signing generate --output release.jks --alias release-key
+android-signing generate --output nutrino-release.jks --alias nutrino-release
+android-signing fingerprint nutrino-release.jks --alias nutrino-release
 ```
 
 The command prompts for passwords when they are not passed as arguments. This is safer for local use because passwords are not left in shell history.
 
+Keep the `.jks` file in a secure offline backup. Do not rely only on GitHub Secrets because secret values cannot be read back later.
+
 ### Prepare GitHub Actions secrets
 
 ```sh
-android-signing base64 release.jks --output release.jks.base64
-android-signing fingerprint release.jks --alias release-key
-android-signing print-secrets release.jks --alias release-key
+android-signing base64 nutrino-release.jks --output nutrino-release.jks.base64
+android-signing print-secrets nutrino-release.jks --alias nutrino-release
 ```
 
-Store the base64 keystore value, store password, key password, and alias as separate CI secrets. Base64 is transport encoding, not encryption.
+Store these values in GitHub Actions secrets:
 
-### Write CI environment values
-
-```sh
-android-signing write-github-env release.jks --alias release-key
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
 ```
 
-This writes non-password values to `$GITHUB_ENV`. Passwords should stay in the secret store and be referenced explicitly by the workflow.
+Store the expected fingerprint as a GitHub Actions variable or secret:
+
+```text
+ANDROID_SIGNING_CERT_SHA256
+```
+
+Base64 is transport encoding, not encryption. The base64 value is still sensitive and must be stored as a secret.
+
+### Validate the release key in CI
+
+```yaml
+- name: Restore Android release keystore
+  shell: bash
+  run: |
+    echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/android-release.jks"
+
+- name: Verify Android release signing key
+  uses: verzly/android-signing@v1
+  with:
+    args: >-
+      verify-fingerprint
+      "$RUNNER_TEMP/android-release.jks"
+      --alias "${{ secrets.ANDROID_KEY_ALIAS }}"
+      --store-password "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+      --expected-sha256 "${{ vars.ANDROID_SIGNING_CERT_SHA256 }}"
+```
+
+If any secret is missing or the fingerprint does not match, the release job should fail before building or publishing artifacts.
+
+### Use with a Tauri Android release job
+
+`android-signing` verifies the key. The Android build tool still has to use that key.
+
+```yaml
+- name: Build Android release
+  uses: verzly/tauri-release@v1
+  with:
+    platform: android
+  env:
+    ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-release.jks
+    ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+    ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+```
+
+A release finalization job should depend on the Android signing validation and Android build job. If validation fails, do not merge, tag, or publish the release.
 
 ## Reference
 
+### Required GitHub secrets and variables
+
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Secret | Base64-encoded release keystore. |
+| `ANDROID_KEYSTORE_PASSWORD` | Secret | Keystore password. |
+| `ANDROID_KEY_ALIAS` | Secret | Alias inside the keystore. |
+| `ANDROID_KEY_PASSWORD` | Secret | Key password. |
+| `ANDROID_SIGNING_CERT_SHA256` | Variable or secret | Expected SHA-256 signing certificate fingerprint. |
+
 ### Troubleshooting
 
-If generation fails, run `android-signing doctor` and confirm `keytool` is installed. If fingerprint inspection fails, verify the alias and store password. If Android builds cannot read the keystore from CI, check that the base64 value was not wrapped, truncated, or committed as a plain file.
+If generation fails, run `android-signing doctor` and confirm `keytool` is installed.
+
+If fingerprint inspection fails, verify the alias and store password.
+
+If Android builds cannot read the keystore from CI, check that the base64 value was not wrapped, truncated, or committed as a plain file.
+
+If a release workflow has no Android signing secrets, fix the repository secrets. Do not generate a new release key inside CI as a fallback.
 
 ### Release artifacts
 
 Release assets are named by tool, version, and host target. Typical examples:
 
 ```text
-android-signing-v1.2.3-x86_64-unknown-linux-gnu
-android-signing-v1.2.3-aarch64-unknown-linux-gnu
-android-signing-v1.2.3-x86_64-apple-darwin
-android-signing-v1.2.3-aarch64-apple-darwin
-android-signing-v1.2.3-x86_64-pc-windows-msvc.exe
+android-signing-v1.2.3-linux-x64
+android-signing-v1.2.3-macos-x64
+android-signing-v1.2.3-macos-arm64
+android-signing-v1.2.3-windows-x64.exe
 ```
 
 Checksum files use the same name with `.sha256` appended. The action verifies them when the runner has `sha256sum` or `shasum`.
@@ -226,9 +345,7 @@ Checksum files use the same name with `.sha256` appended. The action verifies th
 
 Android signing keys should be treated as long-lived production credentials. Keep the keystore, store password, and key password in separate CI secrets. Do not commit generated keystores or `.base64` files. Do not share dry-run output that was manually edited to include real secrets.
 
-## Contributing
-
-Contribution guidelines live in the `verzly/toolchain` `CONTRIBUTING.md`. Source changes are made in `verzly/toolchain`; this repository is the public distribution surface.
+`android-signing` intentionally does not create GitHub Secrets automatically. It can prepare secret values and validate them later, but adding secrets to a repository is an explicit repository administration step.
 
 ## License
 

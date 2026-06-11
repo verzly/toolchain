@@ -6,7 +6,9 @@ use crate::domain;
 use crate::git;
 use crate::output;
 use crate::version_files;
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::process::{Command, Stdio};
+
 // Keep every generated version change on the temporary branch.
 // The target branch is not touched until the later finalize step succeeds.
 pub fn run(args: PrepareArgs) -> Result<()> {
@@ -65,6 +67,7 @@ pub fn run(args: PrepareArgs) -> Result<()> {
 
     // Version updates happen before the project build so downstream jobs build the exact release contents.
     version_files::update_all(&config.files, &plan, args.dry_run)?;
+    run_prepare_commands(&config.prepare_commands, args.dry_run)?;
 
     git::run(["add", "--all"], args.dry_run)?;
     if args.dry_run || git::has_staged_changes()? {
@@ -80,6 +83,47 @@ pub fn run(args: PrepareArgs) -> Result<()> {
     output::write_github_outputs(&plan)?;
 
     Ok(())
+}
+
+fn run_prepare_commands(commands: &[String], dry_run: bool) -> Result<()> {
+    for command in commands {
+        let command = command.trim();
+        if command.is_empty() {
+            continue;
+        }
+
+        println!("run prepare command: {command}");
+        if dry_run {
+            continue;
+        }
+
+        let status = shell_command(command)
+            .stdin(Stdio::null())
+            .status()
+            .with_context(|| format!("failed to run prepare command: {command}"))?;
+
+        if !status.success() {
+            anyhow::bail!("prepare command failed: {command}");
+        }
+    }
+
+    Ok(())
+}
+
+fn shell_command(command: &str) -> Command {
+    #[cfg(windows)]
+    {
+        let mut shell = Command::new("cmd");
+        shell.args(["/d", "/s", "/c", command]);
+        shell
+    }
+
+    #[cfg(not(windows))]
+    {
+        let mut shell = Command::new("sh");
+        shell.args(["-c", command]);
+        shell
+    }
 }
 
 fn checkout_existing_release_branch(

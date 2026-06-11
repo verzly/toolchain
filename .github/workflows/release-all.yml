@@ -139,17 +139,6 @@ jobs:
               --release-branch "${release_branch}" \
               --reuse-branch
           done
-
-          cargo metadata --format-version 1 --no-deps >/dev/null
-          git add Cargo.lock
-
-          if git diff --cached --quiet; then
-            echo "Cargo.lock is already up to date for ${release_branch}."
-          else
-            git commit -m "chore(release): update lockfile for v${VERSION}"
-            git push origin HEAD:${release_branch}
-          fi
-
   test_sources:
     name: Test aggregate source branch
     needs: prepare_source_branch

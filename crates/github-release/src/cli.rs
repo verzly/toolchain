@@ -9,7 +9,8 @@ use std::path::PathBuf;
 #[command(
     author,
     version,
-    about = "Reusable GitHub release branch and publishing orchestrator"
+    about = "Reusable GitHub release branch and publishing orchestrator",
+    after_help = "Read the full README: https://github.com/verzly/github-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -37,6 +38,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct InitArgs {
     /// Config path to create.
     #[arg(short, long, default_value = "github-release.toml")]
@@ -48,6 +50,7 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug, Clone)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct PlanArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -67,6 +70,7 @@ pub struct PlanArgs {
 }
 
 #[derive(Args, Debug, Clone)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct PrepareArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -102,6 +106,7 @@ pub struct PrepareArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct FinalizeArgs {
     /// Version to release. Use the same value that was passed to prepare.
     #[arg(short, long)]
@@ -165,6 +170,7 @@ pub struct FinalizeArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct FinalizeBatchArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -196,6 +202,7 @@ pub struct FinalizeBatchArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct PublishArgs {
     /// Version to publish. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -239,6 +246,7 @@ pub struct PublishArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct FloatingTagsArgs {
     /// Config path.
     #[arg(short, long, default_value = "github-release.toml")]
@@ -270,6 +278,7 @@ pub struct FloatingTagsArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct AbortArgs {
     /// Version to release. Used to resolve the default release branch.
     #[arg(short, long)]

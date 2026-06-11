@@ -3,6 +3,8 @@
 # - prepare/finalize read `[source_release]` and update `[[files]]` in verzly/toolchain.
 # - publish reads `[release]` and creates the public release in verzly/android-signing.
 
+prepare_commands = ["cargo generate-lockfile"]
+
 [release]
 target_branch = "master"
 branch_prefix = "release/"

@@ -6,7 +6,7 @@ This guide defines the intended architecture, repository boundaries, release mod
 
 `verzly/toolchain` is the private Rust workspace. It contains source code, release workflows, release configuration, and the committed `.codex/distributions/<tool>` public distribution templates. Crate-level README files are intentionally not used; internal context belongs in the root README and this guide.
 
-The public distribution repositories are separate GitHub repositories. Their public `README.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` so AI agents can update the public documentation and action surface from the same workspace. The `sync-distributions.yml` workflow can push those templates into the matching `verzly/<tool>` repositories with `DISTRIBUTION_REPO_TOKEN`.
+The public distribution repositories are separate GitHub repositories. Their public `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` so AI agents can update the public documentation and action surface from the same workspace. The `sync-distributions.yml` workflow can push those templates into the matching `verzly/<tool>` repositories with `DISTRIBUTION_REPO_TOKEN`.
 
 Correct repository layout:
 
@@ -59,6 +59,7 @@ Each public repository should contain only:
 
 ```text
 README.md
+CONTRIBUTING.md
 action.yml
 LICENSE
 ```
@@ -86,11 +87,12 @@ The public repositories are thin distribution surfaces. They are not development
 
 ```text
 .codex/distributions/github-release/README.md
+.codex/distributions/github-release/CONTRIBUTING.md
 .codex/distributions/github-release/action.yml
 .codex/distributions/github-release/LICENSE
 ```
 
-Each template directory may contain only `README.md`, `action.yml`, and `LICENSE`. Do not put Rust source, release configs, workflow files, changelogs, or generated assets in these directories.
+Each template directory may contain only `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE`. Do not put Rust source, release configs, workflow files, changelogs, or generated assets in these directories.
 
 Use `.github/workflows/sync-distributions.yml` to copy these templates into the public `verzly/<tool>` repositories. The workflow must use `DISTRIBUTION_REPO_TOKEN`, must fail if that token cannot push to a target repository, and must commit with the configured maintainer commit message such as `chore(distribution): bump public surface`. Release workflows must call this workflow after successful builds and before public release publishing, scoped strictly to the distribution repositories being released, with a version-specific bump message and forced commit enabled so public tags land on a release bump commit.
 
@@ -329,7 +331,7 @@ The repository must also contain these maintainer workflows:
 .github/workflows/_release-toolchain.yml      # reusable toolchain release workflow
 .github/workflows/release-all.yml             # prepare/build everything first, then finalize/publish releases
 .github/workflows/delete-release.yml          # destructive release and tag cleanup
-.github/workflows/sync-distributions.yml      # push public README/action/LICENSE surfaces
+.github/workflows/sync-distributions.yml      # push public README/CONTRIBUTING/action/LICENSE surfaces
 ```
 
 Do not reintroduce large shell scripts for release orchestration. If a workflow needs more than a small command invocation, the behavior probably belongs in one of the Rust tools.
@@ -402,7 +404,6 @@ Use this default structure for public distribution repositories:
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Operational notes](#operational-notes)
-- [Contributing](#contributing)
 ```
 
 If a tool does not have a TOML configuration file, omit the `Configuration` group. If a tool has security-specific behavior, replace `Operational notes` with `Security notes`.
@@ -419,8 +420,8 @@ Required public README content:
 6. `Configuration`, when the tool has a TOML config, including a realistic example and a field table.
 7. `Practical workflows`, with real copy-pasteable workflows for common situations.
 8. `Reference`, with troubleshooting, release artifacts, and operational/security notes.
-9. `Contributing`, limited to 2-3 short sentences that point readers to `CONTRIBUTING.md` and explain that source changes happen in `verzly/toolchain`.
-10. `License`, after contributing, omitted from the menu.
+9. No `Contributing` section in README; contribution and development-process details belong in distribution `CONTRIBUTING.md`.
+10. `License`, at the end of the README and omitted from the menu.
 
 Rules for argument documentation:
 
@@ -439,7 +440,7 @@ Tone and structure:
 - Keep documentation clear for first-time users and useful for senior developers.
 - Avoid marketing filler, emojis, and vague claims.
 - Do not expose private implementation details except where needed to explain the public distribution repository boundary or source release-note origin.
-- Do not add extra contribution policy, development process, code of conduct, governance, support, or maintainer sections to README files. Keep contribution details in `CONTRIBUTING.md`; the README should only contain the short `Contributing` pointer section.
+- Do not add contribution policy, development process, code of conduct, governance, support, or maintainer sections to README files. Keep contribution details in distribution `CONTRIBUTING.md` files.
 
 ## Hard no list
 

@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "android-signing"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "github-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "rust-cache"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

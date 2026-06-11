@@ -9,7 +9,8 @@ use std::path::PathBuf;
 #[command(
     author,
     version,
-    about = "Container-aware release builder for Rust executable artifacts"
+    about = "Container-aware release builder for Rust executable artifacts",
+    after_help = "Read the full README: https://github.com/verzly/cargo-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -31,6 +32,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
 pub struct InitArgs {
     #[arg(short, long, default_value = "cargo-release.toml")]
     pub config: PathBuf,
@@ -40,12 +42,14 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
 pub struct CommonArgs {
     #[arg(short, long, default_value = "cargo-release.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
 pub struct BuildArgs {
     #[arg(short, long, default_value = "cargo-release.toml")]
     pub config: PathBuf,

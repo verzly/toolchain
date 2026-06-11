@@ -6,7 +6,12 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "android-signing")]
 #[command(bin_name = "android-signing")]
-#[command(author, version, about = "Android release signing keystore helper")]
+#[command(
+    author,
+    version,
+    about = "Android release signing keystore helper",
+    after_help = "Read the full README: https://github.com/verzly/android-signing"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -23,10 +28,12 @@ pub enum Commands {
     PrintSecrets(PrintSecretsArgs),
     #[command(name = "write-github-env")]
     WriteGithubEnv(WriteGithubEnvArgs),
+    #[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
     Doctor,
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct GenerateArgs {
     #[arg(short, long, default_value = "android-release.jks")]
     pub output: PathBuf,
@@ -72,6 +79,7 @@ pub struct GenerateArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct Base64Args {
     pub path: PathBuf,
 
@@ -80,6 +88,7 @@ pub struct Base64Args {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct FingerprintArgs {
     pub path: PathBuf,
 
@@ -91,6 +100,7 @@ pub struct FingerprintArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct VerifyFingerprintArgs {
     pub path: PathBuf,
 
@@ -105,6 +115,7 @@ pub struct VerifyFingerprintArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct PrintSecretsArgs {
     pub path: PathBuf,
 
@@ -113,6 +124,7 @@ pub struct PrintSecretsArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
 pub struct WriteGithubEnvArgs {
     pub path: PathBuf,
 

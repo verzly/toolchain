@@ -1,6 +1,6 @@
 # Contributing
 
-Source changes for the Verzly toolchain happen in `verzly/toolchain`. Public distribution repositories are release surfaces only; their `README.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` and synchronized by workflow.
+Source changes for the Verzly toolchain happen in `verzly/toolchain`. Public distribution repositories are release surfaces only; their `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` and synchronized by workflow.
 
 ## Setup
 
@@ -73,7 +73,7 @@ cargo test --workspace --all-targets
 For workflow, config, and repository-boundary changes, also check the model guarded by `.github/workflows/test.yml`. Important invariants include:
 
 ```text
-.codex/distributions/<tool> contains README.md, action.yml, LICENSE only
+.codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
 crates/<tool>/github-release.toml exists
 crates/<tool>/cargo-release.toml exists
 crates/<tool>/README.md does not exist
@@ -106,7 +106,7 @@ Maintainer workflows are:
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
+Use `sync-distributions.yml` when only public README/CONTRIBUTING/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 Generated release notes should compare against the previous full SemVer release tag from the same tag family. Do not use creation date ordering for notes ranges, because moving tags and repaired releases can make chronological tag order misleading.
 
@@ -135,7 +135,7 @@ release-<tool>.yml       # one public tool
 release-all.yml          # every public tool, then toolchain
 release-toolchain.yml    # toolchain-only release
 delete-release.yml       # destructive release and tag cleanup
-sync-distributions.yml   # public README/action/LICENSE sync only
+sync-distributions.yml   # public README/CONTRIBUTING/action/LICENSE sync only
 update-floating-tags.yml # moving tag repair for public repositories
 ```
 
@@ -153,4 +153,4 @@ Public distribution actions must also support those moving refs at runtime. When
 
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.
 
-Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, and operational notes. Keep their `Contributing` section short and point to `CONTRIBUTING.md`.
+Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.

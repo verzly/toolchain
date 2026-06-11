@@ -11,6 +11,7 @@ pub struct Config {
     pub release: ReleaseConfig,
     pub source_release: Option<ReleaseConfig>,
     pub github: GitHubConfig,
+    pub prepare_commands: Vec<String>,
     pub files: Vec<VersionFileConfig>,
 }
 
@@ -41,6 +42,7 @@ impl Default for Config {
             release: ReleaseConfig::default(),
             source_release: None,
             github: GitHubConfig::default(),
+            prepare_commands: Vec::new(),
             files: vec![VersionFileConfig::cargo_toml()],
         }
     }
@@ -220,6 +222,7 @@ mod tests {
                 generate_notes: true,
                 ..GitHubConfig::default()
             },
+            prepare_commands: vec!["cargo generate-lockfile".to_string()],
             files: vec![VersionFileConfig {
                 path: PathBuf::from("crates/cargo-release/Cargo.toml"),
                 ..VersionFileConfig::cargo_toml()
@@ -237,6 +240,10 @@ mod tests {
         assert_eq!(
             source.files[0].path,
             PathBuf::from("crates/cargo-release/Cargo.toml")
+        );
+        assert_eq!(
+            source.prepare_commands,
+            vec!["cargo generate-lockfile".to_string()]
         );
     }
 

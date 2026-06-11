@@ -2,7 +2,7 @@
 
 `tauri-release` builds and collects Tauri desktop and mobile release artifacts with explicit platform configuration.
 
-This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
+This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `CONTRIBUTING.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
 
 The public repository intentionally does not contain `src/`, `Cargo.toml`, build workflows, or release configuration. That separation keeps the user-facing repository small while allowing all tools to share the same release infrastructure in `verzly/toolchain`.
 
@@ -16,6 +16,7 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Action inputs](#action-inputs)
   - [Action outputs](#action-outputs)
   - [CLI usage](#cli-usage)
+  - [Command help](#command-help)
   - [CLI commands and arguments](#cli-commands-and-arguments)
 - [Configuration](#configuration)
 - [Practical workflows](#practical-workflows)
@@ -24,7 +25,6 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Operational notes](#operational-notes)
-- [Contributing](#contributing)
 
 ## Overview
 
@@ -106,6 +106,18 @@ tauri-release build --config tauri-release.toml --platform android
 tauri-release clean --config tauri-release.toml
 tauri-release doctor --config tauri-release.toml
 ```
+
+
+### Command help
+
+Every top-level and subcommand help output points back to this README:
+
+```sh
+tauri-release --help
+tauri-release <command> --help
+```
+
+Use the README for workflow-level guidance and the command help for the exact arguments supported by the installed executable version.
 
 ### CLI commands and arguments
 
@@ -236,10 +248,6 @@ Checksum files use the same name with `.sha256` appended. The action verifies th
 ### Operational notes
 
 Container support does not make every platform magically cross-buildable. Linux and Android are good container candidates. macOS and iOS remain host-first because Apple tooling and signing requirements are tied to macOS. Windows support depends on the configured image and target project constraints.
-
-## Contributing
-
-Contribution guidelines live in the `verzly/toolchain` `CONTRIBUTING.md`. Source changes are made in `verzly/toolchain`; this repository is the public distribution surface.
 
 ## License
 
