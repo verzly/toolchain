@@ -1,5 +1,5 @@
-name: Release Rust Cache
-run-name: Release rust-cache ${{ inputs.version }} ${{ inputs.orchestrator }}
+name: Release Toolchain
+run-name: Release toolchain ${{ inputs.version }} ${{ inputs.orchestrator }}
 
 on:
   workflow_dispatch:
@@ -26,10 +26,7 @@ permissions:
 
 jobs:
   release:
-    uses: ./.github/workflows/_release-tool.yml
+    uses: ./.github/workflows/_release-toolchain.yml
     with:
-      tool: rust-cache
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

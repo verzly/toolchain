@@ -16,7 +16,6 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
-          - repository
       commit-message:
         description: "Commit message used in distribution repositories."
         required: false

@@ -176,7 +176,7 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live. Visible PR references must never show raw URLs: same-repository PRs should render as `#123`, while external repository PRs should render as `toolchain#123` or the matching repository name plus PR number.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all configured public targets from `datarose.toml` with one version input. It should stay readable and call the shared `_release-datarose-tool.yml` workflow once per target.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all configured public targets from `datarose.toml` with one version input. It should stay readable and call the shared `_release-tool.yml` workflow once per target.
 
 Release All should reuse the same per-target release lifecycle as single-tool releases. Public distribution sync and publish behavior is owned by the shared release workflow and the selected `datarose.toml` target.
 
