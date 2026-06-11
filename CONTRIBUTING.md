@@ -59,7 +59,7 @@ chore(deps): update Rust dependencies
 Run individual tools with `cargo run` while developing:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
+cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
@@ -132,7 +132,7 @@ For release workflow and distribution changes, also keep the repository-boundary
 
 ```text
 .codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
-crates/<tool>/github-release.toml exists
+datarose.toml contains one [[release.targets]] entry for each public tool
 crates/<tool>/cargo-release.toml exists
 crates/<tool>/README.md does not exist
 distribution/ and scripts/ do not exist
@@ -159,13 +159,12 @@ Maintainer workflows are:
 
 ```text
 .github/workflows/release-all.yml
-.github/workflows/release-toolchain.yml
 .github/workflows/delete-release.yml
 .github/workflows/update-floating-tags.yml
 .github/workflows/sync-distributions.yml
 ```
 
-Use `sync-distributions.yml` when only public README/CONTRIBUTING/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
+Use `sync-distributions.yml` when only public README/CONTRIBUTING/action/LICENSE files need to be pushed to `verzly/<tool>` repositories. Use release workflows when tags, GitHub Releases, and assets should be created from `datarose.toml` release targets. Use `update-floating-tags.yml` to backfill or repair moving tags such as `vX.Y`, `vX`, `latest`, and `next` in public distribution repositories after releases already exist. Use `delete-release.yml` only for release cleanup; it uses the same no-prefix version input as release workflows, checks repository access first, removes the selected GitHub Release, and deletes the matching tag explicitly.
 
 Generated release notes should compare against the previous full SemVer release tag from the same tag family. Do not use creation date ordering for notes ranges, because moving tags and repaired releases can make chronological tag order misleading.
 
@@ -191,20 +190,17 @@ After the PR is on `master`, run the appropriate workflow:
 
 ```text
 release-<tool>.yml       # one public tool
-release-all.yml          # every public tool, then toolchain
-release-toolchain.yml    # toolchain-only release
+release-all.yml          # every public tool
 delete-release.yml       # destructive release and tag cleanup
 sync-distributions.yml   # public README/CONTRIBUTING/action/LICENSE sync only
 update-floating-tags.yml # moving tag repair for public repositories
 ```
 
-Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public distribution bump commits, public tags, GitHub Releases, and cleanup actions. Release All replaces a stale aggregate branch for the requested version before preparing a new run.
+Release workflows must be dispatched from `master`. They create their own temporary release branches, source tags, public tags, GitHub Releases, and cleanup actions from `datarose.toml` release targets.
 
-Single-tool releases squash-merge their temporary source branch back into `master`. Release All uses one aggregate `release/all-vX.Y.Z` branch for every public tool version bump and lockfile update, then squash-merges that branch into a single `master` commit before creating all package-prefixed source tags from the same commit. If a re-release has no source diff because `master` already contains the requested version, finalization skips the squash commit and tags the current `master` commit instead.
+Single-tool releases squash-merge their temporary source branch back into `master`. `release-all.yml` runs the same reusable workflow once for each configured public target.
 
-After all required builds pass and before public `vX.Y.Z` tags are created, release workflows run `sync-distributions.yml` only for the repositories being released. The sync uses a release-specific `chore(distribution)` commit message and forces a bump commit even when the public files are already up to date, so the public release tag lands on the release bump commit.
-
-Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview. The root toolchain config keeps these disabled because the source repository should not receive moving distribution tags.
+Public distribution release configs enable moving tags. Publishing `v1.2.3` updates `v1.2`, `v1`, and `latest`; publishing a preview such as `v1.3.0-rc.1` updates `next` when it is the highest preview.
 
 Public distribution actions must also support those moving refs at runtime. When a workflow uses `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`, the composite action should resolve the requested action ref to the concrete version release tag on the same commit, then download executable assets from that immutable release.
 

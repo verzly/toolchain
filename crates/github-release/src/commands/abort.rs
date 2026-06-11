@@ -7,7 +7,7 @@ use crate::git;
 use anyhow::Result;
 // Abort may delete a branch, so the branch name is validated before any destructive git command runs.
 pub fn run(args: AbortArgs) -> Result<()> {
-    let config = config::load(&args.config)?.source_view();
+    let config = config::load(&args.config, args.release_target.as_deref())?.source_view();
     let branch = if let Some(branch) = args.release_branch.clone() {
         branch
     } else if let Some(version) = args.version.as_ref() {

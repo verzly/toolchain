@@ -118,7 +118,7 @@ jobs:
               exit 1
             fi
 
-            args=(floating-tags --config "crates/${tool}/github-release.toml")
+            args=(floating-tags --config datarose.toml --release-target "${tool}")
             case "${MODE}" in
               all) args+=(--all) ;;
               version) args+=(--version "${VERSION#v}") ;;

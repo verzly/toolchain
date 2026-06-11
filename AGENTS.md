@@ -75,7 +75,6 @@ src/
 crates/
 .github/workflows/test.yml
 .github/workflows/release.yml
-github-release.toml
 cargo-release.toml
 CHANGELOG.md
 VERSION
@@ -112,58 +111,39 @@ Do not use `version.workspace = true` for independently released public tools.
 
 ## Release configuration
 
-Each public tool owns two important configs:
+Each public tool keeps executable build settings in its own Cargo release config, but GitHub release metadata lives in the root `datarose.toml`:
 
 ```text
-crates/<tool>/github-release.toml  # source branch/tag + Cargo.toml version update + public distribution release
+datarose.toml                      # public distribution release targets, source tags, notes, version files
 crates/<tool>/cargo-release.toml   # executable asset build
 ```
 
-The toolchain repository itself owns one root release config:
-
-```text
-github-release.toml                # toolchain tag + GitHub Release, no assets
-```
-
-Do not add `source-github-release.toml`. One `github-release.toml` per crate is enough. It must contain both release contexts:
+Do not add per-crate `github-release.toml` files. `datarose.toml` contains one `[[release.targets]]` entry for every public distribution:
 
 ```toml
 [release]
-tag_prefix = "v"
-floating_tags = true
-latest_tag = true
-next_tag = true
-
-[source_release]
-tag_prefix = "cargo-release-v"
-name_prefix = "cargo-release v"
-latest = false
-
-[github]
-target_repository = "verzly/cargo-release"
+enabled = true
+target_branch = "master"
 source_repository = "verzly/toolchain"
-source_tag_prefix = "cargo-release-v"
 
-[github.notes]
-mode = "scoped"
+[[release.targets]]
+name = "cargo-release"
+repository = "verzly/cargo-release"
+cargo_release_config = "crates/cargo-release/cargo-release.toml"
+distribution_path = ".codex/distributions/cargo-release"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/cargo-release/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "cargo-release-v"
+generate_notes = false
 include_scopes = ["cargo-release", "all"]
 include_paths = ["crates/cargo-release/"]
-
-[[files]]
-path = "crates/cargo-release/Cargo.toml"
-kind = "toml"
-key = "package.version"
-value = "{version}"
 ```
 
-`github-release` must not guess or auto-discover version files in this monorepo. Every file that needs a version bump must be listed in `[[files]]`. Prepare/finalize commands use `[source_release]` and `[[files]]`; publish uses `[release]` and `[github]`.
+`github-release` must not guess version files in this monorepo. The selected `datarose.toml` release target must declare the Cargo manifest that receives the version bump. Prepare/finalize commands use the target's package-prefixed source tag, and publish uses the public repository declared by the same target.
 
-Public distribution configs should enable `floating_tags = true`, `latest_tag = true`, and `next_tag = true` only in `[release]`. A stable public release such as `v1.2.3` should refresh `v1.2`, `v1`, and `latest` in the matching public distribution repository. Preview releases should refresh `next` to the highest preview; when no preview exists, `next` should point to the same release as `latest`. The root `github-release.toml` for `verzly/toolchain` must keep these moving tags disabled, and `[source_release]` tags such as `cargo-release-v1.2.3` should not produce moving source tags inside the toolchain repository.
-
-Public distribution `action.yml` files must make executable assets available through moving action refs too. When the action is used as `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`, it should resolve the requested tag to the concrete version tag on the same commit and download assets from that release. Do not publish duplicate releases for moving tags; moving tags are only pointers.
-
-These configs must stay in the source repository and must not be copied to distribution repositories.
-
+Public distribution targets should enable moving tags through the generated `github-release` config view. A stable public release such as `v1.2.3` should refresh `v1.2`, `v1`, and `latest` in the matching public distribution repository. Preview releases should refresh `next` to the highest preview; when no preview exists, `next` should point to the same release as `latest`. Source tags such as `cargo-release-v1.2.3` should not produce moving source tags inside the toolchain repository.
 
 ## Cargo cache policy
 
@@ -196,11 +176,9 @@ Expected flow:
 
 The source tag must exist before public release notes are generated. Pull request links in public release notes should point to `verzly/toolchain`, because that is where the actual code changes live. Visible PR references must never show raw URLs: same-repository PRs should render as `#123`, while external repository PRs should render as `toolchain#123` or the matching repository name plus PR number.
 
-A central `.github/workflows/release-all.yml` workflow must exist for releasing all public tools and the toolchain with one version input. It must stay readable as a visible two-phase graph: preflight, stale aggregate branch replacement, prepare one aggregate `release/all-vX.Y.Z` source branch, test that prepared branch, build `cargo-release`, build the other executable assets with that freshly built `cargo-release`, run `github-release finalize-batch` to squash merge the aggregate branch into one `master` commit, create every package-prefixed source tag from that commit, sync the released public distribution repositories with release-specific bump commits, publish all public distribution releases with the already-built assets, then publish the toolchain release.
+A central `.github/workflows/release-all.yml` workflow must exist for releasing all configured public targets from `datarose.toml` with one version input. It should stay readable and call the shared `_release-datarose-tool.yml` workflow once per target.
 
-Release All may create multiple preparation commits on the temporary aggregate branch. It must not push those commits individually to `master`; the final `master` commit must be a single squash merge whose body includes a summary of the squashed preparation commits. Re-releases are allowed to have no source diff when the requested version is already present in `master`; in that case finalization must skip the squash commit, create the source tags from the existing `master` commit, and still clean up the aggregate branch. Public distribution sync must happen after all asset builds succeed and before `github-release publish`; it must only touch the public repositories being released and must force a version-specific bump commit such as `chore(distribution): bump public surface for vX.Y.Z release`.
-
-A `.github/workflows/release-toolchain.yml` workflow must exist for publishing a toolchain-only release. It should create a `vX.Y.Z` tag and GitHub Release in `verzly/toolchain` without executable assets.
+Release All should reuse the same per-target release lifecycle as single-tool releases. Public distribution sync and publish behavior is owned by the shared release workflow and the selected `datarose.toml` target.
 
 A `.github/workflows/delete-release.yml` workflow must exist for destructive release cleanup. It must use the same version input style as release workflows, so maintainers enter `X.Y.Z` without the `v` prefix and confirm with `DELETE X.Y.Z`. It must check repository access before deleting anything, delete GitHub Releases through the GitHub API, and delete matching Git tags explicitly instead of relying on release-delete tag cleanup side effects. For `all`, it must remove `vX.Y.Z` from `verzly/toolchain`, remove `vX.Y.Z` from every public `verzly/<tool>` repository, and remove each package-prefixed source tag from `verzly/toolchain`. Public repository deletion must require `DISTRIBUTION_REPO_TOKEN`.
 
@@ -235,7 +213,7 @@ refactor(workspace): remove unused shared crate
 
 If a PR changes multiple packages in a meaningful user-facing way, prefer splitting it by package. If it must stay together, use `all` only when every package release should mention the change.
 
-Package public release notes include a commit when either the commit/PR title has the package scope or the changed files are under the package path configured in `crates/<tool>/github-release.toml`. The root toolchain release can contain mixed PRs and commits.
+Package public release notes include a commit when either the commit/PR title has the package scope or the changed files are under the package path configured in `datarose.toml`. The source repository can contain mixed PRs and commits.
 
 ## Dependency maintenance
 
@@ -322,15 +300,9 @@ Each public tool has its own small workflow:
 
 Those files should remain thin wrappers around the reusable workflow:
 
-```text
-.github/workflows/_release-tool.yml
-```
-
 The repository must also contain these maintainer workflows:
 
 ```text
-.github/workflows/release-toolchain.yml       # publish the private/source repo release, no assets
-.github/workflows/_release-toolchain.yml      # reusable toolchain release workflow
 .github/workflows/release-all.yml             # prepare/build everything first, then finalize/publish releases
 .github/workflows/delete-release.yml          # destructive release and tag cleanup
 .github/workflows/sync-distributions.yml      # push public README/CONTRIBUTING/action/LICENSE surfaces

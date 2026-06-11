@@ -15,7 +15,6 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 - [Release workflows](#release-workflows)
   - [Release one public tool](#release-one-public-tool)
   - [Release all tools](#release-all-tools)
-  - [Release toolchain only](#release-toolchain-only)
   - [Delete a release](#delete-a-release)
   - [Update floating tags](#update-floating-tags)
   - [Sync distribution repositories](#sync-distribution-repositories)
@@ -56,7 +55,6 @@ crates/
 Cargo.toml
 Cargo.lock
 datarose.toml
-github-release.toml
 rust-cache.toml
 hk.pkl
 mise.toml
@@ -111,12 +109,12 @@ cargo run -p repo-quality -- update
 
 Generated project-local files are intentionally overrideable. `repo-quality update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
 
-`datarose.toml` can also describe release targets. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, config paths, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
+`datarose.toml` also describes release targets. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
-cargo run -p github-release -- plan --config crates/cargo-release/github-release.toml --version 1.2.3
+cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
 cargo run -p tauri-release -- plan --config crates/tauri-release/tauri-release.toml
 cargo run -p rust-cache -- init
@@ -200,31 +198,25 @@ Source finalization uses a squash merge by default. The release branch may conta
 
 ### Release all tools
 
-Use `.github/workflows/release-all.yml` to release every public tool and then the toolchain release with one version input.
+Use `.github/workflows/release-all.yml` to release every configured public distribution target from `datarose.toml` with one version input.
 
-The workflow is a visible two-phase dependency graph. It replaces a stale aggregate source branch from a previous failed run, prepares one aggregate source release branch, runs tests from that branch, builds `cargo-release`, then uses that built `cargo-release` executable to build the other public tool assets. Only after every asset build succeeds does it squash merge the aggregate branch into one `master` commit, create all package-prefixed source tags from that commit, sync the released public distribution repositories with release-specific bump commits, publish public releases with the already-built assets, and publish the final toolchain release.
+The generated workflow runs the shared `_release-datarose-tool.yml` workflow once per target. Each target prepares its source release branch, runs the quality gate, builds assets with its `cargo-release.toml`, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
 
 ```text
-preflight
-prepare release/all-vX.Y.Z source branch
-test prepared source branch
-build cargo-release assets
-build github-release / tauri-release / rust-cache / android-signing / repo-quality assets
-github-release finalize-batch
-sync released distribution repositories
-publish all public distribution releases
-publish toolchain release
+release-all.yml
+→ _release-datarose-tool.yml for github-release
+→ _release-datarose-tool.yml for cargo-release
+→ _release-datarose-tool.yml for tauri-release
+→ _release-datarose-tool.yml for rust-cache
+→ _release-datarose-tool.yml for android-signing
+→ _release-datarose-tool.yml for repo-quality
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`. For Release All, every source tag points at the same finalized squash commit, or at the current `master` commit when the aggregate branch has no source diff during a re-release. Public distribution tags are created only after the matching distribution repository has received a release-specific `chore(distribution)` bump commit, so the public `vX.Y.Z` tag points at that bump commit.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
 
 Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
 
 The public composite actions support those moving refs as action pins. A workflow can use `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`; the action reads the requested ref, resolves it to the concrete version tag on the same commit, and downloads the executable from that release. Executable assets remain attached to immutable `vX.Y.Z` releases instead of duplicated onto moving tags.
-
-### Release toolchain only
-
-Use `.github/workflows/release-toolchain.yml` to publish a maintainer release in `verzly/toolchain` without executable assets. It uses the root `github-release.toml` and creates the clean source tag `vX.Y.Z`.
 
 ### Delete a release
 
@@ -234,7 +226,7 @@ Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository 
 
 ### Update floating tags
 
-Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags`, reads each tool's `crates/<tool>/github-release.toml`, and skips configs where all moving tag families are disabled.
+Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags --config datarose.toml --release-target <tool>` and skips targets where all moving tag families are disabled.
 
 Modes:
 
@@ -244,7 +236,7 @@ version  analyze one version input such as 1.2.3 or 1.3.0-rc.1
 tag      analyze one full tag such as v1.2.3 or v1.3.0-rc.1
 ```
 
-The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The root `verzly/toolchain` release config keeps these tags disabled.
+The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The source repository does not update distribution moving tags.
 
 ### Sync distribution repositories
 
@@ -263,11 +255,11 @@ chore(distribution): bump public surface
 Each public tool owns:
 
 ```text
-crates/<tool>/github-release.toml
+datarose.toml
 crates/<tool>/cargo-release.toml
 ```
 
-`github-release.toml` contains both release contexts. `[source_release]` controls the temporary source branch and source tag in `verzly/toolchain`; `[release]` controls the public `vX.Y.Z` release in `verzly/<tool>`.
+`datarose.toml` contains the per-tool `github-release` context. Each `[[release.targets]]` entry controls the source tag prefix, public repository, version file, scoped release notes, and prepare commands for one public distribution. `crates/<tool>/cargo-release.toml` remains the build-asset config for executable artifacts.
 
 For public distribution repositories, `[release]` also enables moving tags:
 

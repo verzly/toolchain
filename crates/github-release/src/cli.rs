@@ -60,6 +60,10 @@ pub struct PlanArgs {
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
 
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
+
     /// Override target branch.
     #[arg(long)]
     pub target_branch: Option<String>,
@@ -79,6 +83,10 @@ pub struct PrepareArgs {
     /// Config path.
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
+
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
 
     /// Override target branch.
     #[arg(long)]
@@ -115,6 +123,10 @@ pub struct FinalizeArgs {
     /// Config path.
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
+
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
 
     /// Override target branch.
     #[arg(long)]
@@ -212,6 +224,10 @@ pub struct PublishArgs {
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
 
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
+
     /// Directory containing release assets.
     #[arg(long)]
     pub assets: Option<PathBuf>,
@@ -252,6 +268,10 @@ pub struct FloatingTagsArgs {
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
 
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
+
     /// Release version to resolve through the configured prefix and suffix.
     #[arg(short, long)]
     pub version: Option<String>,
@@ -287,6 +307,10 @@ pub struct AbortArgs {
     /// Config path.
     #[arg(short, long, default_value = "github-release.toml")]
     pub config: PathBuf,
+
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
 
     /// Release branch to delete.
     #[arg(long)]

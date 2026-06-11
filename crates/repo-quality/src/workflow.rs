@@ -123,8 +123,6 @@ jobs:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      target-repository: {repository}
-      github-release-config: {github_release_config}
       cargo-release-config: {cargo_release_config}
       distribution-path: {distribution_path}
     secrets:
@@ -132,8 +130,6 @@ jobs:
 "#,
         title = title,
         tool = target.name,
-        repository = target.repository,
-        github_release_config = target.github_release_config,
         cargo_release_config = target.cargo_release_config,
         distribution_path = target.distribution_path,
         secret_name = secret_name,
@@ -157,12 +153,6 @@ on:
         required: false
         type: string
         default: auto
-      target-repository:
-        required: true
-        type: string
-      github-release-config:
-        required: true
-        type: string
       cargo-release-config:
         required: true
         type: string
@@ -209,7 +199,8 @@ jobs:
         id: prepare
         run: >-
           ./.cache/rust/packages/toolchain/target/release/github-release prepare
-          --config "${{ inputs.github-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
 
   quality:
@@ -287,7 +278,8 @@ jobs:
       - name: Abort source release
         run: >-
           ./.cache/rust/packages/toolchain/target/release/github-release abort
-          --config "${{ inputs.github-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
 
   finalize:
@@ -318,7 +310,8 @@ jobs:
       - name: Finalize source release
         run: >-
           ./.cache/rust/packages/toolchain/target/release/github-release finalize
-          --config "${{ inputs.github-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --assets-dir dist/release
 
@@ -327,7 +320,8 @@ jobs:
           GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
         run: >-
           ./.cache/rust/packages/toolchain/target/release/github-release publish
-          --config "${{ inputs.github-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --assets-dir dist/release
 "#
@@ -380,7 +374,7 @@ jobs:
 fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
     let mut out = String::new();
     out.push_str(&format!(
-        "  summary:\n    name: Release targets\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"Targets: {tools}\"\n"
+        "  summary:\n    name: Release targets\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          echo \"Targets: {tools}\"\n"
     ));
 
     for target in &profile.stored_config.release.targets {
@@ -396,8 +390,6 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      target-repository: {repository}
-      github-release-config: {github_release_config}
       cargo-release-config: {cargo_release_config}
       distribution-path: {distribution_path}
     secrets:
@@ -405,8 +397,6 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
 "#,
             job = job,
             tool = target.name,
-            repository = target.repository,
-            github_release_config = target.github_release_config,
             cargo_release_config = target.cargo_release_config,
             distribution_path = target.distribution_path,
             secret_name = secret_name,

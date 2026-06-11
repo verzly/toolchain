@@ -94,9 +94,16 @@ release_all = true
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-github_release_config = "crates/repo-quality/github-release.toml"
 cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/repo-quality/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "repo-quality-v"
+generate_notes = false
+include_scopes = ["repo-quality", "all"]
+include_paths = ["crates/repo-quality/"]
 ```
 
 `repo-quality update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.

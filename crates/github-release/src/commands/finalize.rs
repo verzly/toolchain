@@ -33,7 +33,7 @@ pub fn run(args: FinalizeArgs) -> Result<()> {
         anyhow::bail!("use either --notes or --notes-file, not both");
     }
 
-    let config = config::load(&args.config)?.source_view();
+    let config = config::load(&args.config, args.release_target.as_deref())?.source_view();
     let plan = domain::build_plan(
         &config,
         &args.version,

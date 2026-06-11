@@ -109,6 +109,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 github-release --help
 github-release init --config github-release.toml
 github-release plan --version 1.2.3 --config github-release.toml
+github-release plan --version 1.2.3 --config datarose.toml --release-target my-tool
 github-release prepare --version 1.2.3 --config github-release.toml
 github-release finalize --version 1.2.3 --config github-release.toml --assets dist
 github-release publish --version 1.2.3 --config github-release.toml --assets dist
@@ -148,7 +149,7 @@ Prints the calculated release plan without changing files, branches, tags, or Gi
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | Yes | none | SemVer such as `1.2.3`, `1.2.3-rc.1`, `2.0.0-beta.1` | Version used to render branch names, tag names, release names, and configured file updates. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. Use `datarose.toml` with `--release-target <name>` when release config is stored in a shared Datarose config. |
 | `--target-branch` | No | Config value | Branch name | Temporary override for the branch that receives the release merge. |
 | `--release-branch` | No | Generated from config and version | Branch name | Temporary override for the release branch name. |
 
@@ -233,7 +234,9 @@ Deletes a temporary release branch after a failed build.
 
 ## Configuration
 
-A `github-release.toml` file has three main areas.
+`github-release` can read either a standalone `github-release.toml` file or a shared `datarose.toml` file. When a Datarose config contains multiple `[[release.targets]]`, pass `--release-target <name>` to select the target.
+
+A standalone `github-release.toml` file has three main areas.
 
 ```toml
 prepare_commands = ["cargo generate-lockfile"]

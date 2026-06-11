@@ -15,41 +15,83 @@ release_all = true
 [[release.targets]]
 name = "github-release"
 repository = "verzly/github-release"
-github_release_config = "crates/github-release/github-release.toml"
 cargo_release_config = "crates/github-release/cargo-release.toml"
 distribution_path = ".codex/distributions/github-release"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/github-release/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "github-release-v"
+generate_notes = false
+include_scopes = ["github-release", "all"]
+include_paths = ["crates/github-release/"]
 
 [[release.targets]]
 name = "cargo-release"
 repository = "verzly/cargo-release"
-github_release_config = "crates/cargo-release/github-release.toml"
 cargo_release_config = "crates/cargo-release/cargo-release.toml"
 distribution_path = ".codex/distributions/cargo-release"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/cargo-release/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "cargo-release-v"
+generate_notes = false
+include_scopes = ["cargo-release", "all"]
+include_paths = ["crates/cargo-release/"]
 
 [[release.targets]]
 name = "tauri-release"
 repository = "verzly/tauri-release"
-github_release_config = "crates/tauri-release/github-release.toml"
 cargo_release_config = "crates/tauri-release/cargo-release.toml"
 distribution_path = ".codex/distributions/tauri-release"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/tauri-release/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "tauri-release-v"
+generate_notes = false
+include_scopes = ["tauri-release", "all"]
+include_paths = ["crates/tauri-release/"]
 
 [[release.targets]]
 name = "rust-cache"
 repository = "verzly/rust-cache"
-github_release_config = "crates/rust-cache/github-release.toml"
 cargo_release_config = "crates/rust-cache/cargo-release.toml"
 distribution_path = ".codex/distributions/rust-cache"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/rust-cache/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "rust-cache-v"
+generate_notes = false
+include_scopes = ["rust-cache", "all"]
+include_paths = ["crates/rust-cache/"]
 
 [[release.targets]]
 name = "android-signing"
 repository = "verzly/android-signing"
-github_release_config = "crates/android-signing/github-release.toml"
 cargo_release_config = "crates/android-signing/cargo-release.toml"
 distribution_path = ".codex/distributions/android-signing"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/android-signing/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "android-signing-v"
+generate_notes = false
+include_scopes = ["android-signing", "all"]
+include_paths = ["crates/android-signing/"]
 
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-github_release_config = "crates/repo-quality/github-release.toml"
 cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/repo-quality/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "repo-quality-v"
+generate_notes = false
+include_scopes = ["repo-quality", "all"]
+include_paths = ["crates/repo-quality/"]

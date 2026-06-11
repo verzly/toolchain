@@ -8,7 +8,7 @@ on:
         description: "Version to delete without the v prefix. Example: 1.2.3."
         required: true
       target:
-        description: "Release target to delete. All deletes public tool releases, source tags, and the toolchain release."
+        description: "Release target to delete. All deletes public tool releases and package-prefixed source tags."
         required: true
         type: choice
         default: all

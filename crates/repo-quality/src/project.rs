@@ -114,9 +114,15 @@ impl Default for ReleaseConfig {
 pub struct ReleaseTarget {
     pub name: String,
     pub repository: String,
-    pub github_release_config: String,
     pub cargo_release_config: String,
     pub distribution_path: String,
+    pub prepare_commands: Vec<String>,
+    pub version_files: Option<bool>,
+    pub version_file: String,
+    pub version_key: String,
+    pub version_value: String,
+    pub include_scopes: Vec<String>,
+    pub include_paths: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -428,16 +434,45 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
             escape_toml(&target.repository)
         ));
         out.push_str(&format!(
-            "github_release_config = \"{}\"\n",
-            escape_toml(&target.github_release_config)
-        ));
-        out.push_str(&format!(
             "cargo_release_config = \"{}\"\n",
             escape_toml(&target.cargo_release_config)
         ));
         out.push_str(&format!(
             "distribution_path = \"{}\"\n",
             escape_toml(&target.distribution_path)
+        ));
+        out.push_str(&format!(
+            "prepare_commands = [{}]\n",
+            render_string_array(&target.prepare_commands)
+        ));
+        if target.version_files == Some(false) {
+            out.push_str("version_files = false\n");
+        } else {
+            out.push_str(&format!(
+                "version_file = \"{}\"\n",
+                escape_toml(&target.version_file)
+            ));
+            out.push_str(&format!(
+                "version_key = \"{}\"\n",
+                escape_toml(&target.version_key)
+            ));
+            out.push_str(&format!(
+                "version_value = \"{}\"\n",
+                escape_toml(&target.version_value)
+            ));
+        }
+        out.push_str(&format!(
+            "source_tag_prefix = \"{}-v\"\n",
+            escape_toml(&target.name)
+        ));
+        out.push_str("generate_notes = false\n");
+        out.push_str(&format!(
+            "include_scopes = [{}]\n",
+            render_string_array(&target.include_scopes)
+        ));
+        out.push_str(&format!(
+            "include_paths = [{}]\n",
+            render_string_array(&target.include_paths)
         ));
     }
 
@@ -497,7 +532,45 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
         config.release.targets.push(target);
     }
 
+    normalize_release_targets(&mut config.release.targets);
+
     Ok(config)
+}
+
+fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
+    for target in targets {
+        if target.cargo_release_config.is_empty() && !target.name.is_empty() {
+            target.cargo_release_config = format!("crates/{}/cargo-release.toml", target.name);
+        }
+        if target.distribution_path.is_empty() && !target.name.is_empty() {
+            target.distribution_path = format!(".codex/distributions/{}", target.name);
+        }
+        if target.prepare_commands.is_empty() {
+            target
+                .prepare_commands
+                .push("cargo generate-lockfile".into());
+        }
+        if target.version_files != Some(false) {
+            if target.version_file.is_empty() && !target.name.is_empty() {
+                target.version_file = format!("crates/{}/Cargo.toml", target.name);
+            }
+            if target.version_key.is_empty() {
+                target.version_key = "package.version".into();
+            }
+            if target.version_value.is_empty() {
+                target.version_value = "{version}".into();
+            }
+        }
+        if target.include_scopes.is_empty() && !target.name.is_empty() {
+            target.include_scopes.push(target.name.clone());
+            target.include_scopes.push("all".into());
+        }
+        if target.include_paths.is_empty() && !target.name.is_empty() {
+            target
+                .include_paths
+                .push(format!("crates/{}/", target.name));
+        }
+    }
 }
 
 fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
@@ -540,16 +613,27 @@ fn apply_release_value(config: &mut ReleaseConfig, key: &str, value: &str) {
 }
 
 fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str) {
-    let Some(value) = parse_string(value) else {
-        return;
-    };
     match key {
-        "name" => target.name = value,
-        "repository" => target.repository = value,
-        "github_release_config" => target.github_release_config = value,
-        "cargo_release_config" => target.cargo_release_config = value,
-        "distribution_path" => target.distribution_path = value,
-        _ => {}
+        "prepare_commands" => target.prepare_commands = parse_string_array(value),
+        "include_scopes" => target.include_scopes = parse_string_array(value),
+        "include_paths" => target.include_paths = parse_string_array(value),
+        "version_files" => target.version_files = parse_bool(value),
+        _ => {
+            let Some(value) = parse_string(value) else {
+                return;
+            };
+            match key {
+                "name" => target.name = value,
+                "repository" | "target_repository" => target.repository = value,
+                "cargo_release_config" => target.cargo_release_config = value,
+                "distribution_path" => target.distribution_path = value,
+                "version_file" => target.version_file = value,
+                "version_key" => target.version_key = value,
+                "version_value" => target.version_value = value,
+                "source_tag_prefix" | "generate_notes" => {}
+                _ => {}
+            }
+        }
     }
 }
 
@@ -793,7 +877,6 @@ source_repository = "verzly/toolchain"
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-github_release_config = "crates/repo-quality/github-release.toml"
 cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
 "#,

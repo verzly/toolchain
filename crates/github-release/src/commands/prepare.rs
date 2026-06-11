@@ -16,7 +16,7 @@ pub fn run(args: PrepareArgs) -> Result<()> {
         anyhow::bail!("use either --force-branch or --reuse-branch, not both");
     }
 
-    let config = config::load(&args.config)?.source_view();
+    let config = config::load(&args.config, args.release_target.as_deref())?.source_view();
     let mut plan = domain::build_plan(
         &config,
         &args.version,
