@@ -1,16 +1,16 @@
-//! Command-line contract for repository quality bootstrap.
+//! Command-line contract for repository standards bootstrap.
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(name = "repo-quality")]
-#[command(bin_name = "repo-quality")]
+#[command(name = "repository")]
+#[command(bin_name = "repository")]
 #[command(
     author,
     version,
     about = "Bootstrap hk/mise quality gates for Rust, JavaScript, and PHP repositories",
-    after_help = "Read the full README: https://github.com/verzly/repo-quality"
+    after_help = "Read the full README: https://github.com/verzly/repository"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -32,7 +32,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
 pub struct InitArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -79,7 +79,7 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
 pub struct UpdateArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -114,7 +114,7 @@ pub struct UpdateArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
 pub struct PlanArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -135,7 +135,7 @@ pub struct PlanArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
 pub struct CheckArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -146,7 +146,7 @@ pub struct CheckArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
 pub struct DoctorArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn parses_init_overrides() {
         let cli = Cli::parse_from([
-            "repo-quality",
+            "repository",
             "init",
             "--root",
             "repo",

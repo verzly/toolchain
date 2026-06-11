@@ -41,7 +41,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
-`repo-quality` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
+`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
 
 ### Repository model
 
@@ -87,7 +87,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repo-quality` result. `mise.toml` pins `hk`, `pkl`, and `rust@stable` for local quality gates. After installing `mise`, run:
+The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repository` result. `mise.toml` pins `hk`, `pkl`, and `rust@stable` for local quality gates. After installing `mise`, run:
 
 ```sh
 mise install
@@ -95,31 +95,31 @@ mise exec -- hk install
 mise exec -- hk check
 ```
 
-GitHub Actions use the same `mise exec -- hk check` gate that `repo-quality` writes into repositories. The workflow cancels older PR runs when a newer push arrives and stops early for WIP commit subjects.
+GitHub Actions use the same `mise exec -- hk check` gate that `repository` writes into repositories. The workflow cancels older PR runs when a newer push arrives and stops early for WIP commit subjects.
 
 ### Run a tool locally
 
 
-`repo-quality` can also initialize monorepo subdirectories. The root `datarose.toml` stores the selected workspace path so future updates do not need it again:
+`repository` can also initialize monorepo subdirectories. The root `datarose.toml` stores the selected workspace path so future updates do not need it again:
 
 ```sh
-cargo run -p repo-quality -- init --workspace workspace/app
-cargo run -p repo-quality -- update
+cargo run -p repository -- init --workspace workspace/app
+cargo run -p repository -- update
 ```
 
-Generated project-local files are intentionally overrideable. `repo-quality update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
+Generated project-local files are intentionally overrideable. `repository update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
 
 
 Validate `datarose.toml` without rewriting files:
 
 ```sh
-repo-quality check
-repo-quality check --config config/datarose.toml
+repository check
+repository check --config config/datarose.toml
 ```
 
 The check command exits with `1` only when it finds removed, deprecated, or invalid Datarose settings. It is also included in generated `hk` pre-push checks.
 
-`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repo-quality update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repo-quality` reads the root `datarose.toml`.
+`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` uses those targets to generate GitHub Actions release workflows, so repositories can share the same `github-release` / `cargo-release` orchestration model while keeping target-specific repositories, release metadata, version files, scoped notes, and distribution paths in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
@@ -129,38 +129,38 @@ cargo run -p cargo-release -- build --config datarose.toml --release-target carg
 cargo run -p tauri-release -- plan --config datarose.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
-cargo run -p repo-quality -- plan
+cargo run -p repository -- plan
 ```
 
 A tool does not need a public release before you can test it locally. Cargo can run the current source directly:
 
 ```sh
-cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repo-quality -- plan
-cargo run -p repo-quality -- doctor
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- plan
+cargo run -p repository -- doctor
 ```
 
-`repo-quality doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
+`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
 
 Build and run the local executable when you want to test the exact binary entry point:
 
 ```sh
-cargo build -p repo-quality
-.cache/rust/packages/toolchain/target/debug/repo-quality plan
+cargo build -p repository
+.cache/rust/packages/toolchain/target/debug/repository plan
 ```
 
 On Windows, run the built executable with `.exe`:
 
 ```pwsh
-.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+.\.cache\rust\packages\toolchain\target\debug\repository.exe plan
 ```
 
 You can also install the current source into your local Cargo bin directory without a GitHub Release:
 
 ```sh
-cargo install --path crates/repo-quality --force
-repo-quality plan
+cargo install --path crates/repository --force
+repository plan
 ```
 
 Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
@@ -188,7 +188,7 @@ Use the matching workflow when one tool needs a public release:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
-.github/workflows/release-repo-quality.yml
+.github/workflows/release-repository.yml
 ```
 
 The flow is:
@@ -219,7 +219,7 @@ release-all.yml
 → _release-datarose-tool.yml for tauri-release
 → _release-datarose-tool.yml for rust-cache
 → _release-datarose-tool.yml for android-signing
-→ _release-datarose-tool.yml for repo-quality
+→ _release-datarose-tool.yml for repository
 ```
 
 Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
@@ -327,7 +327,7 @@ verzly/cargo-release
 verzly/tauri-release
 verzly/rust-cache
 verzly/android-signing
-verzly/repo-quality
+verzly/repository
 ```
 
 They are distribution surfaces only. Development happens in `verzly/toolchain`.

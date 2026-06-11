@@ -21,7 +21,7 @@ verzly/toolchain/
 │       ├── tauri-release/
 │       ├── rust-cache/
 │       ├── android-signing/
-│       └── repo-quality/
+│       └── repository/
 ├── crates/
 ├── Cargo.toml
 ├── Cargo.lock
@@ -50,7 +50,7 @@ Do not add orchestration shell scripts for release behavior that belongs in `git
 | `tauri-release` | `crates/tauri-release` | `verzly/tauri-release` | `tauri-release-vX.Y.Z` | `vX.Y.Z` |
 | `rust-cache` | `crates/rust-cache` | `verzly/rust-cache` | `rust-cache-vX.Y.Z` | `vX.Y.Z` |
 | `android-signing` | `crates/android-signing` | `verzly/android-signing` | `android-signing-vX.Y.Z` | `vX.Y.Z` |
-| `repo-quality` | `crates/repo-quality` | `verzly/repo-quality` | `repo-quality-vX.Y.Z` | `vX.Y.Z` |
+| `repository` | `crates/repository` | `verzly/repository` | `repository-vX.Y.Z` | `vX.Y.Z` |
 | `toolchain` | repository root | `verzly/toolchain` | `vX.Y.Z` | `vX.Y.Z` |
 
 Do not add a vague shared `verzly-core` crate by default. Shared internal crates are allowed only when multiple tools actively use the same behavior and the crate has a narrow, descriptive responsibility.

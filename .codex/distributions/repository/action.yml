@@ -1,5 +1,5 @@
-name: Verzly repo-quality
-description: Install and optionally run the repo-quality standalone executable published by this repository.
+name: Verzly repository
+description: Install and optionally run the repository standalone executable published by this repository.
 author: Verzly
 
 inputs:
@@ -16,11 +16,11 @@ inputs:
     required: false
     default: "false"
   args:
-    description: Arguments passed to repo-quality when install-only is false.
+    description: Arguments passed to repository when install-only is false.
     required: false
     default: "--help"
   working-directory:
-    description: Directory where repo-quality should run.
+    description: Directory where repository should run.
     required: false
     default: "."
 
@@ -77,7 +77,7 @@ runs:
         echo "host-target=${HOST}" >> "${GITHUB_OUTPUT}"
         echo "extension=${EXT}" >> "${GITHUB_OUTPUT}"
 
-    - name: Install repo-quality
+    - name: Install repository
       id: install
       shell: bash
       env:
@@ -111,12 +111,12 @@ runs:
           REPOSITORY="${GITHUB_ACTION_REPOSITORY:-}"
         fi
         if [ -z "${REPOSITORY}" ]; then
-          REPOSITORY="verzly/repo-quality"
+          REPOSITORY="verzly/repository"
         fi
 
-        TOOL_DIR="${RUNNER_TEMP}/repo-quality-action"
-        BIN_DIR="${RUNNER_TEMP}/repo-quality-bin"
-        PATTERN="repo-quality-v*-${HOST}${EXT}"
+        TOOL_DIR="${RUNNER_TEMP}/repository-action"
+        BIN_DIR="${RUNNER_TEMP}/repository-bin"
+        PATTERN="repository-v*-${HOST}${EXT}"
 
         normalize_release_selector() {
           local selector="$1"
@@ -328,7 +328,7 @@ runs:
 
         TOOL="$(find "${TOOL_DIR}" -maxdepth 1 -type f -name "${PATTERN}" | sort | tail -n 1)"
         if [ -z "${TOOL}" ]; then
-          echo "::error::No repo-quality executable matched ${PATTERN} in ${REPOSITORY}."
+          echo "::error::No repository executable matched ${PATTERN} in ${REPOSITORY}."
           find "${TOOL_DIR}" -maxdepth 1 -type f -print || true
           exit 1
         fi
@@ -342,16 +342,16 @@ runs:
           fi
         fi
 
-        cp "${TOOL}" "${BIN_DIR}/repo-quality${EXT}"
+        cp "${TOOL}" "${BIN_DIR}/repository${EXT}"
         if [ "${{ runner.os }}" != "Windows" ]; then
-          chmod 755 "${BIN_DIR}/repo-quality${EXT}"
+          chmod 755 "${BIN_DIR}/repository${EXT}"
         fi
 
         echo "${BIN_DIR}" >> "${GITHUB_PATH}"
-        echo "bin-path=${BIN_DIR}/repo-quality${EXT}" >> "${GITHUB_OUTPUT}"
-        "${BIN_DIR}/repo-quality${EXT}" --version || true
+        echo "bin-path=${BIN_DIR}/repository${EXT}" >> "${GITHUB_OUTPUT}"
+        "${BIN_DIR}/repository${EXT}" --version || true
 
-    - name: Run repo-quality
+    - name: Run repository
       if: inputs.install-only != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}

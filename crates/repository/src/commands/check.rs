@@ -32,7 +32,7 @@ pub fn collect_config_issues(profile: &ProjectProfile) -> Result<Vec<String>> {
 
     if !profile.config_path.is_file() {
         issues.push(format!(
-            "{} is missing; run `repo-quality init` first",
+            "{} is missing; run `repository init` first",
             profile.config_path.display()
         ));
         return Ok(issues);
@@ -54,12 +54,23 @@ fn collect_removed_files(root: &Path, issues: &mut Vec<String>) {
         "github-release.toml",
         "rust-cache.toml",
         "tauri-release.toml",
+        ".github/workflows/release-repo-quality.yml",
     ];
     for path in direct_removed {
         let full_path = root.join(path);
         if full_path.exists() {
             issues.push(format!(
                 "{} is deprecated; move its settings into {DEFAULT_CONFIG_FILE}",
+                full_path.display()
+            ));
+        }
+    }
+
+    for path in ["crates/repo-quality", ".codex/distributions/repo-quality"] {
+        let full_path = root.join(path);
+        if full_path.exists() {
+            issues.push(format!(
+                "{} is deprecated; rename it to use `repository`",
                 full_path.display()
             ));
         }
@@ -126,6 +137,10 @@ fn collect_removed_fields(text: &str, issues: &mut Vec<String>) {
             )),
             "package" if value == "\"auto\"" => issues.push(format!(
                 "line {}: `rust_cache.cache.package = \"auto\"` is removed; use the repository directory name explicitly",
+                line_number + 1
+            )),
+            _ if value.contains("repo-quality") => issues.push(format!(
+                "line {}: `repo-quality` has been renamed to `repository`",
                 line_number + 1
             )),
             _ => {}

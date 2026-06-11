@@ -81,7 +81,7 @@ fn apply(options: ApplyOptions) -> Result<()> {
             for issue in &issues {
                 eprintln!("- {issue}");
             }
-            eprintln!("Run `repo-quality check` to fail on these issues in CI or pre-push.");
+            eprintln!("Run `repository check` to fail on these issues in CI or pre-push.");
         }
     }
 
@@ -131,7 +131,7 @@ fn apply(options: ApplyOptions) -> Result<()> {
 
     if options.from_stored_config && !repo_config_path.exists() {
         bail!(
-            "{} is missing; run `repo-quality init` once before `repo-quality update`",
+            "{} is missing; run `repository init` once before `repository update`",
             repo_config_path.display()
         );
     }

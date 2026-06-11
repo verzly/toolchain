@@ -20,7 +20,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
     }
     if !profile.config_path.is_file() {
         suggestions.push(format!(
-            "{} is missing; run `repo-quality init` once so future `repo-quality update` \
+            "{} is missing; run `repository init` once so future `repository update` \
              runs can reuse the configured workspace and release targets",
             profile.config_path.display()
         ));
@@ -49,7 +49,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
 
     if !profile.has_mise_toml {
         suggestions.push(
-            "mise.toml is missing; create it with `repo-quality init` or add hk/pkl manually"
+            "mise.toml is missing; create it with `repository init` or add hk/pkl manually"
                 .to_string(),
         );
     }
@@ -102,7 +102,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
 
     if !profile.root.join(".github/workflows/test.yml").is_file() {
         suggestions
-            .push(".github/workflows/test.yml is missing; run `repo-quality update`".to_string());
+            .push(".github/workflows/test.yml is missing; run `repository update`".to_string());
     }
 
     if profile.release_enabled() {
@@ -112,7 +112,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
                 .join(format!(".github/workflows/release-{}.yml", target.name));
             if !path.is_file() {
                 suggestions.push(format!(
-                    "{} is missing; run `repo-quality update`",
+                    "{} is missing; run `repository update`",
                     path.display()
                 ));
             }
@@ -134,7 +134,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         for failure in &failures {
             eprintln!("- {failure}");
         }
-        bail!("repository quality setup is incomplete")
+        bail!("repository standards setup is incomplete")
     }
 }
 

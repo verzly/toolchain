@@ -1,6 +1,6 @@
-# repo-quality
+# repository
 
-`repo-quality` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects.
+`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects.
 
 It carries the Verzly default quality model as an executable: `mise` tools, `hk` hooks, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
 
@@ -10,6 +10,7 @@ It carries the Verzly default quality model as an executable: `mise` tools, `hk`
 - [Commands](#commands)
   - [init](#init)
   - [update](#update)
+  - [check](#check)
   - [plan](#plan)
   - [doctor](#doctor)
 - [Generated files](#generated-files)
@@ -22,7 +23,7 @@ It carries the Verzly default quality model as an executable: `mise` tools, `hk`
 
 ## Purpose
 
-`repo-quality` centralizes setup that would otherwise be repeated manually in every repository:
+`repository` centralizes setup that would otherwise be repeated manually in every repository:
 
 - install `hk` and `pkl` through `mise`;
 - add language tools such as `rust@stable`, `aube`, `php`, `composer`, `npm:oxlint`, `npm:oxfmt`, and `npm:vitest` when needed;
@@ -38,19 +39,19 @@ The tool intentionally does not add package scripts to `package.json` or `compos
 Use the GitHub Action to install the executable in CI:
 
 ```yaml
-- uses: verzly/repo-quality@v0.2
+- uses: verzly/repository@v0.2
   with:
     install-only: true
 ```
 
 For local usage, install the published executable or make it available through your preferred `mise` setup, then run it from the repository root.
 
-When developing `repo-quality` inside `verzly/toolchain`, a public release is not required:
+When developing `repository` inside `verzly/toolchain`, a public release is not required:
 
 ```sh
-cargo run -p repo-quality -- plan
-cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- plan
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
 ```
 
 ## How it works
@@ -58,21 +59,21 @@ cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
 A typical setup is:
 
 ```sh
-repo-quality init
+repository init
 ```
 
 For monorepos, store quality files under a specific workspace folder and remember that folder for future updates:
 
 ```sh
-repo-quality init --workspace apps/mobile
-repo-quality update
+repository init --workspace apps/mobile
+repository update
 ```
 
-`repo-quality init` writes `datarose.toml` at the repository root. `repo-quality update` reads it, so the workspace path does not need to be repeated.
+`repository init` writes `datarose.toml` at the repository root. `repository update` reads it, so the workspace path does not need to be repeated.
 
 ## Configuration file
 
-By default, `repo-quality` reads and writes `datarose.toml` in the repository root. Use `--config <path>` with `init`, `update`, `plan`, or `doctor` when a repository needs a custom config location.
+By default, `repository` reads and writes `datarose.toml` in the repository root. Use `--config <path>` with `init`, `update`, `plan`, or `doctor` when a repository needs a custom config location.
 
 The same file stores quality settings and optional release targets:
 
@@ -92,20 +93,20 @@ secret_name = "DISTRIBUTION_REPO_TOKEN"
 release_all = true
 
 [[release.targets]]
-name = "repo-quality"
-repository = "verzly/repo-quality"
-distribution_path = ".codex/distributions/repo-quality"
+name = "repository"
+repository = "verzly/repository"
+distribution_path = ".codex/distributions/repository"
 prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/repo-quality/Cargo.toml"
+version_file = "crates/repository/Cargo.toml"
 version_key = "package.version"
 version_value = "{version}"
-source_tag_prefix = "repo-quality-v"
+source_tag_prefix = "repository-v"
 generate_notes = false
-include_scopes = ["repo-quality", "all"]
-include_paths = ["crates/repo-quality/"]
+include_scopes = ["repository", "all"]
+include_paths = ["crates/repository/"]
 ```
 
-`repo-quality update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
+`repository update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
 
 ## Commands
 
@@ -114,68 +115,69 @@ include_paths = ["crates/repo-quality/"]
 Prepare the repository:
 
 ```sh
-repo-quality init
+repository init
 ```
 
 Preview without writing files:
 
 ```sh
-repo-quality init --dry-run
+repository init --dry-run
 ```
 
 Initialize a monorepo workspace:
 
 ```sh
-repo-quality init --workspace workspace/app
+repository init --workspace workspace/app
 ```
 
 Force selected language profiles:
 
 ```sh
-repo-quality init --language rust --language js --language php
+repository init --language rust --language js --language php
 ```
 
 Overwrite managed files:
 
 ```sh
-repo-quality init --force
+repository init --force
 ```
 
 Skip tool or hook installation:
 
 ```sh
-repo-quality init --skip-mise-use
-repo-quality init --skip-hk-install
+repository init --skip-mise-use
+repository init --skip-hk-install
 ```
 
 ### update
 
+Refresh managed files from `datarose.toml`:
+
+```sh
+repository update
+```
+
+Use this after updating `repository` to roll the latest central standards into a repository.
+
+Project-local overrides are preserved by default. Pass `--force` only when you intentionally want to replace existing local config files.
+
+### check
 
 Validate the Datarose configuration without writing files:
 
 ```sh
-repo-quality check
-repo-quality check --config config/datarose.toml
+repository check
+repository check --config config/datarose.toml
 ```
 
-`repo-quality check` exits with `1` for removed, deprecated, or invalid settings and exits with `0` when the configuration is clean. Generated `hk` pre-push hooks run this check before language quality gates.
-
-Refresh managed files from `datarose.toml`:
-
-```sh
-repo-quality update
-```
-
-Use this after updating `repo-quality` to roll the latest central standards into a repository.
-
-Project-local overrides are preserved by default. Pass `--force` only when you intentionally want to replace existing local config files.
+`repository check` exits with `1` for removed, deprecated, or invalid settings and exits with `0` when the configuration is clean. Generated `hk` pre-push hooks run this check before language quality gates.
 
 ### plan
 
 Print the detected repository profile, managed files, generated `hk.pkl`, and generated test workflow without changing the repository:
 
 ```sh
-repo-quality plan
+repository plan
 ```
 
 ### doctor
@@ -183,14 +185,14 @@ repo-quality plan
 Check whether the repository has the expected setup:
 
 ```sh
-repo-quality doctor
+repository doctor
 ```
 
 `doctor` reports missing required pieces and prints setup recommendations. It can suggest `mise.toml`, `rust@stable`, `aube`, `php`, Composer, Oxlint, Oxfmt, Vitest, Rector PHP, Pest PHP, workspace config files, and GitHub Actions workflow files.
 
 ## Generated files
 
-Depending on detected languages, `repo-quality` can manage:
+Depending on detected languages, `repository` can manage:
 
 ```text
 datarose.toml
@@ -252,7 +254,7 @@ composer require --dev rector/rector pestphp/pest
 Use `--workspace` when the quality configuration should live below a subdirectory:
 
 ```sh
-repo-quality init --workspace workspace/app
+repository init --workspace workspace/app
 ```
 
 Generated hook commands run from that workspace:
@@ -268,7 +270,7 @@ The root `datarose.toml` stores the workspace path for future updates.
 
 Every generated config file is project-local and can be edited.
 
-`repo-quality update` preserves existing local config files unless `--force` is passed, and prints warnings when deprecated or removed Datarose settings are still present. This lets each project override central defaults without changing the executable.
+`repository update` preserves existing local config files unless `--force` is passed, and prints warnings when deprecated or removed Datarose settings are still present. This lets each project override central defaults without changing the executable.
 
 Examples:
 
@@ -299,14 +301,14 @@ mise exec -- hk check
 ## Command help
 
 ```sh
-repo-quality --help
-repo-quality <command> --help
+repository --help
+repository <command> --help
 ```
 
 Full documentation is available in the repository README:
 
 ```text
-https://github.com/verzly/repo-quality
+https://github.com/verzly/repository
 ```
 
 ## License

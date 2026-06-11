@@ -1,4 +1,4 @@
-# Managed by repo-quality. Project-specific overrides are allowed.
+# Managed by repository. Project-specific overrides are allowed.
 version = 1
 
 [quality]
@@ -99,21 +99,21 @@ include_scopes = ["android-signing", "all"]
 include_paths = ["crates/android-signing/"]
 
 [[release.targets]]
-name = "repo-quality"
-repository = "verzly/repo-quality"
-distribution_path = ".codex/distributions/repo-quality"
-cargo_binary = "repo-quality"
-cargo_package = "repo-quality"
-cargo_out_dir = "dist/repo-quality"
+name = "repository"
+repository = "verzly/repository"
+distribution_path = ".codex/distributions/repository"
+cargo_binary = "repository"
+cargo_package = "repository"
+cargo_out_dir = "dist/repository"
 cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/repo-quality/Cargo.toml"
+version_file = "crates/repository/Cargo.toml"
 version_key = "package.version"
 version_value = "{version}"
-source_tag_prefix = "repo-quality-v"
+source_tag_prefix = "repository-v"
 generate_notes = false
-include_scopes = ["repo-quality", "all"]
-include_paths = ["crates/repo-quality/"]
+include_scopes = ["repository", "all"]
+include_paths = ["crates/repository/"]
 
 [rust_cache.cache]
 dir = ".cache"

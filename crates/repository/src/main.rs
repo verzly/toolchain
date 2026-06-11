@@ -1,4 +1,4 @@
-//! Entry point for repository quality bootstrap commands.
+//! Entry point for repository standards bootstrap commands.
 
 mod cli;
 mod commands;

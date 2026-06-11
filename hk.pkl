@@ -19,7 +19,7 @@ local formatSteps = new Mapping<String, Step> {
 local qualitySteps = new Mapping<String, Step> {
   ["check-datarose"] {
     shell = defaultShell
-    check = "cargo run -p repo-quality -- check --config datarose.toml"
+    check = "cargo run -p repository -- check --config datarose.toml"
   }
 
   ["lint-rust"] {

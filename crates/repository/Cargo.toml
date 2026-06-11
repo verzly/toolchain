@@ -1,5 +1,5 @@
 [[bin]]
-name = "repo-quality"
+name = "repository"
 path = "src/main.rs"
 
 [dependencies]
@@ -11,8 +11,8 @@ features = ["derive"]
 version = "4.5"
 
 [package]
-description = "Repository quality gate bootstrapper for hk, mise, Rust, JavaScript, and PHP projects"
-name = "repo-quality"
+description = "Repository standards manager for hk, mise, Rust, JavaScript, and PHP projects"
+name = "repository"
 version = "0.2.0"
 
 [package.edition]

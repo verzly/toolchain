@@ -1,4 +1,4 @@
-//! Central repository quality style files.
+//! Central repository standards style files.
 
 use crate::project::{Language, ProjectProfile};
 use anyhow::{Context, Result};

@@ -217,7 +217,7 @@ impl ProjectProfile {
             .unwrap_or_else(|| PathBuf::from("."));
         let workspace_root = fs::canonicalize(root.join(&workspace)).with_context(|| {
             format!(
-                "failed to resolve repository quality workspace: {}",
+                "failed to resolve repository standards workspace: {}",
                 root.join(&workspace).display()
             )
         })?;
@@ -462,7 +462,7 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     let mut out = String::new();
-    out.push_str("# Managed by repo-quality. Project-specific overrides are allowed.\n");
+    out.push_str("# Managed by repository. Project-specific overrides are allowed.\n");
     out.push_str("version = 1\n\n");
     out.push_str("[quality]\n");
     out.push_str(&format!(
@@ -1195,10 +1195,10 @@ enabled = true
 source_repository = "verzly/toolchain"
 
 [[release.targets]]
-name = "repo-quality"
-repository = "verzly/repo-quality"
-distribution_path = ".codex/distributions/repo-quality"
-cargo_binary = "repo-quality"
+name = "repository"
+repository = "verzly/repository"
+distribution_path = ".codex/distributions/repository"
+cargo_binary = "repository"
 "#,
         )
         .unwrap();
@@ -1207,10 +1207,7 @@ cargo_binary = "repo-quality"
 
         assert_eq!(profile.languages, vec![Language::Rust]);
         assert!(profile.release_enabled());
-        assert_eq!(
-            profile.stored_config.release.targets[0].name,
-            "repo-quality"
-        );
+        assert_eq!(profile.stored_config.release.targets[0].name, "repository");
     }
 
     #[test]
@@ -1264,7 +1261,7 @@ package = "auto"
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("repo-quality-{name}-{unique}"));
+        let root = std::env::temp_dir().join(format!("repository-{name}-{unique}"));
         fs::create_dir_all(&root).unwrap();
         root
     }

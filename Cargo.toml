@@ -6,7 +6,7 @@ members = [
     "crates/tauri-release",
     "crates/rust-cache",
     "crates/android-signing",
-    "crates/repo-quality",
+    "crates/repository",
 ]
 
 [workspace.package]

@@ -27,7 +27,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-The local `mise.toml` should include `hk`, `pkl`, and `rust@stable`. `repo-quality doctor` is expected to suggest missing language tools instead of silently assuming they are globally installed.
+The local `mise.toml` should include `hk`, `pkl`, and `rust@stable`. `repository doctor` is expected to suggest missing language tools instead of silently assuming they are globally installed.
 
 Build output is intentionally local to `.cache` through `.cargo/config.toml`. Do not wrap normal Cargo commands with `rust-cache run`.
 
@@ -63,55 +63,55 @@ cargo run -p github-release -- plan --config datarose.toml --release-target carg
 cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
-cargo run -p repo-quality -- plan
+cargo run -p repository -- plan
 ```
 
 A public release is not required for local testing. Cargo runs the current source directly:
 
 ```sh
-cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repo-quality -- doctor
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- doctor
 ```
 
 Build and run the local binary when you need to test the same executable path a release would expose:
 
 ```sh
-cargo build -p repo-quality
-.cache/rust/packages/toolchain/target/debug/repo-quality plan
+cargo build -p repository
+.cache/rust/packages/toolchain/target/debug/repository plan
 ```
 
 On Windows:
 
 ```pwsh
-.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+.\.cache\rust\packages\toolchain\target\debug\repository.exe plan
 ```
 
 You can install the current source locally without publishing a release:
 
 ```sh
-cargo install --path crates/repo-quality --force
-repo-quality plan
+cargo install --path crates/repository --force
+repository plan
 ```
 
 For a safe self-hosting check, preview the generated model first:
 
 ```sh
-cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
 ```
 
 When the preview is correct and you intentionally want to refresh the workspace hook model, run:
 
 ```sh
-cargo run -p repo-quality -- init --force
-cargo run -p repo-quality -- update
-mise exec -- repo-quality check
+cargo run -p repository -- init --force
+cargo run -p repository -- update
+mise exec -- repository check
 hk check
 ```
 
 Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
 
-`repo-quality` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repo-quality update` preserves existing copies unless `--force` is passed. Use `datarose.toml` to store monorepo workspace paths and optional release targets for repeatable updates.
+`repository` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repository update` preserves existing copies unless `--force` is passed. Use `datarose.toml` to store monorepo workspace paths and optional release targets for repeatable updates.
 
 ## Testing
 
@@ -121,7 +121,7 @@ Before opening or merging a PR, run:
 hk check
 ```
 
-This executes the same formatting, linting, and test gates configured in `hk.pkl`. The toolchain repository is Rust-only, but `repo-quality` can generate JS/TS/Vue and PHP gates for other repositories. The equivalent raw commands are:
+This executes the same formatting, linting, and test gates configured in `hk.pkl`. The toolchain repository is Rust-only, but `repository` can generate JS/TS/Vue and PHP gates for other repositories. The equivalent raw commands are:
 
 ```sh
 cargo fmt --all -- --check
@@ -153,7 +153,7 @@ Public tool release workflows are:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
-.github/workflows/release-repo-quality.yml
+.github/workflows/release-repository.yml
 ```
 
 Maintainer workflows are:
@@ -212,4 +212,4 @@ Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AG
 Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.
 
 
-`repo-quality update` prints warnings for deprecated, removed, or invalid `datarose.toml` settings. `repo-quality check` is the non-mutating CI/pre-push guard and exits with `1` only for those configuration problems.
+`repository update` prints warnings for deprecated, removed, or invalid `datarose.toml` settings. `repository check` is the non-mutating CI/pre-push guard and exits with `1` only for those configuration problems.

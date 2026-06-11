@@ -13,24 +13,20 @@ struct Step {
 
 pub fn render_hk_config(profile: &ProjectProfile) -> String {
     let mut format_steps = Vec::new();
-    let repo_quality_check = if profile
-        .root
-        .join("crates/repo-quality/Cargo.toml")
-        .is_file()
-    {
+    let repository_check = if profile.root.join("crates/repository/Cargo.toml").is_file() {
         format!(
-            "cargo run -p repo-quality -- check --config {}",
+            "cargo run -p repository -- check --config {}",
             shell_quote(&profile.config_display())
         )
     } else {
         format!(
-            "repo-quality check --config {}",
+            "repository check --config {}",
             shell_quote(&profile.config_display())
         )
     };
     let mut quality_steps = vec![Step {
         name: "check-datarose".into(),
-        check: repo_quality_check,
+        check: repository_check,
         fix: None,
         stage: vec![],
         depends: vec![],

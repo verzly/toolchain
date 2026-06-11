@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "Targets: github-release, cargo-release, tauri-release, rust-cache, android-signing, repo-quality"
+          echo "Targets: github-release, cargo-release, tauri-release, rust-cache, android-signing, repository"
 
   github_release:
     name: Release github-release
@@ -92,15 +92,15 @@ jobs:
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 
-  repo_quality:
-    name: Release repo-quality
+  repository:
+    name: Release repository
     needs: summary
     uses: ./.github/workflows/_release-datarose-tool.yml
     with:
-      tool: repo-quality
+      tool: repository
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      distribution-path: .codex/distributions/repo-quality
+      distribution-path: .codex/distributions/repository
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
 

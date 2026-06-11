@@ -491,28 +491,28 @@ target_branch = "master"
 source_repository = "verzly/toolchain"
 
 [[release.targets]]
-name = "repo-quality"
-repository = "verzly/repo-quality"
+name = "repository"
+repository = "verzly/repository"
 prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/repo-quality/Cargo.toml"
-include_scopes = ["repo-quality", "all"]
-include_paths = ["crates/repo-quality/"]
+version_file = "crates/repository/Cargo.toml"
+include_scopes = ["repository", "all"]
+include_paths = ["crates/repository/"]
 "#;
         let value: toml::Value = toml::from_str(raw).unwrap();
 
         let config =
-            load_datarose_config(&value, Some("repo-quality"), Path::new("datarose.toml")).unwrap();
+            load_datarose_config(&value, Some("repository"), Path::new("datarose.toml")).unwrap();
         let source = config.source_view();
 
-        assert_eq!(config.github.target_repository, "verzly/repo-quality");
+        assert_eq!(config.github.target_repository, "verzly/repository");
         assert_eq!(config.github.source_repository, "verzly/toolchain");
-        assert_eq!(config.github.source_tag_prefix, "repo-quality-v");
+        assert_eq!(config.github.source_tag_prefix, "repository-v");
         assert_eq!(config.github.notes.mode, NotesMode::Scoped);
         assert_eq!(config.prepare_commands, vec!["cargo generate-lockfile"]);
-        assert_eq!(source.release.tag_prefix, "repo-quality-v");
+        assert_eq!(source.release.tag_prefix, "repository-v");
         assert_eq!(
             source.files[0].path,
-            PathBuf::from("crates/repo-quality/Cargo.toml")
+            PathBuf::from("crates/repository/Cargo.toml")
         );
     }
 }
