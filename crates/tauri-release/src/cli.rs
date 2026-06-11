@@ -9,7 +9,8 @@ use std::path::PathBuf;
 #[command(
     author,
     version,
-    about = "Release builder for Tauri desktop and mobile artifacts"
+    about = "Release builder for Tauri desktop and mobile artifacts",
+    after_help = "Read the full README: https://github.com/verzly/tauri-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -31,6 +32,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct InitArgs {
     #[arg(short, long, default_value = "tauri-release.toml")]
     pub config: PathBuf,
@@ -40,12 +42,14 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct CommonArgs {
     #[arg(short, long, default_value = "tauri-release.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
 pub struct BuildArgs {
     #[arg(short, long, default_value = "tauri-release.toml")]
     pub config: PathBuf,

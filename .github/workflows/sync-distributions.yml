@@ -103,7 +103,7 @@ jobs:
             target_dir="${GITHUB_WORKSPACE}/target-${tool}"
             repository="verzly/${tool}"
 
-            for file in README.md action.yml LICENSE; do
+            for file in README.md CONTRIBUTING.md action.yml LICENSE; do
               if [ ! -f "${template_dir}/${file}" ]; then
                 echo "::error::Missing ${template_dir}/${file}"
                 exit 1
@@ -120,12 +120,13 @@ jobs:
 
             find "${target_dir}" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
             cp "${template_dir}/README.md" "${target_dir}/README.md"
+            cp "${template_dir}/CONTRIBUTING.md" "${target_dir}/CONTRIBUTING.md"
             cp "${template_dir}/action.yml" "${target_dir}/action.yml"
             cp "${template_dir}/LICENSE" "${target_dir}/LICENSE"
 
             (
               cd "${target_dir}"
-              git add README.md action.yml LICENSE
+              git add README.md CONTRIBUTING.md action.yml LICENSE
               if git diff --cached --quiet; then
                 if [ "${FORCE_COMMIT}" = "true" ]; then
                   git commit --allow-empty -m "${COMMIT_MESSAGE}"

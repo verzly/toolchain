@@ -2,7 +2,7 @@
 
 `rust-cache` routes Rust and Tauri build caches into a predictable project-local cache directory.
 
-This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
+This repository is a public distribution repository. The source code is maintained in the private `verzly/toolchain` monorepo and this repository contains only the public surface that users need: `README.md`, `CONTRIBUTING.md`, `action.yml`, `LICENSE`, and GitHub Release assets.
 
 The public repository intentionally does not contain `src/`, `Cargo.toml`, build workflows, or release configuration. That separation keeps the user-facing repository small while allowing all tools to share the same release infrastructure in `verzly/toolchain`.
 
@@ -16,6 +16,7 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Action inputs](#action-inputs)
   - [Action outputs](#action-outputs)
   - [CLI usage](#cli-usage)
+  - [Command help](#command-help)
   - [CLI commands and arguments](#cli-commands-and-arguments)
 - [Configuration](#configuration)
 - [Practical workflows](#practical-workflows)
@@ -24,7 +25,6 @@ The public repository intentionally does not contain `src/`, `Cargo.toml`, build
   - [Troubleshooting](#troubleshooting)
   - [Release artifacts](#release-artifacts)
   - [Operational notes](#operational-notes)
-- [Contributing](#contributing)
 
 ## Overview
 
@@ -105,6 +105,18 @@ rust-cache run --config rust-cache.toml -- cargo test --workspace
 rust-cache clean --config rust-cache.toml
 rust-cache doctor --config rust-cache.toml
 ```
+
+
+### Command help
+
+Every top-level and subcommand help output points back to this README:
+
+```sh
+rust-cache --help
+rust-cache <command> --help
+```
+
+Use the README for workflow-level guidance and the command help for the exact arguments supported by the installed executable version.
 
 ### CLI commands and arguments
 
@@ -219,10 +231,6 @@ Checksum files use the same name with `.sha256` appended. The action verifies th
 ### Operational notes
 
 `rust-cache` does not replace GitHub Actions cache, sccache, or Cargo's dependency cache. It only chooses where build tools write their generated files. It is safe to use around `cargo-release` and `tauri-release`; those tools still own the build and release behavior.
-
-## Contributing
-
-Contribution guidelines live in the `verzly/toolchain` `CONTRIBUTING.md`. Source changes are made in `verzly/toolchain`; this repository is the public distribution surface.
 
 ## License
 

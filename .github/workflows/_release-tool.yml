@@ -115,20 +115,6 @@ jobs:
           --config "crates/${{ inputs.tool }}/github-release.toml"
           --version "${{ inputs.version }}"
 
-      - name: Refresh source lockfile
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cargo metadata --format-version 1 --no-deps >/dev/null
-          git add Cargo.lock
-
-          if git diff --cached --quiet; then
-            echo "Cargo.lock is already up to date for ${{ steps.prepare.outputs.tag }}."
-          else
-            git commit -m "chore(release): update lockfile for ${{ steps.prepare.outputs.tag }}"
-            git push origin HEAD:${{ steps.prepare.outputs.release_branch }}
-          fi
 
   test:
     name: Test source
