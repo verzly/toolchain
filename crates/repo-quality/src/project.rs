@@ -657,12 +657,12 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
 }
 
 fn add_missing_cargo_release_targets(root: &Path, targets: &mut Vec<ReleaseTarget>) -> Result<()> {
-    let existing = targets
+    let mut existing = targets
         .iter()
-        .map(|target| target.cargo_package.as_str())
+        .map(|target| target.cargo_package.clone())
         .collect::<BTreeSet<_>>();
     for package in detect_cargo_packages(root)? {
-        if existing.contains(package.as_str()) {
+        if !existing.insert(package.clone()) {
             continue;
         }
         targets.push(ReleaseTarget {
