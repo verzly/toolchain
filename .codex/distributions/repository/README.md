@@ -106,7 +106,7 @@ include_scopes = ["repository", "all"]
 include_paths = ["crates/repository/"]
 ```
 
-`repository update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
+`repository update` refreshes generated `hk.pkl`, test workflows, release workflows and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
 
 ## Commands
 

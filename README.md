@@ -153,7 +153,7 @@ cargo run -p repository -- plan
 cargo run -p repository -- doctor
 ```
 
-`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
+`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured, plus Oxlint, Oxfmt, and Vitest; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
 
 Build and run the local executable when you want to test the exact binary entry point:
 
