@@ -85,28 +85,6 @@ pub struct QualityConfig {
     pub workspace: Option<PathBuf>,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
-    pub ast_grep: AstGrepConfig,
-}
-
-#[derive(Clone, Debug)]
-pub struct AstGrepConfig {
-    pub enabled: Option<bool>,
-    pub config: String,
-    pub rule_dirs: Vec<String>,
-    pub util_dirs: Vec<String>,
-    pub test_dir: String,
-}
-
-impl Default for AstGrepConfig {
-    fn default() -> Self {
-        Self {
-            enabled: None,
-            config: "sgconfig.yml".into(),
-            rule_dirs: vec![".datarose/ast-grep/rules".into()],
-            util_dirs: vec![".datarose/ast-grep/utils".into()],
-            test_dir: ".datarose/ast-grep/rule-tests".into(),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -354,18 +332,6 @@ impl ProjectProfile {
         self.stored_config.release.enabled && !self.stored_config.release.targets.is_empty()
     }
 
-    pub fn ast_grep_enabled(&self) -> bool {
-        self.stored_config
-            .quality
-            .ast_grep
-            .enabled
-            .unwrap_or_else(|| self.has_language(&Language::Js))
-    }
-
-    pub fn ast_grep_config_display(&self) -> String {
-        self.stored_config.quality.ast_grep.config.clone()
-    }
-
     pub fn missing_mise_tools(&self) -> Vec<MiseToolRecommendation> {
         let mut recommendations = Vec::new();
         push_missing_tool(
@@ -454,16 +420,6 @@ impl ProjectProfile {
             );
         }
 
-        if self.ast_grep_enabled() {
-            push_missing_tool(
-                &mut recommendations,
-                &self.mise_tools,
-                "npm:@ast-grep/cli",
-                "latest",
-                "structural search, lint, and codemod rules",
-            );
-        }
-
         if self.has_language(&Language::Php) {
             push_missing_tool(
                 &mut recommendations,
@@ -532,28 +488,6 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
     if let Some(runner) = &profile.js_runner {
         out.push_str(&format!("js_runner = \"{}\"\n", runner.as_str()));
     }
-
-    out.push_str("\n[quality.ast_grep]\n");
-    out.push_str(&format!(
-        "enabled = {}\n",
-        bool_literal(profile.ast_grep_enabled())
-    ));
-    out.push_str(&format!(
-        "config = \"{}\"\n",
-        escape_toml(&profile.stored_config.quality.ast_grep.config)
-    ));
-    out.push_str(&format!(
-        "rule_dirs = [{}]\n",
-        render_string_array(&profile.stored_config.quality.ast_grep.rule_dirs)
-    ));
-    out.push_str(&format!(
-        "util_dirs = [{}]\n",
-        render_string_array(&profile.stored_config.quality.ast_grep.util_dirs)
-    ));
-    out.push_str(&format!(
-        "test_dir = \"{}\"\n",
-        escape_toml(&profile.stored_config.quality.ast_grep.test_dir)
-    ));
 
     out.push_str("\n[release]\n");
     out.push_str(&format!(
@@ -805,7 +739,6 @@ pub fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
         let value = value.trim();
         match section.as_str() {
             "quality" | "" => apply_quality_value(&mut config.quality, key, value),
-            "quality.ast_grep" => apply_ast_grep_value(&mut config.quality.ast_grep, key, value),
             "release" => apply_release_value(&mut config.release, key, value),
             "rust_cache.cache" => apply_rust_cache_value(&mut config.rust_cache, key, value),
             "rust_cache.cargo" => apply_rust_cache_cargo_value(&mut config.rust_cache, key, value),
@@ -999,25 +932,6 @@ fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
                 .into_iter()
                 .filter_map(|value| Language::from_str(&value))
                 .collect();
-        }
-        _ => {}
-    }
-}
-
-fn apply_ast_grep_value(config: &mut AstGrepConfig, key: &str, value: &str) {
-    match key {
-        "enabled" => config.enabled = parse_bool(value),
-        "config" => {
-            if let Some(value) = parse_string(value) {
-                config.config = value;
-            }
-        }
-        "rule_dirs" => config.rule_dirs = parse_string_array(value),
-        "util_dirs" => config.util_dirs = parse_string_array(value),
-        "test_dir" => {
-            if let Some(value) = parse_string(value) {
-                config.test_dir = value;
-            }
         }
         _ => {}
     }
@@ -1426,20 +1340,6 @@ package = "auto"
 
         assert!(!rendered.contains("package = \"auto\""));
         assert!(rendered.contains(&format!("package = \"{}\"", profile.default_package_name())));
-    }
-
-    #[test]
-    fn renders_ast_grep_defaults_for_js_repositories() {
-        let root = temp_repo("ast-grep-js");
-        fs::write(root.join("package.json"), "{}\n").unwrap();
-        fs::write(root.join("app.ts"), "export {};\n").unwrap();
-
-        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
-        let rendered = render_datarose_config(&profile);
-
-        assert!(rendered.contains("[quality.ast_grep]"));
-        assert!(rendered.contains("enabled = true"));
-        assert!(rendered.contains("config = \"sgconfig.yml\""));
     }
 
     #[test]

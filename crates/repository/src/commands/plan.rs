@@ -19,8 +19,6 @@ pub fn run(args: PlanArgs) -> Result<()> {
     println!("JavaScript runner: {:?}", profile.js_runner);
     println!("Rector detected: {}", profile.has_rector);
     println!("Pest detected: {}", profile.has_pest);
-    println!("ast-grep enabled: {}", profile.ast_grep_enabled());
-    println!("ast-grep config: {}", profile.ast_grep_config_display());
     println!("Config: {}", profile.config_path.display());
     println!("mise.toml detected: {}", profile.has_mise_toml);
     println!("Mise tools: {:?}", profile.mise_tools);

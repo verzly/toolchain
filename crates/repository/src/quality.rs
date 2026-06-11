@@ -64,10 +64,6 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
         add_php_steps(profile, &mut format_steps, &mut quality_steps);
     }
 
-    if profile.ast_grep_enabled() {
-        add_ast_grep_step(profile, &mut quality_steps);
-    }
-
     render_pkl(&format_steps, &quality_steps)
 }
 
@@ -138,25 +134,6 @@ fn add_js_steps(
         fix: None,
         stage: vec![],
         depends: vec!["format-js".into(), "lint-js".into()],
-    });
-}
-
-fn add_ast_grep_step(profile: &ProjectProfile, quality_steps: &mut Vec<Step>) {
-    let mut depends = vec!["check-datarose".into()];
-    if profile.has_language(&Language::Js) {
-        depends.push("format-js".into());
-        depends.push("lint-js".into());
-    }
-
-    quality_steps.push(Step {
-        name: "lint-ast-grep".into(),
-        check: profile.command(&format!(
-            "ast-grep scan --config {}",
-            shell_quote(&profile.ast_grep_config_display())
-        )),
-        fix: None,
-        stage: vec![],
-        depends,
     });
 }
 
@@ -311,7 +288,6 @@ mod tests {
         assert!(config.contains("cd \\\"workspace/app\\\" && oxfmt --check ."));
         assert!(config.contains("cd \\\"workspace/app\\\" && vitest run"));
         assert!(config.contains("composer exec rector -- --dry-run"));
-        assert!(config.contains("ast-grep scan --config"));
         assert!(config.contains("[\"pre-push\"]"));
         assert!(config.contains("windows = \"cmd /d /s /c\""));
         assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));

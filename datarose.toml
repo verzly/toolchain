@@ -5,13 +5,6 @@ version = 1
 workspace = "."
 languages = ["rust"]
 
-[quality.ast_grep]
-enabled = false
-config = "sgconfig.yml"
-rule_dirs = [".datarose/ast-grep/rules"]
-util_dirs = [".datarose/ast-grep/utils"]
-test_dir = ".datarose/ast-grep/rule-tests"
-
 [release]
 enabled = true
 target_branch = "master"
