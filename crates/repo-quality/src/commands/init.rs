@@ -36,7 +36,8 @@ pub fn run(args: InitArgs) -> Result<()> {
             .context("failed to install pkl through mise")?;
     }
 
-    fs::write(&hk_path, config).with_context(|| format!("failed to write {}", hk_path.display()))?;
+    fs::write(&hk_path, config)
+        .with_context(|| format!("failed to write {}", hk_path.display()))?;
     println!("Wrote {}", hk_path.display());
 
     if !args.skip_hk_install {

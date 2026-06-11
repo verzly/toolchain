@@ -111,6 +111,34 @@ cargo run -p android-signing -- generate
 cargo run -p repo-quality -- plan
 ```
 
+A tool does not need a public release before you can test it locally. Cargo can run the current source directly:
+
+```sh
+cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- plan
+cargo run -p repo-quality -- doctor
+```
+
+Build and run the local executable when you want to test the exact binary entry point:
+
+```sh
+cargo build -p repo-quality
+.cache/rust/packages/toolchain/target/debug/repo-quality plan
+```
+
+On Windows, run the built executable with `.exe`:
+
+```pwsh
+.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+```
+
+You can also install the current source into your local Cargo bin directory without a GitHub Release:
+
+```sh
+cargo install --path crates/repo-quality --force
+repo-quality plan
+```
+
 Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
 
 ### Cache layout

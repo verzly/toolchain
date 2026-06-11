@@ -42,6 +42,26 @@ Use the GitHub Action to install the executable in CI:
 
 For local usage, install the published executable or make it available through your preferred `mise` setup, then run it from the repository root.
 
+When developing `repo-quality` inside `verzly/toolchain`, a public release is not required. Run the current source directly:
+
+```sh
+cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- plan
+```
+
+Or build and run the local executable:
+
+```sh
+cargo build -p repo-quality
+.cache/rust/packages/toolchain/target/debug/repo-quality plan
+```
+
+On Windows:
+
+```pwsh
+.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+```
+
 ## How it works
 
 A typical setup is:
@@ -166,7 +186,20 @@ cargo test --workspace --all-targets
 
 ### JavaScript and TypeScript
 
-The JavaScript profile detects the package runner and existing package scripts.
+The JavaScript profile is calibrated for Oxlint, Oxfmt, and Vitest. It detects the package runner and existing package scripts, then wires those scripts into `hk`.
+
+Recommended scripts are:
+
+```json
+{
+  "scripts": {
+    "format:js": "oxfmt .",
+    "format:js:check": "oxfmt --check .",
+    "lint:js": "oxlint .",
+    "test:js": "vitest run"
+  }
+}
+```
 
 Runner detection prefers:
 
@@ -194,7 +227,7 @@ test
 
 ### PHP
 
-The PHP profile uses Composer-managed tools when present:
+The PHP profile is calibrated for Rector PHP and Pest PHP. It uses Composer-managed tools when present:
 
 ```text
 composer exec rector -- --dry-run

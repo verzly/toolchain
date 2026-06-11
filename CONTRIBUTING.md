@@ -64,6 +64,46 @@ cargo run -p android-signing -- generate
 cargo run -p repo-quality -- plan
 ```
 
+A public release is not required for local testing. Cargo runs the current source directly:
+
+```sh
+cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- doctor
+```
+
+Build and run the local binary when you need to test the same executable path a release would expose:
+
+```sh
+cargo build -p repo-quality
+.cache/rust/packages/toolchain/target/debug/repo-quality plan
+```
+
+On Windows:
+
+```pwsh
+.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+```
+
+You can install the current source locally without publishing a release:
+
+```sh
+cargo install --path crates/repo-quality --force
+repo-quality plan
+```
+
+For a safe self-hosting check, preview the generated model first:
+
+```sh
+cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+```
+
+When the preview is correct and you intentionally want to refresh the workspace hook model, run:
+
+```sh
+cargo run -p repo-quality -- init --force
+hk check
+```
+
 ## Testing
 
 Before opening or merging a PR, run:
