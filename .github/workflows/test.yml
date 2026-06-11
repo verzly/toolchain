@@ -20,26 +20,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Stop WIP commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          subject="$(git log -1 --pretty=%s)"
+          normalized="$(printf '%s' "${subject}" | tr '[:upper:]' '[:lower:]')"
+          case "${normalized}" in
+            wip|wip:*|wip\ -*|wip\ *)
+              echo "::error::WIP commit detected: ${subject}"
+              echo "Rename the commit before running the full quality workflow."
+              exit 1
+              ;;
+          esac
 
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --workspace --all-targets
-
-  repository-model:
-    name: Repository model
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Validate repository boundaries
+      - name: Repository contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -224,3 +222,14 @@ jobs:
             grep -Fq "include_paths = [\"crates/${tool}/\"]" "crates/${tool}/github-release.toml"
             grep -R -Fq "#[cfg(test)]" "crates/${tool}/src"
           done
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --all-targets
