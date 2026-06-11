@@ -28,7 +28,7 @@ pub enum Commands {
     /// Check datarose.toml for deprecated, removed, or invalid settings.
     Check(CheckArgs),
     /// Manage datarose.toml release targets.
-    Release(ReleaseArgs),
+    Release(Box<ReleaseArgs>),
     /// Check whether the repository has the expected quality tooling.
     Doctor(DoctorArgs),
 }
@@ -168,7 +168,7 @@ pub enum ReleaseCommand {
     /// Show one configured release target.
     Show(ReleaseTargetSelectorArgs),
     /// Add or update a release target.
-    Set(ReleaseSetArgs),
+    Set(Box<ReleaseSetArgs>),
     /// Remove a release target.
     Remove(ReleaseRemoveArgs),
     /// Open an interactive terminal release target editor.
