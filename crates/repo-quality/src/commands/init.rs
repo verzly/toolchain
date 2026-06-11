@@ -1,13 +1,67 @@
-use crate::cli::InitArgs;
-use crate::project::ProjectProfile;
+use crate::cli::{InitArgs, UpdateArgs};
+use crate::project::{render_repo_quality_config, repo_quality_config_path, ProjectProfile};
 use crate::quality::render_hk_config;
 use crate::shell;
+use crate::standards::{self, ManagedFile, WriteOutcome};
+use crate::workflow::render_test_workflow;
 use anyhow::{bail, Context, Result};
-use std::fs;
 use std::path::Path;
 
 pub fn run(args: InitArgs) -> Result<()> {
-    let profile = ProjectProfile::detect(args.root, &args.languages, args.js_runner)?;
+    let options = ApplyOptions {
+        root: args.root,
+        workspace: args.workspace,
+        languages: args.languages,
+        js_runner: args.js_runner,
+        force: args.force,
+        dry_run: args.dry_run,
+        skip_mise_use: args.skip_mise_use,
+        skip_hk_install: args.skip_hk_install,
+        skip_style_configs: args.skip_style_configs,
+        skip_actions: args.skip_actions,
+        from_stored_config: false,
+    };
+    apply(options)
+}
+
+pub fn run_update(args: UpdateArgs) -> Result<()> {
+    let options = ApplyOptions {
+        root: args.root,
+        workspace: None,
+        languages: Vec::new(),
+        js_runner: crate::cli::JsRunnerArg::Auto,
+        force: args.force,
+        dry_run: args.dry_run,
+        skip_mise_use: args.skip_mise_use,
+        skip_hk_install: args.skip_hk_install,
+        skip_style_configs: args.skip_style_configs,
+        skip_actions: args.skip_actions,
+        from_stored_config: true,
+    };
+    apply(options)
+}
+
+struct ApplyOptions {
+    root: std::path::PathBuf,
+    workspace: Option<std::path::PathBuf>,
+    languages: Vec<crate::cli::LanguageArg>,
+    js_runner: crate::cli::JsRunnerArg,
+    force: bool,
+    dry_run: bool,
+    skip_mise_use: bool,
+    skip_hk_install: bool,
+    skip_style_configs: bool,
+    skip_actions: bool,
+    from_stored_config: bool,
+}
+
+fn apply(options: ApplyOptions) -> Result<()> {
+    let profile = ProjectProfile::detect(
+        options.root,
+        options.workspace,
+        &options.languages,
+        options.js_runner,
+    )?;
     if profile.languages.is_empty() {
         bail!(
             "no supported language profile detected; pass --language rust, \
@@ -15,22 +69,64 @@ pub fn run(args: InitArgs) -> Result<()> {
         );
     }
 
-    let config = render_hk_config(&profile);
+    let hk_config = render_hk_config(&profile);
+    let repo_config = render_repo_quality_config(&profile);
     let hk_path = profile.root.join("hk.pkl");
+    let repo_config_path = repo_quality_config_path(&profile.root);
+    let actions_path = profile.root.join(".github/workflows/test.yml");
 
-    if args.dry_run {
-        print_plan(&profile, &config, args.skip_mise_use, args.skip_hk_install);
+    let mut managed_files = vec![
+        ManagedFile {
+            path: hk_path.clone(),
+            content: hk_config,
+            force: options.force || options.from_stored_config,
+        },
+        ManagedFile {
+            path: repo_config_path.clone(),
+            content: repo_config,
+            force: true,
+        },
+    ];
+
+    if !options.skip_style_configs {
+        managed_files.extend(standards::style_files(&profile, options.force));
+    }
+    if !options.skip_actions {
+        managed_files.push(ManagedFile {
+            path: actions_path,
+            content: render_test_workflow(&profile),
+            force: options.force || options.from_stored_config,
+        });
+    }
+
+    if options.dry_run {
+        print_plan(
+            &profile,
+            &managed_files,
+            options.skip_mise_use,
+            options.skip_hk_install,
+        );
         return Ok(());
     }
 
-    if hk_path.exists() && !args.force {
+    if options.from_stored_config
+        && profile.stored_config.workspace.is_none()
+        && !repo_config_path.exists()
+    {
+        bail!(
+            "{} is missing; run `repo-quality init` once before `repo-quality update`",
+            repo_config_path.display()
+        );
+    }
+
+    if !options.from_stored_config && hk_path.exists() && !options.force {
         bail!(
             "{} already exists; pass --force to overwrite it",
             hk_path.display()
         );
     }
 
-    if !args.skip_mise_use {
+    if !options.skip_mise_use {
         for recommendation in profile.missing_mise_tools() {
             let spec = format!("{}@{}", recommendation.tool, recommendation.version);
             shell::run(&profile.root, "mise", ["use", spec.as_str()]).with_context(|| {
@@ -39,11 +135,14 @@ pub fn run(args: InitArgs) -> Result<()> {
         }
     }
 
-    fs::write(&hk_path, config)
-        .with_context(|| format!("failed to write {}", hk_path.display()))?;
-    println!("Wrote {}", hk_path.display());
+    for outcome in standards::write_files(&managed_files)? {
+        match outcome {
+            WriteOutcome::Wrote(path) => println!("Wrote {}", path.display()),
+            WriteOutcome::Kept(path) => println!("Kept custom {}", path.display()),
+        }
+    }
 
-    if !args.skip_hk_install {
+    if !options.skip_hk_install {
         install_hk_hooks(&profile.root)?;
     }
 
@@ -52,19 +151,21 @@ pub fn run(args: InitArgs) -> Result<()> {
     Ok(())
 }
 
-fn print_plan(profile: &ProjectProfile, config: &str, skip_mise: bool, skip_hk: bool) {
+fn print_plan(profile: &ProjectProfile, files: &[ManagedFile], skip_mise: bool, skip_hk: bool) {
     println!("Repository: {}", profile.root.display());
+    println!("Workspace: {}", profile.workspace_display());
     println!("Languages: {:?}", profile.languages);
     if !skip_mise {
         for recommendation in profile.missing_mise_tools() {
             println!("Would run: {}", recommendation.command());
         }
     }
-    println!("Would write: {}", profile.root.join("hk.pkl").display());
+    for file in files {
+        println!("Would write: {}", file.path.display());
+    }
     if !skip_hk {
         println!("Would run: mise exec -- hk install");
     }
-    println!("\n{config}");
 }
 
 fn install_hk_hooks(root: &Path) -> Result<()> {

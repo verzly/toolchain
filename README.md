@@ -42,7 +42,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
-`repo-quality` bootstraps repository-local `hk` and `mise` quality gates for Rust, JavaScript, and PHP projects.
+`repo-quality` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
 
 ### Repository model
 
@@ -96,9 +96,19 @@ mise exec -- hk install
 mise exec -- hk check
 ```
 
-For workflow and repository-boundary changes, also verify the model expected by `.github/workflows/test.yml`.
+GitHub Actions use the same `mise exec -- hk check` gate that `repo-quality` writes into repositories. The workflow cancels older PR runs when a newer push arrives and stops early for WIP commit subjects.
 
 ### Run a tool locally
+
+
+`repo-quality` can also initialize monorepo subdirectories. The root `.repo-quality.toml` stores the selected workspace path so future updates do not need it again:
+
+```sh
+cargo run -p repo-quality -- init --workspace workspace/app
+cargo run -p repo-quality -- update
+```
+
+Generated project-local files are intentionally overrideable. `repo-quality update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
 
 Use `cargo run -p <crate> -- ...` while developing:
 
@@ -115,6 +125,7 @@ A tool does not need a public release before you can test it locally. Cargo can 
 
 ```sh
 cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
 cargo run -p repo-quality -- plan
 cargo run -p repo-quality -- doctor
 ```

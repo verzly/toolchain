@@ -19,8 +19,10 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Write hk.pkl, install hk/pkl through mise, and install git hooks.
+    /// Write managed quality files, install mise tools, and install git hooks.
     Init(InitArgs),
+    /// Refresh managed quality files from the stored .repo-quality.toml profile.
+    Update(UpdateArgs),
     /// Print the detected quality profile without changing files.
     Plan(PlanArgs),
     /// Check whether the repository has the expected quality tooling.
@@ -53,9 +55,52 @@ pub struct InitArgs {
     #[arg(long = "language", value_enum)]
     pub languages: Vec<LanguageArg>,
 
-    /// Override the JavaScript runner used for package scripts.
+    /// Override the JavaScript runner used for package tooling detection.
     #[arg(long, value_enum, default_value_t = JsRunnerArg::Auto)]
     pub js_runner: JsRunnerArg,
+
+    /// Configure a subdirectory as the quality workspace.
+    #[arg(long)]
+    pub workspace: Option<PathBuf>,
+
+    /// Do not write editor, formatter, linter, or Rector config files.
+    #[arg(long, default_value_t = false)]
+    pub skip_style_configs: bool,
+
+    /// Do not write the GitHub Actions test workflow.
+    #[arg(long, default_value_t = false)]
+    pub skip_actions: bool,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repo-quality")]
+pub struct UpdateArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Overwrite project-local quality files even when they already exist.
+    #[arg(short, long, default_value_t = false)]
+    pub force: bool,
+
+    /// Print the planned changes without writing files or running commands.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+
+    /// Do not run `mise use` for missing tools.
+    #[arg(long, default_value_t = false)]
+    pub skip_mise_use: bool,
+
+    /// Do not run `hk install` after writing hk.pkl.
+    #[arg(long, default_value_t = false)]
+    pub skip_hk_install: bool,
+
+    /// Do not write editor, formatter, linter, or Rector config files.
+    #[arg(long, default_value_t = false)]
+    pub skip_style_configs: bool,
+
+    /// Do not write the GitHub Actions test workflow.
+    #[arg(long, default_value_t = false)]
+    pub skip_actions: bool,
 }
 
 #[derive(Args, Debug)]
@@ -69,6 +114,10 @@ pub struct PlanArgs {
 
     #[arg(long, value_enum, default_value_t = JsRunnerArg::Auto)]
     pub js_runner: JsRunnerArg,
+
+    /// Configure a subdirectory as the quality workspace for the preview.
+    #[arg(long)]
+    pub workspace: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]

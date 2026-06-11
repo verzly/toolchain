@@ -1,4 +1,9 @@
-name: Test
+//! GitHub Actions workflow rendering.
+
+use crate::project::ProjectProfile;
+
+pub fn render_test_workflow(_profile: &ProjectProfile) -> String {
+    r#"name: Test
 
 on:
   pull_request:
@@ -43,3 +48,6 @@ jobs:
 
       - name: Quality gate
         run: mise exec -- hk check
+"#
+    .into()
+}

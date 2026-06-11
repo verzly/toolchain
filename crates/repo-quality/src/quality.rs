@@ -1,7 +1,6 @@
 //! hk configuration rendering.
 
-use crate::project::{JsRunner, Language, ProjectProfile};
-use std::collections::BTreeSet;
+use crate::project::{Language, ProjectProfile};
 
 #[derive(Clone, Debug)]
 struct Step {
@@ -19,21 +18,21 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
     if profile.has_language(&Language::Rust) {
         format_steps.push(Step {
             name: "format-rust".into(),
-            check: "cargo fmt --all -- --check".into(),
-            fix: Some("cargo fmt --all".into()),
-            stage: vec!["**/*.rs".into()],
+            check: profile.command("cargo fmt --all -- --check"),
+            fix: Some(profile.command("cargo fmt --all")),
+            stage: vec![profile.glob("**/*.rs")],
             depends: vec![],
         });
         quality_steps.push(Step {
             name: "lint-rust".into(),
-            check: "cargo clippy --workspace --all-targets -- -D warnings".into(),
+            check: profile.command("cargo clippy --workspace --all-targets -- -D warnings"),
             fix: None,
             stage: vec![],
             depends: vec!["format-rust".into()],
         });
         quality_steps.push(Step {
             name: "test-rust".into(),
-            check: "cargo test --workspace --all-targets".into(),
+            check: profile.command("cargo test --workspace --all-targets"),
             fix: None,
             stage: vec![],
             depends: vec!["format-rust".into(), "lint-rust".into()],
@@ -51,59 +50,74 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
     render_pkl(&format_steps, &quality_steps)
 }
 
+trait ProfileCommandExt {
+    fn command(&self, command: &str) -> String;
+    fn glob(&self, pattern: &str) -> String;
+}
+
+impl ProfileCommandExt for ProjectProfile {
+    fn command(&self, command: &str) -> String {
+        if self.workspace_is_root() {
+            command.into()
+        } else {
+            format!("cd {} && {command}", shell_quote(&self.workspace_display()))
+        }
+    }
+
+    fn glob(&self, pattern: &str) -> String {
+        if self.workspace_is_root() {
+            pattern.into()
+        } else {
+            format!("{}/{}", self.workspace_display(), pattern)
+        }
+    }
+}
+
 fn add_js_steps(
     profile: &ProjectProfile,
     format_steps: &mut Vec<Step>,
     quality_steps: &mut Vec<Step>,
 ) {
-    let scripts = &profile.package_scripts;
-    let runner = profile.js_runner.as_ref().unwrap_or(&JsRunner::Npm);
+    format_steps.push(Step {
+        name: "format-js".into(),
+        check: profile.command("oxfmt --check ."),
+        fix: Some(profile.command("oxfmt .")),
+        stage: vec![
+            profile.glob("package.json"),
+            profile.glob("*.js"),
+            profile.glob("*.mjs"),
+            profile.glob("*.cjs"),
+            profile.glob("*.ts"),
+            profile.glob("*.tsx"),
+            profile.glob("**/*.js"),
+            profile.glob("**/*.mjs"),
+            profile.glob("**/*.cjs"),
+            profile.glob("**/*.ts"),
+            profile.glob("**/*.tsx"),
+            profile.glob("**/*.vue"),
+            profile.glob("**/*.json"),
+            profile.glob("**/*.yaml"),
+            profile.glob("**/*.yml"),
+            profile.glob("**/*.md"),
+        ],
+        depends: vec![],
+    });
 
-    let format_fix = script_command(runner, scripts, &["format:js", "format"]);
-    let format_check = script_command(runner, scripts, &["format:js:check", "format:check"]);
+    quality_steps.push(Step {
+        name: "lint-js".into(),
+        check: profile.command("oxlint ."),
+        fix: None,
+        stage: vec![],
+        depends: vec!["format-js".into()],
+    });
 
-    if let (Some(check), Some(fix)) = (format_check, format_fix) {
-        format_steps.push(Step {
-            name: "format-js".into(),
-            check,
-            fix: Some(fix),
-            stage: vec![
-                "package.json".into(),
-                "*.js".into(),
-                "*.mjs".into(),
-                "*.cjs".into(),
-                "*.ts".into(),
-                "*.tsx".into(),
-                "**/*.js".into(),
-                "**/*.mjs".into(),
-                "**/*.cjs".into(),
-                "**/*.ts".into(),
-                "**/*.tsx".into(),
-                "**/*.vue".into(),
-            ],
-            depends: vec![],
-        });
-    }
-
-    if let Some(check) = script_command(runner, scripts, &["lint:js", "lint"]) {
-        quality_steps.push(Step {
-            name: "lint-js".into(),
-            check,
-            fix: None,
-            stage: vec![],
-            depends: format_dependency(format_steps, "format-js"),
-        });
-    }
-
-    if let Some(check) = script_command(runner, scripts, &["test:js", "test:unit", "test"]) {
-        quality_steps.push(Step {
-            name: "test-js".into(),
-            check,
-            fix: None,
-            stage: vec![],
-            depends: format_dependency(format_steps, "format-js"),
-        });
-    }
+    quality_steps.push(Step {
+        name: "test-js".into(),
+        check: profile.command("vitest run"),
+        fix: None,
+        stage: vec![],
+        depends: vec!["format-js".into(), "lint-js".into()],
+    });
 }
 
 fn add_php_steps(
@@ -111,50 +125,21 @@ fn add_php_steps(
     format_steps: &mut Vec<Step>,
     quality_steps: &mut Vec<Step>,
 ) {
-    if profile.has_rector {
-        format_steps.push(Step {
-            name: "format-php".into(),
-            check: "composer exec rector -- --dry-run".into(),
-            fix: Some("composer exec rector".into()),
-            stage: vec!["composer.json".into(), "**/*.php".into()],
-            depends: vec![],
-        });
-    }
+    format_steps.push(Step {
+        name: "format-php".into(),
+        check: profile.command("composer exec rector -- --dry-run"),
+        fix: Some(profile.command("composer exec rector")),
+        stage: vec![profile.glob("composer.json"), profile.glob("**/*.php")],
+        depends: vec![],
+    });
 
-    if profile.has_pest {
-        quality_steps.push(Step {
-            name: "test-php".into(),
-            check: "composer exec pest".into(),
-            fix: None,
-            stage: vec![],
-            depends: format_dependency(format_steps, "format-php"),
-        });
-    }
-}
-
-fn script_command(
-    runner: &JsRunner,
-    scripts: &BTreeSet<String>,
-    candidates: &[&str],
-) -> Option<String> {
-    candidates
-        .iter()
-        .find(|script| scripts.contains(**script))
-        .map(|script| match runner {
-            JsRunner::Aube => format!("aube run {script}"),
-            JsRunner::Npm => format!("npm run {script}"),
-            JsRunner::Pnpm => format!("pnpm run {script}"),
-            JsRunner::Yarn => format!("yarn {script}"),
-            JsRunner::Bun => format!("bun run {script}"),
-        })
-}
-
-fn format_dependency(format_steps: &[Step], name: &str) -> Vec<String> {
-    if format_steps.iter().any(|step| step.name == name) {
-        vec![name.into()]
-    } else {
-        vec![]
-    }
+    quality_steps.push(Step {
+        name: "test-php".into(),
+        check: profile.command("composer exec pest"),
+        fix: None,
+        stage: vec![],
+        depends: vec!["format-php".into()],
+    });
 }
 
 fn render_pkl(format_steps: &[Step], quality_steps: &[Step]) -> String {
@@ -243,6 +228,10 @@ fn render_list(items: &[String]) -> String {
     format!("List({quoted})")
 }
 
+fn shell_quote(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\\\""))
+}
+
 fn escape_pkl(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -250,22 +239,19 @@ fn escape_pkl(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::project::{JsRunner, Language, ProjectProfile};
+    use crate::project::{JsRunner, Language, ProjectProfile, RepoQualityConfig};
     use std::collections::BTreeSet;
     use std::path::PathBuf;
 
     #[test]
-    fn renders_rust_js_php_hooks() {
+    fn renders_rust_js_php_hooks_without_package_scripts() {
         let profile = ProjectProfile {
             root: PathBuf::from("."),
+            workspace: PathBuf::from("workspace/app"),
+            workspace_root: PathBuf::from("workspace/app"),
             languages: vec![Language::Rust, Language::Js, Language::Php],
             js_runner: Some(JsRunner::Aube),
-            package_scripts: BTreeSet::from([
-                "format:js".into(),
-                "format:js:check".into(),
-                "lint:js".into(),
-                "test:js".into(),
-            ]),
+            package_scripts: BTreeSet::new(),
             has_rector: true,
             has_pest: true,
             has_mise_toml: true,
@@ -276,12 +262,14 @@ mod tests {
                 "aube".into(),
                 "php".into(),
             ]),
+            stored_config: RepoQualityConfig::default(),
         };
 
         let config = render_hk_config(&profile);
 
         assert!(config.contains("[\"format-rust\"]"));
-        assert!(config.contains("aube run test:js"));
+        assert!(config.contains("cd \\\"workspace/app\\\" && oxfmt --check ."));
+        assert!(config.contains("cd \\\"workspace/app\\\" && vitest run"));
         assert!(config.contains("composer exec rector -- --dry-run"));
         assert!(config.contains("[\"pre-push\"]"));
         assert!(config.contains("windows = \"cmd /d /s /c\""));

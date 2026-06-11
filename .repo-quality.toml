@@ -1,0 +1,4 @@
+# Managed by repo-quality. Project-specific overrides are allowed.
+version = 1
+workspace = "."
+languages = ["rust"]

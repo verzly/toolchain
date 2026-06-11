@@ -1,16 +1,23 @@
 use crate::cli::DoctorArgs;
-use crate::project::{Language, ProjectProfile};
+use crate::project::{repo_quality_config_path, Language, ProjectProfile};
 use crate::shell;
 use anyhow::{bail, Result};
 use std::path::Path;
 
 pub fn run(args: DoctorArgs) -> Result<()> {
-    let profile = ProjectProfile::detect(args.root, &[], crate::cli::JsRunnerArg::Auto)?;
+    let profile = ProjectProfile::detect(args.root, None, &[], crate::cli::JsRunnerArg::Auto)?;
     let mut failures = Vec::new();
     let mut suggestions = Vec::new();
 
     if !profile.root.join("hk.pkl").is_file() {
         failures.push("hk.pkl is missing".to_string());
+    }
+    if !repo_quality_config_path(&profile.root).is_file() {
+        suggestions.push(
+            ".repo-quality.toml is missing; run `repo-quality init` once so future \
+             `repo-quality update` runs can reuse the workspace path"
+                .to_string(),
+        );
     }
     if !shell::command_exists("mise") {
         failures.push("mise is not available on PATH".to_string());
@@ -36,7 +43,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
 
     if !profile.has_mise_toml {
         suggestions.push(
-            "mise.toml is missing; create it with `mise use hk@latest pkl@latest` or run `repo-quality init`"
+            "mise.toml is missing; create it with `repo-quality init` or add hk/pkl manually"
                 .to_string(),
         );
     }
@@ -49,29 +56,47 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         ));
     }
 
+    if !profile.workspace_root.join(".editorconfig").is_file() {
+        suggestions
+            .push(".editorconfig is missing in the configured quality workspace".to_string());
+    }
+    if profile.has_language(&Language::Rust)
+        && !profile.workspace_root.join("rustfmt.toml").is_file()
+    {
+        suggestions.push("rustfmt.toml is missing in the configured quality workspace".to_string());
+    }
     if profile.has_language(&Language::Js) {
-        push_missing_script(&mut suggestions, &profile, "format:js", "oxfmt");
-        push_missing_script(
-            &mut suggestions,
-            &profile,
-            "format:js:check",
-            "oxfmt --check",
-        );
-        push_missing_script(&mut suggestions, &profile, "lint:js", "oxlint");
-        push_missing_script(&mut suggestions, &profile, "test:js", "vitest");
+        if !profile.workspace_root.join(".oxfmtrc.json").is_file() {
+            suggestions
+                .push(".oxfmtrc.json is missing in the configured quality workspace".to_string());
+        }
+        if !profile.workspace_root.join(".oxlintrc.json").is_file() {
+            suggestions
+                .push(".oxlintrc.json is missing in the configured quality workspace".to_string());
+        }
+    }
+    if profile.has_language(&Language::Php) {
+        if !profile.workspace_root.join("rector.php").is_file() {
+            suggestions
+                .push("rector.php is missing in the configured quality workspace".to_string());
+        }
+        if !profile.has_rector {
+            suggestions.push(
+                "PHP files were detected; add Rector with `composer require --dev rector/rector`"
+                    .to_string(),
+            );
+        }
+        if !profile.has_pest {
+            suggestions.push(
+                "PHP files were detected; add Pest with `composer require --dev pestphp/pest`"
+                    .to_string(),
+            );
+        }
     }
 
-    if profile.has_language(&Language::Php) && !profile.has_rector {
-        suggestions.push(
-            "PHP files were detected; add Rector with `composer require --dev rector/rector`"
-                .to_string(),
-        );
-    }
-    if profile.has_language(&Language::Php) && !profile.has_pest {
-        suggestions.push(
-            "PHP files were detected; add Pest with `composer require --dev pestphp/pest`"
-                .to_string(),
-        );
+    if !profile.root.join(".github/workflows/test.yml").is_file() {
+        suggestions
+            .push(".github/workflows/test.yml is missing; run `repo-quality update`".to_string());
     }
 
     if !suggestions.is_empty() {
@@ -83,26 +108,13 @@ pub fn run(args: DoctorArgs) -> Result<()> {
 
     if failures.is_empty() {
         println!("Repository quality setup looks ready.");
-        println!("Run `hk check` to execute the configured quality gates.");
+        println!("Run `mise exec -- hk check` to execute the configured quality gates.");
         Ok(())
     } else {
         for failure in &failures {
             eprintln!("- {failure}");
         }
         bail!("repository quality setup is incomplete")
-    }
-}
-
-fn push_missing_script(
-    suggestions: &mut Vec<String>,
-    profile: &ProjectProfile,
-    script: &str,
-    command: &str,
-) {
-    if !profile.package_scripts.contains(script) {
-        suggestions.push(format!(
-            "JavaScript/TypeScript files were detected; add package script `{script}` using `{command}`"
-        ));
     }
 }
 

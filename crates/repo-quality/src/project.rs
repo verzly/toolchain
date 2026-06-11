@@ -14,6 +14,25 @@ pub enum Language {
     Php,
 }
 
+impl Language {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Js => "js",
+            Self::Php => "php",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "rust" => Some(Self::Rust),
+            "js" | "javascript" | "typescript" | "vue" => Some(Self::Js),
+            "php" => Some(Self::Php),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum JsRunner {
     Aube,
@@ -21,6 +40,29 @@ pub enum JsRunner {
     Pnpm,
     Yarn,
     Bun,
+}
+
+impl JsRunner {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Aube => "aube",
+            Self::Npm => "npm",
+            Self::Pnpm => "pnpm",
+            Self::Yarn => "yarn",
+            Self::Bun => "bun",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "aube" => Some(Self::Aube),
+            "npm" => Some(Self::Npm),
+            "pnpm" => Some(Self::Pnpm),
+            "yarn" => Some(Self::Yarn),
+            "bun" => Some(Self::Bun),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -36,9 +78,18 @@ impl MiseToolRecommendation {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct RepoQualityConfig {
+    pub workspace: Option<PathBuf>,
+    pub languages: Vec<Language>,
+    pub js_runner: Option<JsRunner>,
+}
+
 #[derive(Clone, Debug)]
 pub struct ProjectProfile {
     pub root: PathBuf,
+    pub workspace: PathBuf,
+    pub workspace_root: PathBuf,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
     pub package_scripts: BTreeSet<String>,
@@ -46,47 +97,81 @@ pub struct ProjectProfile {
     pub has_pest: bool,
     pub has_mise_toml: bool,
     pub mise_tools: BTreeSet<String>,
+    pub stored_config: RepoQualityConfig,
 }
 
 impl ProjectProfile {
-    pub fn detect(root: PathBuf, languages: &[LanguageArg], runner: JsRunnerArg) -> Result<Self> {
+    pub fn detect(
+        root: PathBuf,
+        workspace: Option<PathBuf>,
+        languages: &[LanguageArg],
+        runner: JsRunnerArg,
+    ) -> Result<Self> {
         let root = fs::canonicalize(&root)
             .with_context(|| format!("failed to resolve repository root: {}", root.display()))?;
-        let package_scripts = read_package_scripts(&root)?;
-        let composer = read_composer_dependencies(&root)?;
+        let stored_config = read_repo_quality_config(&root)?;
+        let workspace = workspace
+            .or_else(|| stored_config.workspace.clone())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let workspace_root = fs::canonicalize(root.join(&workspace)).with_context(|| {
+            format!(
+                "failed to resolve repository quality workspace: {}",
+                root.join(&workspace).display()
+            )
+        })?;
+        let package_scripts = read_package_scripts(&workspace_root)?;
+        let composer = read_composer_dependencies(&workspace_root)?;
         let (has_mise_toml, mise_tools) = read_mise_tools(&root)?;
         let mut detected = BTreeSet::new();
 
-        if root.join("Cargo.toml").is_file() || has_source_file(&root, &["rs"])? {
+        if workspace_root.join("Cargo.toml").is_file() || has_source_file(&workspace_root, &["rs"])?
+        {
             detected.insert(Language::Rust);
         }
-        if root.join("package.json").is_file()
-            || root.join("aube-workspace.yaml").is_file()
-            || has_source_file(&root, &["js", "mjs", "cjs", "ts", "tsx", "vue"])?
+        if workspace_root.join("package.json").is_file()
+            || workspace_root.join("aube-workspace.yaml").is_file()
+            || has_source_file(&workspace_root, &["js", "mjs", "cjs", "ts", "tsx", "vue"])?
         {
             detected.insert(Language::Js);
         }
-        if root.join("composer.json").is_file() || has_source_file(&root, &["php"])? {
+        if workspace_root.join("composer.json").is_file()
+            || has_source_file(&workspace_root, &["php"])?
+        {
             detected.insert(Language::Php);
         }
 
-        for language in languages {
-            detected.insert(match language {
-                LanguageArg::Rust => Language::Rust,
-                LanguageArg::Js => Language::Js,
-                LanguageArg::Php => Language::Php,
-            });
+        let language_overrides = if languages.is_empty() {
+            stored_config.languages.clone()
+        } else {
+            languages
+                .iter()
+                .map(|language| match language {
+                    LanguageArg::Rust => Language::Rust,
+                    LanguageArg::Js => Language::Js,
+                    LanguageArg::Php => Language::Php,
+                })
+                .collect()
+        };
+        for language in language_overrides {
+            detected.insert(language);
         }
 
         let languages = detected.into_iter().collect::<Vec<_>>();
         let js_runner = if languages.contains(&Language::Js) {
-            Some(resolve_js_runner(&root, runner, &mise_tools))
+            Some(resolve_js_runner(
+                &workspace_root,
+                runner,
+                stored_config.js_runner.as_ref(),
+                &mise_tools,
+            ))
         } else {
             None
         };
 
         Ok(Self {
             root,
+            workspace,
+            workspace_root,
             languages,
             js_runner,
             package_scripts,
@@ -95,11 +180,20 @@ impl ProjectProfile {
             has_pest: composer.contains_key("pestphp/pest"),
             has_mise_toml,
             mise_tools,
+            stored_config,
         })
     }
 
     pub fn has_language(&self, language: &Language) -> bool {
         self.languages.contains(language)
+    }
+
+    pub fn workspace_is_root(&self) -> bool {
+        self.workspace == PathBuf::from(".") || self.workspace.as_os_str().is_empty()
+    }
+
+    pub fn workspace_display(&self) -> String {
+        normalize_path(&self.workspace)
     }
 
     pub fn missing_mise_tools(&self) -> Vec<MiseToolRecommendation> {
@@ -130,34 +224,63 @@ impl ProjectProfile {
         }
 
         if let Some(runner) = &self.js_runner {
-            let (tool, reason) = match runner {
-                JsRunner::Aube => (
+            match runner {
+                JsRunner::Aube => push_missing_tool(
+                    &mut recommendations,
+                    &self.mise_tools,
                     "aube",
-                    "JavaScript/TypeScript files were detected and no package runner tool is configured",
+                    "latest",
+                    "JavaScript/TypeScript files were detected and aube is the preferred runner",
                 ),
-                JsRunner::Pnpm => (
+                JsRunner::Pnpm => push_missing_tool(
+                    &mut recommendations,
+                    &self.mise_tools,
                     "pnpm",
+                    "latest",
                     "pnpm project files were detected; use the existing package runner",
                 ),
-                JsRunner::Yarn => (
+                JsRunner::Yarn => push_missing_tool(
+                    &mut recommendations,
+                    &self.mise_tools,
                     "yarn",
+                    "latest",
                     "Yarn project files were detected; use the existing package runner",
                 ),
-                JsRunner::Bun => (
+                JsRunner::Bun => push_missing_tool(
+                    &mut recommendations,
+                    &self.mise_tools,
                     "bun",
+                    "latest",
                     "Bun project files were detected; use the existing package runner",
                 ),
-                JsRunner::Npm => (
+                JsRunner::Npm => push_missing_tool(
+                    &mut recommendations,
+                    &self.mise_tools,
                     "node",
+                    "latest",
                     "npm project files were detected; npm is provided by Node.js",
                 ),
-            };
+            }
             push_missing_tool(
                 &mut recommendations,
                 &self.mise_tools,
-                tool,
+                "npm:oxlint",
                 "latest",
-                reason,
+                "preferred JavaScript/TypeScript linter",
+            );
+            push_missing_tool(
+                &mut recommendations,
+                &self.mise_tools,
+                "npm:oxfmt",
+                "latest",
+                "preferred JavaScript/TypeScript/Vue formatter",
+            );
+            push_missing_tool(
+                &mut recommendations,
+                &self.mise_tools,
+                "npm:vitest",
+                "latest",
+                "preferred JavaScript/TypeScript unit test runner",
             );
         }
 
@@ -168,6 +291,13 @@ impl ProjectProfile {
                 "php",
                 "latest",
                 "PHP files were detected; Rector and Pest need a PHP runtime",
+            );
+            push_missing_tool(
+                &mut recommendations,
+                &self.mise_tools,
+                "composer",
+                "latest",
+                "PHP files were detected; Rector and Pest are installed through Composer",
             );
         }
 
@@ -189,6 +319,69 @@ fn push_missing_tool(
             reason: reason.into(),
         });
     }
+}
+
+pub fn repo_quality_config_path(root: &Path) -> PathBuf {
+    root.join(".repo-quality.toml")
+}
+
+pub fn render_repo_quality_config(profile: &ProjectProfile) -> String {
+    let languages = profile
+        .languages
+        .iter()
+        .map(|language| format!("\"{}\"", language.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut out = String::new();
+    out.push_str("# Managed by repo-quality. Project-specific overrides are allowed.\n");
+    out.push_str("version = 1\n");
+    out.push_str(&format!(
+        "workspace = \"{}\"\n",
+        escape_toml(&profile.workspace_display())
+    ));
+    out.push_str(&format!("languages = [{languages}]\n"));
+    if let Some(runner) = &profile.js_runner {
+        out.push_str(&format!("js_runner = \"{}\"\n", runner.as_str()));
+    }
+    out
+}
+
+fn read_repo_quality_config(root: &Path) -> Result<RepoQualityConfig> {
+    let path = repo_quality_config_path(root);
+    if !path.is_file() {
+        return Ok(RepoQualityConfig::default());
+    }
+
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut config = RepoQualityConfig::default();
+
+    for raw_line in text.lines() {
+        let line = raw_line.split('#').next().unwrap_or_default().trim();
+        if line.is_empty() || line.starts_with('[') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        match key {
+            "workspace" => config.workspace = parse_string(value).map(PathBuf::from),
+            "js_runner" => {
+                config.js_runner = parse_string(value).and_then(|value| JsRunner::from_str(&value));
+            }
+            "languages" => {
+                config.languages = parse_string_array(value)
+                    .into_iter()
+                    .filter_map(|value| Language::from_str(&value))
+                    .collect();
+            }
+            _ => {}
+        }
+    }
+
+    Ok(config)
 }
 
 fn read_package_scripts(root: &Path) -> Result<BTreeSet<String>> {
@@ -270,7 +463,12 @@ fn read_mise_tools(root: &Path) -> Result<(bool, BTreeSet<String>)> {
     Ok((true, tools))
 }
 
-fn resolve_js_runner(root: &Path, runner: JsRunnerArg, mise_tools: &BTreeSet<String>) -> JsRunner {
+fn resolve_js_runner(
+    root: &Path,
+    runner: JsRunnerArg,
+    stored_runner: Option<&JsRunner>,
+    mise_tools: &BTreeSet<String>,
+) -> JsRunner {
     match runner {
         JsRunnerArg::Aube => JsRunner::Aube,
         JsRunnerArg::Npm => JsRunner::Npm,
@@ -278,7 +476,9 @@ fn resolve_js_runner(root: &Path, runner: JsRunnerArg, mise_tools: &BTreeSet<Str
         JsRunnerArg::Yarn => JsRunner::Yarn,
         JsRunnerArg::Bun => JsRunner::Bun,
         JsRunnerArg::Auto => {
-            if root.join("aube-workspace.yaml").is_file() || mise_tools.contains("aube") {
+            if let Some(stored_runner) = stored_runner {
+                stored_runner.clone()
+            } else if root.join("aube-workspace.yaml").is_file() || mise_tools.contains("aube") {
                 JsRunner::Aube
             } else if root.join("pnpm-lock.yaml").is_file() || mise_tools.contains("pnpm") {
                 JsRunner::Pnpm
@@ -349,12 +549,49 @@ fn should_skip_dir(name: &str) -> bool {
             | ".cache"
             | ".gradle"
             | "build"
+            | "coverage"
             | "dist"
             | "gen"
             | "node_modules"
             | "target"
             | "vendor"
     )
+}
+
+fn parse_string(value: &str) -> Option<String> {
+    let value = value.trim();
+    value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .map(|value| value.replace("\\\"", "\"").replace("\\\\", "\\"))
+}
+
+fn parse_string_array(value: &str) -> Vec<String> {
+    let value = value.trim();
+    let Some(value) = value
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    else {
+        return Vec::new();
+    };
+
+    value
+        .split(',')
+        .filter_map(|item| parse_string(item.trim()))
+        .collect()
+}
+
+fn escape_toml(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn normalize_path(path: &Path) -> String {
+    let value = path.to_string_lossy().replace('\\', "/");
+    if value.is_empty() {
+        ".".into()
+    } else {
+        value
+    }
 }
 
 #[cfg(test)]
@@ -378,15 +615,14 @@ mod tests {
         fs::write(root.join("aube-workspace.yaml"), "packages: []\n").unwrap();
         fs::write(
             root.join("package.json"),
-            r#"{"scripts":{"format:js":"oxfmt","test:js":"vitest"}}"#,
+            r#"{"scripts":{"test":"vitest"}}"#,
         )
         .unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
 
         assert!(profile.has_language(&Language::Js));
         assert_eq!(profile.js_runner, Some(JsRunner::Aube));
-        assert!(profile.package_scripts.contains("format:js"));
     }
 
     #[test]
@@ -398,7 +634,7 @@ mod tests {
         )
         .unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
 
         assert!(profile.has_language(&Language::Php));
         assert!(profile.has_rector);
@@ -412,7 +648,7 @@ mod tests {
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
         fs::write(root.join("index.php"), "<?php\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
 
         assert!(profile.has_language(&Language::Rust));
         assert!(profile.has_language(&Language::Js));
@@ -431,7 +667,7 @@ mod tests {
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
         fs::write(root.join("index.php"), "<?php\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
         let tools = profile
             .missing_mise_tools()
             .into_iter()
@@ -440,7 +676,11 @@ mod tests {
 
         assert!(tools.contains("rust"));
         assert!(tools.contains("aube"));
+        assert!(tools.contains("npm:oxlint"));
+        assert!(tools.contains("npm:oxfmt"));
+        assert!(tools.contains("npm:vitest"));
         assert!(tools.contains("php"));
+        assert!(tools.contains("composer"));
         assert!(!tools.contains("hk"));
         assert!(!tools.contains("pkl"));
     }
@@ -452,7 +692,7 @@ mod tests {
         fs::write(root.join("mise.toml"), "[tools]\npnpm = \"latest\"\n").unwrap();
         fs::write(root.join("app.ts"), "export {};\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
         let tools = profile
             .missing_mise_tools()
             .into_iter()
@@ -462,23 +702,29 @@ mod tests {
         assert_eq!(profile.js_runner, Some(JsRunner::Pnpm));
         assert!(!tools.contains("aube"));
         assert!(!tools.contains("pnpm"));
+        assert!(tools.contains("npm:oxlint"));
     }
 
     #[test]
-    fn recommends_existing_package_runner_when_lockfile_is_present() {
-        let root = temp_repo("missing-pnpm");
-        fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
-        fs::write(root.join("app.ts"), "export {};\n").unwrap();
+    fn uses_stored_workspace_for_update_detection() {
+        let root = temp_repo("workspace");
+        fs::create_dir_all(root.join("workspace/app")).unwrap();
+        fs::write(
+            root.join(".repo-quality.toml"),
+            concat!(
+                "version = 1\n",
+                "workspace = \"workspace/app\"\n",
+                "languages = [\"js\"]\n",
+                "js_runner = \"aube\"\n",
+            ),
+        )
+        .unwrap();
+        fs::write(root.join("workspace/app/main.ts"), "export {};\n").unwrap();
 
-        let profile = ProjectProfile::detect(root, &[], JsRunnerArg::Auto).unwrap();
-        let tools = profile
-            .missing_mise_tools()
-            .into_iter()
-            .map(|recommendation| recommendation.tool)
-            .collect::<BTreeSet<_>>();
+        let profile = ProjectProfile::detect(root, None, &[], JsRunnerArg::Auto).unwrap();
 
-        assert_eq!(profile.js_runner, Some(JsRunner::Pnpm));
-        assert!(tools.contains("pnpm"));
-        assert!(!tools.contains("aube"));
+        assert_eq!(profile.workspace_display(), "workspace/app");
+        assert!(profile.has_language(&Language::Js));
+        assert_eq!(profile.js_runner, Some(JsRunner::Aube));
     }
 }

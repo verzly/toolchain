@@ -70,6 +70,7 @@ A public release is not required for local testing. Cargo runs the current sourc
 
 ```sh
 cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
 cargo run -p repo-quality -- doctor
 ```
 
@@ -103,10 +104,13 @@ When the preview is correct and you intentionally want to refresh the workspace 
 
 ```sh
 cargo run -p repo-quality -- init --force
+cargo run -p repo-quality -- update
 mise exec -- hk check
 ```
 
 Use `mise exec -- hk check` if your shell resolves an older global `hk` before the version managed by `mise`.
+
+`repo-quality` keeps project overrides local. It writes central defaults into normal repository files such as `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php`, but `repo-quality update` preserves existing copies unless `--force` is passed. Use `.repo-quality.toml` to store monorepo workspace paths for repeatable updates.
 
 ## Testing
 
@@ -116,7 +120,7 @@ Before opening or merging a PR, run:
 hk check
 ```
 
-This executes the same Rust formatting, clippy, and test gates configured in `hk.pkl`. The equivalent raw commands are:
+This executes the same formatting, linting, and test gates configured in `hk.pkl`. The toolchain repository is Rust-only, but `repo-quality` can generate JS/TS/Vue and PHP gates for other repositories. The equivalent raw commands are:
 
 ```sh
 cargo fmt --all -- --check
@@ -124,7 +128,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-For workflow, config, and repository-boundary changes, also check the model guarded by `.github/workflows/test.yml`. Important invariants include:
+For release workflow and distribution changes, also keep the repository-boundary invariants intact. Important invariants include:
 
 ```text
 .codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
@@ -138,7 +142,7 @@ Prefer unit tests for planning, config, path handling, release note rendering, a
 
 ## GitHub Actions
 
-The main checks run through `.github/workflows/test.yml` on pull requests. It runs Rust checks and repository-model checks.
+The main checks run through `.github/workflows/test.yml` on pull requests. It runs the same `mise exec -- hk check` quality gate used locally.
 
 Public tool release workflows are:
 

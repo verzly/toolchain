@@ -1,34 +1,37 @@
 # repo-quality
 
-`repo-quality` prepares repository-local quality gates for projects that use `hk`, `mise`, Rust, JavaScript, TypeScript, Vue, PHP, Rector, and Pest.
+`repo-quality` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects.
 
-It is intended for repositories where commits should stay lightweight, while pushes should run the full project quality gate before code reaches GitHub.
+It carries the Verzly default quality model as an executable: `mise` tools, `hk` hooks, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
 
 - [Purpose](#purpose)
 - [Install](#install)
 - [How it works](#how-it-works)
 - [Commands](#commands)
   - [init](#init)
+  - [update](#update)
   - [plan](#plan)
   - [doctor](#doctor)
-- [Generated hooks](#generated-hooks)
+- [Generated files](#generated-files)
 - [Language profiles](#language-profiles)
+- [Monorepos and workspaces](#monorepos-and-workspaces)
+- [Project overrides](#project-overrides)
 - [GitHub Actions](#github-actions)
 - [Command help](#command-help)
 - [License](#license)
 
 ## Purpose
 
-`repo-quality` centralizes the setup that would otherwise be repeated manually in every repository:
+`repo-quality` centralizes setup that would otherwise be repeated manually in every repository:
 
 - install `hk` and `pkl` through `mise`;
+- add language tools such as `rust@stable`, `aube`, `php`, `composer`, `npm:oxlint`, `npm:oxfmt`, and `npm:vitest` when needed;
 - generate a Windows-safe `hk.pkl`;
-- configure formatting hooks for `pre-commit`;
-- configure lint/test/build quality gates for `pre-push`;
-- calibrate commands for Rust, JavaScript, and PHP projects;
+- generate `.editorconfig` and formatter/linter config files;
+- generate a pull request test workflow with concurrency cancellation and WIP guarding;
 - run `hk install` so Git hooks are active.
 
-The tool does not replace project-specific package scripts. It connects existing scripts and standard tool commands into a consistent hook model.
+The tool intentionally does not add package scripts to `package.json` or `composer.json`. Hook commands call tools directly through `hk check` and the `mise` environment.
 
 ## Install
 
@@ -42,24 +45,12 @@ Use the GitHub Action to install the executable in CI:
 
 For local usage, install the published executable or make it available through your preferred `mise` setup, then run it from the repository root.
 
-When developing `repo-quality` inside `verzly/toolchain`, a public release is not required. Run the current source directly:
+When developing `repo-quality` inside `verzly/toolchain`, a public release is not required:
 
 ```sh
-cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
 cargo run -p repo-quality -- plan
-```
-
-Or build and run the local executable:
-
-```sh
-cargo build -p repo-quality
-.cache/rust/packages/toolchain/target/debug/repo-quality plan
-```
-
-On Windows:
-
-```pwsh
-.\.cache\rust\packages\toolchain\target\debug\repo-quality.exe plan
+cargo run -p repo-quality -- init --dry-run --skip-mise-use --skip-hk-install
+cargo run -p repo-quality -- update --dry-run --skip-mise-use --skip-hk-install
 ```
 
 ## How it works
@@ -70,34 +61,14 @@ A typical setup is:
 repo-quality init
 ```
 
-The command detects repository manifests and source files such as:
+For monorepos, store quality files under a specific workspace folder and remember that folder for future updates:
 
-```text
-Cargo.toml
-*.rs
-package.json
-aube-workspace.yaml
-*.js / *.ts / *.vue
-composer.json
-*.php
+```sh
+repo-quality init --workspace apps/mobile
+repo-quality update
 ```
 
-Then it prepares quality hooks and missing `mise` tools:
-
-```text
-repo-quality
-→ mise use hk@latest
-→ mise use pkl@latest
-→ mise use rust@stable      when Rust files are detected
-→ mise use aube@latest      when JS/TS files are detected and no runner is configured
-→ mise use php@latest       when PHP files are detected
-→ write hk.pkl
-→ hk install
-```
-
-If the repository already uses another JavaScript runner, such as `pnpm`, `bun`, or `yarn`, `repo-quality` keeps that runner instead of forcing `aube`.
-
-If a repository already has `hk.pkl`, pass `--force` to replace it.
+`repo-quality init` writes `.repo-quality.toml` at the repository root. `repo-quality update` reads it, so the workspace path does not need to be repeated.
 
 ## Commands
 
@@ -115,10 +86,10 @@ Preview without writing files:
 repo-quality init --dry-run
 ```
 
-Overwrite an existing hook configuration:
+Initialize a monorepo workspace:
 
 ```sh
-repo-quality init --force
+repo-quality init --workspace workspace/app
 ```
 
 Force selected language profiles:
@@ -127,21 +98,34 @@ Force selected language profiles:
 repo-quality init --language rust --language js --language php
 ```
 
-Skip tool installation when `hk` and `pkl` are already managed elsewhere:
+Overwrite managed files:
+
+```sh
+repo-quality init --force
+```
+
+Skip tool or hook installation:
 
 ```sh
 repo-quality init --skip-mise-use
-```
-
-Skip Git hook installation and only write `hk.pkl`:
-
-```sh
 repo-quality init --skip-hk-install
 ```
 
+### update
+
+Refresh managed files from `.repo-quality.toml`:
+
+```sh
+repo-quality update
+```
+
+Use this after updating `repo-quality` to roll the latest central standards into a repository.
+
+Project-local overrides are preserved by default. Pass `--force` only when you intentionally want to replace existing local config files.
+
 ### plan
 
-Print the detected repository profile and generated `hk.pkl` without changing the repository:
+Print the detected repository profile, managed files, generated `hk.pkl`, and generated test workflow without changing the repository:
 
 ```sh
 repo-quality plan
@@ -155,45 +139,33 @@ Check whether the repository has the expected setup:
 repo-quality doctor
 ```
 
-`doctor` reports missing required pieces and prints setup recommendations. For example, it can suggest creating `mise.toml`, adding `rust@stable` for Rust files, adding `aube` for JavaScript/TypeScript files, adding `php` for PHP files, or adding the preferred package scripts for Oxlint, Oxfmt, Vitest, Rector, and Pest.
+`doctor` reports missing required pieces and prints setup recommendations. It can suggest `mise.toml`, `rust@stable`, `aube`, `php`, Composer, Oxlint, Oxfmt, Vitest, Rector PHP, Pest PHP, workspace config files, and GitHub Actions workflow files.
 
-## Generated hooks
+## Generated files
 
-The generated model is intentionally simple:
+Depending on detected languages, `repo-quality` can manage:
 
 ```text
-pre-commit
-→ format only
-
-pre-push
-→ format check
-→ lint
-→ tests
-→ builds, when configured by the repository profile
+.repo-quality.toml
+hk.pkl
+.github/workflows/test.yml
+.editorconfig
+rustfmt.toml
+.oxfmtrc.json
+.oxlintrc.json
+rector.php
 ```
 
-Manual commands are also available through `hk`:
+Default indentation:
 
-```sh
-hk fix
-hk check
-hk run pre-push
+```text
+JavaScript / TypeScript / Vue: 2 spaces
+PHP / Rust: 4 spaces
 ```
-
-If your shell resolves an older global `hk`, run the same checks through `mise`:
-
-```sh
-mise exec -- hk check
-mise exec -- hk run pre-push
-```
-
-This avoids long test runs during every commit while still preventing bad code from being pushed.
 
 ## Language profiles
 
 ### Rust
-
-The Rust profile uses standard Cargo commands:
 
 ```text
 cargo fmt --all -- --check
@@ -201,51 +173,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-### JavaScript and TypeScript
-
-The JavaScript profile is calibrated for Oxlint, Oxfmt, and Vitest. It detects the package runner and existing package scripts, then wires those scripts into `hk`.
-
-Recommended scripts are:
-
-```json
-{
-  "scripts": {
-    "format:js": "oxfmt .",
-    "format:js:check": "oxfmt --check .",
-    "lint:js": "oxlint .",
-    "test:js": "vitest run"
-  }
-}
-```
-
-Runner detection prefers:
+### JavaScript, TypeScript, and Vue
 
 ```text
-aube-workspace.yaml      → aube
-pnpm-lock.yaml           → pnpm
-yarn.lock                → yarn
-bun.lock / bun.lockb     → bun
-package-lock.json        → npm / node
-no configured runner     → aube
+oxfmt --check .
+oxlint .
+vitest run
 ```
 
-Supported script names include:
-
-```text
-format:js
-format:js:check
-format
-format:check
-lint:js
-lint
-test:js
-test:unit
-test
-```
+The generated Oxfmt config enables semicolons and uses two-space indentation. Oxlint uses project-local `.oxlintrc.json` so repositories can adjust rules as needed.
 
 ### PHP
-
-The PHP profile is calibrated for Rector PHP and Pest PHP. It uses Composer-managed tools when present:
 
 ```text
 composer exec rector -- --dry-run
@@ -253,28 +191,69 @@ composer exec rector
 composer exec pest
 ```
 
-## GitHub Actions
+Rector and Pest must be installed as project development dependencies:
 
-Use the action when a workflow needs the executable:
-
-```yaml
-- uses: verzly/repo-quality@v0.2
-  with:
-    args: doctor
+```sh
+composer require --dev rector/rector pestphp/pest
 ```
 
-For most repositories, CI should call the repository’s own package scripts directly. `repo-quality` is primarily a local bootstrapper for consistent hooks.
+## Monorepos and workspaces
+
+Use `--workspace` when the quality configuration should live below a subdirectory:
+
+```sh
+repo-quality init --workspace workspace/app
+```
+
+Generated hook commands run from that workspace:
+
+```text
+cd "workspace/app" && oxfmt --check .
+cd "workspace/app" && vitest run
+```
+
+The root `.repo-quality.toml` stores the workspace path for future updates.
+
+## Project overrides
+
+Every generated config file is project-local and can be edited.
+
+`repo-quality update` preserves existing local config files unless `--force` is passed. This lets each project override central defaults without changing the executable.
+
+Examples:
+
+```text
+.oxlintrc.json     project-specific Oxlint rules and overrides
+.oxfmtrc.json      project-specific formatter options
+rector.php         project-specific Rector sets and skips
+rustfmt.toml       project-specific Rust formatting options
+.editorconfig      project-specific editor behavior
+```
+
+## GitHub Actions
+
+The generated test workflow exposes one pull request check:
+
+```text
+Test / Quality
+```
+
+It cancels older in-progress runs when a new push arrives and stops early for commits whose subject starts with `wip`.
+
+The workflow runs:
+
+```sh
+mise exec -- hk check
+```
 
 ## Command help
-
-Every executable and command help screen points back to this README:
 
 ```sh
 repo-quality --help
 repo-quality <command> --help
 ```
 
-Read the full README:
+Full documentation is available in the repository README:
 
 ```text
 https://github.com/verzly/repo-quality
@@ -282,4 +261,4 @@ https://github.com/verzly/repo-quality
 
 ## License
 
-This project is licensed under `AGPL-3.0-only`.
+AGPL-3.0-only.
