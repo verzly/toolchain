@@ -55,7 +55,114 @@ pub fn style_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
         });
     }
 
+    if profile.ast_grep_enabled() {
+        files.extend(ast_grep_files(profile, force));
+    }
+
     files
+}
+
+fn ast_grep_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
+    let config = &profile.stored_config.quality.ast_grep;
+    let mut files = Vec::new();
+    files.push(ManagedFile {
+        path: profile.workspace_root.join(&config.config),
+        content: ast_grep_config(config),
+        force,
+    });
+
+    let rule_dir = config
+        .rule_dirs
+        .first()
+        .map(String::as_str)
+        .unwrap_or(".datarose/ast-grep/rules");
+    files.push(ManagedFile {
+        path: profile
+            .workspace_root
+            .join(rule_dir)
+            .join("datarose-no-debugger.yml"),
+        content: ast_grep_no_debugger_rule(),
+        force,
+    });
+
+    if !config.test_dir.trim().is_empty() {
+        files.push(ManagedFile {
+            path: profile
+                .workspace_root
+                .join(&config.test_dir)
+                .join(".gitkeep"),
+            content: String::new(),
+            force,
+        });
+    }
+
+    for util_dir in &config.util_dirs {
+        if util_dir.trim().is_empty() {
+            continue;
+        }
+        files.push(ManagedFile {
+            path: profile.workspace_root.join(util_dir).join(".gitkeep"),
+            content: String::new(),
+            force,
+        });
+    }
+
+    files
+}
+
+fn ast_grep_config(config: &crate::project::AstGrepConfig) -> String {
+    let mut out = String::new();
+    out.push_str("ruleDirs:\n");
+    for rule_dir in non_empty_or_default(&config.rule_dirs, ".datarose/ast-grep/rules") {
+        out.push_str(&format!("  - {}\n", yaml_string(&rule_dir)));
+    }
+    if !config.util_dirs.is_empty() {
+        out.push_str("utilDirs:\n");
+        for util_dir in config.util_dirs.iter().filter(|dir| !dir.trim().is_empty()) {
+            out.push_str(&format!("  - {}\n", yaml_string(util_dir)));
+        }
+    }
+    if !config.test_dir.trim().is_empty() {
+        out.push_str("testConfigs:\n");
+        out.push_str(&format!("  - testDir: {}\n", yaml_string(&config.test_dir)));
+    }
+    out
+}
+
+fn non_empty_or_default(values: &[String], default: &str) -> Vec<String> {
+    let values = values
+        .iter()
+        .filter(|value| !value.trim().is_empty())
+        .cloned()
+        .collect::<Vec<_>>();
+    if values.is_empty() {
+        vec![default.into()]
+    } else {
+        values
+    }
+}
+
+fn ast_grep_no_debugger_rule() -> String {
+    r#"id: datarose-no-debugger-js
+language: JavaScript
+severity: error
+message: Remove debugger statements before committing.
+rule:
+  pattern: debugger
+---
+id: datarose-no-debugger-ts
+language: TypeScript
+severity: error
+message: Remove debugger statements before committing.
+rule:
+  pattern: debugger
+"#
+    .into()
+}
+
+fn yaml_string(value: &str) -> String {
+    let value = value.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{value}\"")
 }
 
 pub fn write_files(files: &[ManagedFile]) -> Result<Vec<WriteOutcome>> {

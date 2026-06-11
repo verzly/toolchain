@@ -81,6 +81,21 @@ pub fn run(args: DoctorArgs) -> Result<()> {
                 .push(".oxlintrc.json is missing in the configured quality workspace".to_string());
         }
     }
+    if profile.ast_grep_enabled() {
+        let ast_grep = &profile.stored_config.quality.ast_grep;
+        if !tool_available(&profile.root, "ast-grep") {
+            suggestions.push(
+                "ast-grep is not available; install it with `mise use npm:@ast-grep/cli@latest`"
+                    .to_string(),
+            );
+        }
+        if !profile.workspace_root.join(&ast_grep.config).is_file() {
+            suggestions.push(format!(
+                "{} is missing in the configured quality workspace",
+                ast_grep.config
+            ));
+        }
+    }
     if profile.has_language(&Language::Php) {
         if !profile.workspace_root.join("rector.php").is_file() {
             suggestions

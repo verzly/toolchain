@@ -41,7 +41,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
-`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
+`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, ast-grep structural rules, Rector PHP, and Pest PHP.
 
 ### Repository model
 
@@ -107,7 +107,7 @@ cargo run -p repository -- init --workspace workspace/app
 cargo run -p repository -- update
 ```
 
-Generated project-local files are intentionally overrideable. `repository update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
+Generated project-local files are intentionally overrideable. `repository update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `sgconfig.yml`, ast-grep rule files, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
 
 
 Validate `datarose.toml` without rewriting files:
@@ -133,6 +133,8 @@ Release targets are path-first. In monorepos this lets each app, package, crate,
 
 `datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` only generates GitHub Actions release workflows for targets marked with `workflow = "managed"`; `workflow = "preserve"` and `workflow = "custom"` are protected from overwrite. This lets repositories share the same `github-release` / `cargo-release` orchestration model where appropriate while keeping self-hosted, same-repo, distribution-repo, and custom release topologies explicit in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
 
+For JavaScript/TypeScript/Vue workspaces, `repository` can also manage ast-grep structural rules. It writes `sgconfig.yml` and `.datarose/ast-grep/rules`, installs `@ast-grep/cli` through mise, and adds `ast-grep scan --config sgconfig.yml` to the generated pre-push/check gate. This layer is for company-specific AST rules and codemods, not a replacement for Oxfmt or Oxlint. Disable it per project with `quality.ast_grep.enabled = false`.
+
 Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
@@ -153,7 +155,7 @@ cargo run -p repository -- plan
 cargo run -p repository -- doctor
 ```
 
-`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
+`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured, plus Oxlint, Oxfmt, Vitest, and ast-grep; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
 
 Build and run the local executable when you want to test the exact binary entry point:
 

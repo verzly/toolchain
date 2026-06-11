@@ -2,7 +2,7 @@
 
 `repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects.
 
-It carries the Verzly default quality model as an executable: `mise` tools, `hk` hooks, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
+It carries the Verzly default quality model as an executable: `mise` tools, `hk` hooks, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, ast-grep structural rules, Rector PHP, and Pest PHP.
 
 - [Purpose](#purpose)
 - [Install](#install)
@@ -26,7 +26,7 @@ It carries the Verzly default quality model as an executable: `mise` tools, `hk`
 `repository` centralizes setup that would otherwise be repeated manually in every repository:
 
 - install `hk` and `pkl` through `mise`;
-- add language tools such as `rust@stable`, `aube`, `php`, `composer`, `npm:oxlint`, `npm:oxfmt`, and `npm:vitest` when needed;
+- add language tools such as `rust@stable`, `aube`, `php`, `composer`, `npm:oxlint`, `npm:oxfmt`, `npm:vitest`, and `npm:@ast-grep/cli` when needed;
 - generate a Windows-safe `hk.pkl`;
 - generate `.editorconfig` and formatter/linter config files;
 - generate a pull request test workflow with concurrency cancellation and WIP guarding;
@@ -85,6 +85,13 @@ workspace = "."
 languages = ["rust", "js", "php"]
 js_runner = "aube"
 
+[quality.ast_grep]
+enabled = true
+config = "sgconfig.yml"
+rule_dirs = [".datarose/ast-grep/rules"]
+util_dirs = [".datarose/ast-grep/utils"]
+test_dir = ".datarose/ast-grep/rule-tests"
+
 [release]
 enabled = true
 target_branch = "master"
@@ -106,7 +113,7 @@ include_scopes = ["repository", "all"]
 include_paths = ["crates/repository/"]
 ```
 
-`repository update` refreshes generated `hk.pkl`, test workflows, release workflows, and missing style/config files from this model. Existing project-local formatter/linter configs are preserved unless `--force` is passed.
+`repository update` refreshes generated `hk.pkl`, test workflows, release workflows, ast-grep rule scaffolding, and missing style/config files from this model. Existing project-local formatter/linter/structural-rule configs are preserved unless `--force` is passed.
 
 ## Commands
 
@@ -188,7 +195,7 @@ Check whether the repository has the expected setup:
 repository doctor
 ```
 
-`doctor` reports missing required pieces and prints setup recommendations. It can suggest `mise.toml`, `rust@stable`, `aube`, `php`, Composer, Oxlint, Oxfmt, Vitest, Rector PHP, Pest PHP, workspace config files, and GitHub Actions workflow files.
+`doctor` reports missing required pieces and prints setup recommendations. It can suggest `mise.toml`, `rust@stable`, `aube`, `php`, Composer, Oxlint, Oxfmt, Vitest, ast-grep, Rector PHP, Pest PHP, workspace config files, and GitHub Actions workflow files.
 
 ## Generated files
 
@@ -205,6 +212,8 @@ hk.pkl
 rustfmt.toml
 .oxfmtrc.json
 .oxlintrc.json
+sgconfig.yml
+.datarose/ast-grep/rules/datarose-no-debugger.yml
 rector.php
 ```
 
@@ -234,6 +243,14 @@ vitest run
 ```
 
 The generated Oxfmt config enables semicolons and uses two-space indentation. Oxlint uses project-local `.oxlintrc.json` so repositories can adjust rules as needed.
+
+### ast-grep structural rules
+
+```text
+ast-grep scan --config sgconfig.yml
+```
+
+ast-grep is enabled by default for JavaScript/TypeScript/Vue workspaces. It is intended for company-specific AST rules and codemods, such as banned legacy APIs or migration checks. It is separate from Oxfmt and Oxlint. Override the generated `sgconfig.yml` or `.datarose/ast-grep/rules/*.yml` files per project, or disable the layer with `quality.ast_grep.enabled = false`.
 
 ### PHP
 
@@ -277,6 +294,9 @@ Examples:
 ```text
 .oxlintrc.json     project-specific Oxlint rules and overrides
 .oxfmtrc.json      project-specific formatter options
+sgconfig.yml       project-specific ast-grep root config
+.datarose/ast-grep/rules/*.yml
+                  project-specific structural rules and codemods
 rector.php         project-specific Rector sets and skips
 rustfmt.toml       project-specific Rust formatting options
 .editorconfig      project-specific editor behavior

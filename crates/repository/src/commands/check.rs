@@ -225,6 +225,34 @@ fn collect_invalid_values(profile: &ProjectProfile, issues: &mut Vec<String>) ->
         }
     }
 
+    if profile.ast_grep_enabled() {
+        let ast_grep = &profile.stored_config.quality.ast_grep;
+        if ast_grep.config.trim().is_empty() {
+            issues.push("quality.ast_grep.config is empty".into());
+        } else if !profile.workspace_root.join(&ast_grep.config).is_file() {
+            issues.push(format!(
+                "quality.ast_grep.config points to a missing file: {}",
+                ast_grep.config
+            ));
+        }
+
+        if ast_grep.rule_dirs.iter().all(|dir| dir.trim().is_empty()) {
+            issues
+                .push("quality.ast_grep.rule_dirs must contain at least one rule directory".into());
+        }
+        for rule_dir in ast_grep
+            .rule_dirs
+            .iter()
+            .filter(|dir| !dir.trim().is_empty())
+        {
+            if !profile.workspace_root.join(rule_dir).is_dir() {
+                issues.push(format!(
+                    "quality.ast_grep.rule_dirs contains a missing directory: {rule_dir}"
+                ));
+            }
+        }
+    }
+
     let expected_package = profile.default_package_name();
     if profile.stored_config.rust_cache.package.is_none() {
         issues.push(format!(
