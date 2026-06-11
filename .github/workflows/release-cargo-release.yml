@@ -27,7 +27,6 @@ jobs:
       tool: cargo-release
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/cargo-release/cargo-release.toml
       distribution-path: .codex/distributions/cargo-release
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

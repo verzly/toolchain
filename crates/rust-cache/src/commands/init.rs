@@ -1,4 +1,4 @@
-//! Config bootstrap command. It writes both `rust-cache.toml` and native Cargo config.
+//! Config bootstrap command. It writes cache settings into `datarose.toml` and native Cargo config.
 
 use crate::cargo_config;
 use crate::cli::InitArgs;

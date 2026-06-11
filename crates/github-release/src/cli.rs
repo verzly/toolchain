@@ -19,7 +19,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Write a starter github-release.toml file.
+    /// Write starter release settings into datarose.toml.
     Init(InitArgs),
     /// Print the release plan without changing the repository.
     Plan(PlanArgs),
@@ -41,7 +41,7 @@ pub enum Commands {
 #[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct InitArgs {
     /// Config path to create.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Overwrite the config file if it already exists.
@@ -57,7 +57,7 @@ pub struct PlanArgs {
     pub version: String,
 
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.
@@ -81,7 +81,7 @@ pub struct PrepareArgs {
     pub version: String,
 
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.
@@ -121,7 +121,7 @@ pub struct FinalizeArgs {
     pub version: String,
 
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.
@@ -221,7 +221,7 @@ pub struct PublishArgs {
     pub version: String,
 
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.
@@ -265,7 +265,7 @@ pub struct PublishArgs {
 #[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct FloatingTagsArgs {
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.
@@ -305,7 +305,7 @@ pub struct AbortArgs {
     pub version: Option<String>,
 
     /// Config path.
-    #[arg(short, long, default_value = "github-release.toml")]
+    #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 
     /// Release target name inside datarose.toml.

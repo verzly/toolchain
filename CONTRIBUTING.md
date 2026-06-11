@@ -60,7 +60,7 @@ Run individual tools with `cargo run` while developing:
 
 ```sh
 cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
+cargo run -p cargo-release -- build --config datarose.toml --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
 cargo run -p repo-quality -- plan
@@ -133,7 +133,7 @@ For release workflow and distribution changes, also keep the repository-boundary
 ```text
 .codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
 datarose.toml contains one [[release.targets]] entry for each public tool
-crates/<tool>/cargo-release.toml exists
+datarose.toml exists
 crates/<tool>/README.md does not exist
 distribution/ and scripts/ do not exist
 ```

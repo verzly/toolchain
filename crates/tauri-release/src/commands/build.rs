@@ -90,7 +90,7 @@ mod tests {
             .as_nanos();
         let dir = std::env::temp_dir().join(format!("tauri-release-build-{name}-{suffix}"));
         std::fs::create_dir_all(&dir).expect("create temp dir");
-        let path = dir.join("tauri-release.toml");
+        let path = dir.join("datarose.toml");
         std::fs::write(
             &path,
             toml::to_string_pretty(&crate::config::Config::default()).expect("serialize config"),

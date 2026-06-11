@@ -36,7 +36,7 @@ Tauri releases are more complex than plain Rust CLI releases. They may involve f
 
 ### How it works
 
-The tool reads `tauri-release.toml`, optionally runs a frontend install command, iterates over enabled platforms, runs each platform command on the host or in a configured Docker/Podman container, copies matching artifacts into the output directory, writes checksums when enabled, and writes a manifest when enabled.
+The tool reads `datarose.toml`, optionally runs a frontend install command, iterates over enabled platforms, runs each platform command on the host or in a configured Docker/Podman container, copies matching artifacts into the output directory, writes checksums when enabled, and writes a manifest when enabled.
 
 It does not sign Android keys itself; use `android-signing` for keystore handling. It does not publish GitHub Releases; use `github-release` after artifacts are built.
 
@@ -58,7 +58,7 @@ Use `tauri-release` when you want to:
 ```yaml
 - uses: verzly/tauri-release@v1
   with:
-    args: build --config tauri-release.toml
+    args: build --config datarose.toml
 ```
 
 Install and use later:
@@ -68,7 +68,7 @@ Install and use later:
   with:
     install-only: "true"
 
-- run: tauri-release build --config tauri-release.toml --platform linux
+- run: tauri-release build --config datarose.toml --platform linux
 ```
 
 The composite action detects the runner operating system and CPU architecture, maps that host to a Rust-style target name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
@@ -100,11 +100,11 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 
 ```sh
 tauri-release init
-tauri-release plan --config tauri-release.toml
-tauri-release build --config tauri-release.toml
-tauri-release build --config tauri-release.toml --platform android
-tauri-release clean --config tauri-release.toml
-tauri-release doctor --config tauri-release.toml
+tauri-release plan --config datarose.toml
+tauri-release build --config datarose.toml
+tauri-release build --config datarose.toml --platform android
+tauri-release clean --config datarose.toml
+tauri-release doctor --config datarose.toml
 ```
 
 
@@ -125,20 +125,20 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `tauri-release.toml` | File path | Where the starter config should be written. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Where the starter config should be written. |
 | `-f`, `--force` | No | `false` | Boolean flag | Overwrite an existing config file. |
 
 #### `plan`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `tauri-release.toml` | File path | Prints enabled platforms, strategies, commands, and artifact globs. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Prints enabled platforms, strategies, commands, and artifact globs. |
 
 #### `build`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `tauri-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `--platform` | No | all enabled platforms | Platform key from `[platforms.<key>]`, for example `linux`, `windows`, `macos`, `android`, `ios` | Builds only one configured platform. |
 | `--dry-run` | No | `false` | Boolean flag | Prints planned commands without executing build commands or copying artifacts. |
 
@@ -146,13 +146,13 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `tauri-release.toml` | File path | Removes configured output and cache directories owned by this tool. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Removes configured output and cache directories owned by this tool. |
 
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `tauri-release.toml` | File path | Checks local tool availability and reports missing container images for enabled container platforms. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Checks local tool availability and reports missing container images for enabled container platforms. |
 
 ## Configuration
 
@@ -203,7 +203,7 @@ artifacts = ["src-tauri/target/release/bundle/**/*.deb", "src-tauri/target/relea
 ### Plan before building
 
 ```sh
-tauri-release plan --config tauri-release.toml
+tauri-release plan --config datarose.toml
 ```
 
 Use `plan` before the first real build. It shows enabled platforms, strategies, commands, and artifact globs without running expensive platform builds.
@@ -211,7 +211,7 @@ Use `plan` before the first real build. It shows enabled platforms, strategies, 
 ### Build one platform
 
 ```sh
-tauri-release build --config tauri-release.toml --platform linux
+tauri-release build --config datarose.toml --platform linux
 ```
 
 This is the normal debugging path. Once one platform works, enable more platforms in the config and let CI run the full release build.
@@ -219,7 +219,7 @@ This is the normal debugging path. Once one platform works, enable more platform
 ### Combine with cache routing and signing
 
 ```sh
-rust-cache run --config rust-cache.toml -- tauri-release build --config tauri-release.toml --platform android
+rust-cache run --config datarose.toml -- tauri-release build --config datarose.toml --platform android
 android-signing write-github-env release.jks --alias release-key
 ```
 

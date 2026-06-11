@@ -13,9 +13,6 @@ on:
         required: false
         type: string
         default: auto
-      cargo-release-config:
-        required: true
-        type: string
       distribution-path:
         required: false
         type: string
@@ -104,7 +101,8 @@ jobs:
       - name: Build release assets
         run: >-
           ./.cache/rust/packages/toolchain/target/release/cargo-release build
-          --config "${{ inputs.cargo-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --output dist/release
 

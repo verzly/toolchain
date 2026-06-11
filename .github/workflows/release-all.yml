@@ -40,7 +40,6 @@ jobs:
       tool: github-release
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/github-release/cargo-release.toml
       distribution-path: .codex/distributions/github-release
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
@@ -53,7 +52,6 @@ jobs:
       tool: cargo-release
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/cargo-release/cargo-release.toml
       distribution-path: .codex/distributions/cargo-release
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
@@ -66,7 +64,6 @@ jobs:
       tool: tauri-release
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/tauri-release/cargo-release.toml
       distribution-path: .codex/distributions/tauri-release
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
@@ -79,7 +76,6 @@ jobs:
       tool: rust-cache
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/rust-cache/cargo-release.toml
       distribution-path: .codex/distributions/rust-cache
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
@@ -92,7 +88,6 @@ jobs:
       tool: android-signing
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/android-signing/cargo-release.toml
       distribution-path: .codex/distributions/android-signing
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
@@ -105,7 +100,6 @@ jobs:
       tool: repo-quality
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/repo-quality/cargo-release.toml
       distribution-path: .codex/distributions/repo-quality
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

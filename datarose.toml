@@ -15,8 +15,11 @@ release_all = true
 [[release.targets]]
 name = "github-release"
 repository = "verzly/github-release"
-cargo_release_config = "crates/github-release/cargo-release.toml"
 distribution_path = ".codex/distributions/github-release"
+cargo_binary = "github-release"
+cargo_package = "github-release"
+cargo_out_dir = "dist/github-release"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/github-release/Cargo.toml"
 version_key = "package.version"
@@ -29,8 +32,11 @@ include_paths = ["crates/github-release/"]
 [[release.targets]]
 name = "cargo-release"
 repository = "verzly/cargo-release"
-cargo_release_config = "crates/cargo-release/cargo-release.toml"
 distribution_path = ".codex/distributions/cargo-release"
+cargo_binary = "cargo-release"
+cargo_package = "cargo-release"
+cargo_out_dir = "dist/cargo-release"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/cargo-release/Cargo.toml"
 version_key = "package.version"
@@ -43,8 +49,11 @@ include_paths = ["crates/cargo-release/"]
 [[release.targets]]
 name = "tauri-release"
 repository = "verzly/tauri-release"
-cargo_release_config = "crates/tauri-release/cargo-release.toml"
 distribution_path = ".codex/distributions/tauri-release"
+cargo_binary = "tauri-release"
+cargo_package = "tauri-release"
+cargo_out_dir = "dist/tauri-release"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/tauri-release/Cargo.toml"
 version_key = "package.version"
@@ -57,8 +66,11 @@ include_paths = ["crates/tauri-release/"]
 [[release.targets]]
 name = "rust-cache"
 repository = "verzly/rust-cache"
-cargo_release_config = "crates/rust-cache/cargo-release.toml"
 distribution_path = ".codex/distributions/rust-cache"
+cargo_binary = "rust-cache"
+cargo_package = "rust-cache"
+cargo_out_dir = "dist/rust-cache"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/rust-cache/Cargo.toml"
 version_key = "package.version"
@@ -71,8 +83,11 @@ include_paths = ["crates/rust-cache/"]
 [[release.targets]]
 name = "android-signing"
 repository = "verzly/android-signing"
-cargo_release_config = "crates/android-signing/cargo-release.toml"
 distribution_path = ".codex/distributions/android-signing"
+cargo_binary = "android-signing"
+cargo_package = "android-signing"
+cargo_out_dir = "dist/android-signing"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/android-signing/Cargo.toml"
 version_key = "package.version"
@@ -85,8 +100,11 @@ include_paths = ["crates/android-signing/"]
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
+cargo_binary = "repo-quality"
+cargo_package = "repo-quality"
+cargo_out_dir = "dist/repo-quality"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/repo-quality/Cargo.toml"
 version_key = "package.version"
@@ -95,3 +113,26 @@ source_tag_prefix = "repo-quality-v"
 generate_notes = false
 include_scopes = ["repo-quality", "all"]
 include_paths = ["crates/repo-quality/"]
+
+[rust_cache.cache]
+dir = ".cache"
+package = "toolchain"
+redirect_cargo_home = false
+redirect_gradle = true
+
+[rust_cache.cargo]
+target_dir = "rust/packages/{package}/target"
+
+[rust_cache.env]
+GRADLE_USER_HOME = "android/gradle"
+NPM_CONFIG_CACHE = "js/npm"
+PNPM_STORE_PATH = "js/pnpm-store"
+YARN_CACHE_FOLDER = "js/yarn"
+
+[tauri_release.project]
+root = "."
+frontend_install = "aube install"
+
+[tauri_release.build]
+out_dir = "dist"
+cache_dir = ".cache/tauri-release"

@@ -27,7 +27,6 @@ jobs:
       tool: rust-cache
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/rust-cache/cargo-release.toml
       distribution-path: .codex/distributions/rust-cache
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

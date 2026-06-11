@@ -9,9 +9,12 @@ use crate::process;
 use anyhow::Result;
 
 pub fn run(args: BuildArgs) -> Result<()> {
-    let config = config::load(&args.config)?;
+    let config = config::load(&args.config, args.release_target.as_deref())?;
     let project_root = config.project.root.clone();
-    let out_dir = config.build.out_dir.clone();
+    let out_dir = args
+        .output
+        .clone()
+        .unwrap_or_else(|| config.build.out_dir.clone());
     let version = args.version.as_deref().unwrap_or("dev");
 
     if !args.dry_run {

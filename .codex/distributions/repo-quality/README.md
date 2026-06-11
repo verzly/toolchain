@@ -94,7 +94,6 @@ release_all = true
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/repo-quality/Cargo.toml"

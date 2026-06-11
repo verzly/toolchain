@@ -55,7 +55,7 @@ crates/
 Cargo.toml
 Cargo.lock
 datarose.toml
-rust-cache.toml
+datarose.toml
 hk.pkl
 mise.toml
 ```
@@ -115,8 +115,8 @@ Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
 cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config crates/cargo-release/cargo-release.toml --version 1.2.3
-cargo run -p tauri-release -- plan --config crates/tauri-release/tauri-release.toml
+cargo run -p cargo-release -- build --config datarose.toml --version 1.2.3
+cargo run -p tauri-release -- plan --config datarose.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
 cargo run -p repo-quality -- plan
@@ -164,7 +164,7 @@ Cargo output is routed by the checked-in config:
 target-dir = ".cache/rust/packages/toolchain/target"
 ```
 
-The root `rust-cache.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`.
+The root `datarose.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`.
 
 ## Release Workflows
 
@@ -200,7 +200,7 @@ Source finalization uses a squash merge by default. The release branch may conta
 
 Use `.github/workflows/release-all.yml` to release every configured public distribution target from `datarose.toml` with one version input.
 
-The generated workflow runs the shared `_release-datarose-tool.yml` workflow once per target. Each target prepares its source release branch, runs the quality gate, builds assets with its `cargo-release.toml`, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
+The generated workflow runs the shared `_release-datarose-tool.yml` workflow once per target. Each target prepares its source release branch, runs the quality gate, builds assets from its `datarose.toml` target, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
 
 ```text
 release-all.yml
@@ -256,10 +256,10 @@ Each public tool owns:
 
 ```text
 datarose.toml
-crates/<tool>/cargo-release.toml
+datarose.toml
 ```
 
-`datarose.toml` contains the per-tool `github-release` context. Each `[[release.targets]]` entry controls the source tag prefix, public repository, version file, scoped release notes, and prepare commands for one public distribution. `crates/<tool>/cargo-release.toml` remains the build-asset config for executable artifacts.
+`datarose.toml` contains the per-tool `github-release` context. Each `[[release.targets]]` entry controls the source tag prefix, public repository, version file, scoped release notes, and prepare commands for one public distribution. `datarose.toml` also contains the executable artifact build configuration.
 
 For public distribution repositories, `[release]` also enables moving tags:
 

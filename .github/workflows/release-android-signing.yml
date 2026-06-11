@@ -27,7 +27,6 @@ jobs:
       tool: android-signing
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/android-signing/cargo-release.toml
       distribution-path: .codex/distributions/android-signing
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}

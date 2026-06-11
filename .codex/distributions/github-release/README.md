@@ -65,7 +65,7 @@ Run the executable directly from a workflow:
 ```yaml
 - uses: verzly/github-release@v1
   with:
-    args: plan --version 1.2.3 --config crates/my-tool/github-release.toml
+    args: plan --version 1.2.3 --config datarose.toml
 ```
 
 Install it once and call it from later steps:
@@ -75,7 +75,7 @@ Install it once and call it from later steps:
   with:
     install-only: "true"
 
-- run: github-release prepare --version 1.2.3 --config crates/my-tool/github-release.toml
+- run: github-release prepare --version 1.2.3 --config datarose.toml
 ```
 
 The composite action detects the runner operating system and CPU architecture, maps that host to a Rust-style target name, downloads the matching executable from this repository's GitHub Releases with `gh release download`, verifies a `.sha256` file when one is present, copies the executable into a temporary bin directory, and adds that directory to `PATH`.
@@ -107,14 +107,14 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 
 ```sh
 github-release --help
-github-release init --config github-release.toml
-github-release plan --version 1.2.3 --config github-release.toml
+github-release init --config datarose.toml
+github-release plan --version 1.2.3 --config datarose.toml
 github-release plan --version 1.2.3 --config datarose.toml --release-target my-tool
-github-release prepare --version 1.2.3 --config github-release.toml
-github-release finalize --version 1.2.3 --config github-release.toml --assets dist
-github-release publish --version 1.2.3 --config github-release.toml --assets dist
-github-release floating-tags --config github-release.toml --all
-github-release abort --version 1.2.3 --config github-release.toml
+github-release prepare --version 1.2.3 --config datarose.toml
+github-release finalize --version 1.2.3 --config datarose.toml --assets dist
+github-release publish --version 1.2.3 --config datarose.toml --assets dist
+github-release floating-tags --config datarose.toml --all
+github-release abort --version 1.2.3 --config datarose.toml
 ```
 
 Top-level automatic options include `--help` and `--version`.
@@ -135,11 +135,11 @@ Use the README for workflow-level guidance and the command help for the exact ar
 
 #### `init`
 
-Creates a starter `github-release.toml`.
+Creates a starter `datarose.toml`.
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `github-release.toml` | File path | Where the starter config should be written. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Where the starter config should be written. |
 | `-f`, `--force` | No | `false` | Boolean flag | Overwrite an existing config file. |
 
 #### `plan`
@@ -149,7 +149,7 @@ Prints the calculated release plan without changing files, branches, tags, or Gi
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | Yes | none | SemVer such as `1.2.3`, `1.2.3-rc.1`, `2.0.0-beta.1` | Version used to render branch names, tag names, release names, and configured file updates. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. Use `datarose.toml` with `--release-target <name>` when release config is stored in a shared Datarose config. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. Use `datarose.toml` with `--release-target <name>` when release config is stored in a shared Datarose config. |
 | `--target-branch` | No | Config value | Branch name | Temporary override for the branch that receives the release merge. |
 | `--release-branch` | No | Generated from config and version | Branch name | Temporary override for the release branch name. |
 
@@ -160,7 +160,7 @@ Creates the release branch, applies configured version file changes, and runs co
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | Yes | none | SemVer / prerelease version | Release version. Use the same value later in `finalize` or `abort`. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `--target-branch` | No | Config value | Branch name | Override the target branch. |
 | `--release-branch` | No | Generated | Branch name | Override the release branch. |
 | `--dry-run` | No | `false` | Boolean flag | Print planned Git and file operations without executing them. |
@@ -175,7 +175,7 @@ Merges the release branch into the target branch, creates the source tag, option
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | Yes | none | Same version passed to `prepare` | Resolves the release branch, tag, and release name. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `--target-branch` | No | Config value | Branch name | Override the target branch. |
 | `--release-branch` | No | Generated | Branch name | Override the release branch. |
 | `--assets` | No | none | Directory path | Directory whose files should be uploaded as release assets when GitHub Release publishing is enabled. Nested files are collected recursively. |
@@ -196,7 +196,7 @@ Creates a GitHub Release without preparing or merging a branch. This is the dist
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | Yes | none | SemVer / prerelease version | Version to publish. Public distribution repositories normally publish `v{version}`. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Distribution config to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Distribution config to read. |
 | `--assets` | No | none | Directory path | Directory whose files should be uploaded. |
 | `--prerelease` | No | `auto` | `auto`, `true`, `false` | Controls the prerelease flag. |
 | `--dry-run` | No | `false` | Boolean flag | Print the GitHub command without creating the release. |
@@ -212,7 +212,7 @@ Creates or repairs moving tags for already-published releases. With `tag_prefix 
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `-v`, `--version` | No | none | SemVer version | Build the full release tag from config and update enabled moving tags. Use exactly one of `--version`, `--tag`, or `--all`. |
 | `--tag` | No | none | Full SemVer tag such as `v1.2.3` or `v1.3.0-rc.1` | Analyze one existing full release tag and update enabled moving tags. |
 | `--all` | No | `false` | Boolean flag | Scan all matching SemVer tags, find the highest release for each enabled moving tag, and update them. |
@@ -227,16 +227,16 @@ Deletes a temporary release branch after a failed build.
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-v`, `--version` | No | none | Version string | Used to resolve the default release branch. Required unless `--release-branch` is provided. |
-| `-c`, `--config` | No | `github-release.toml` | File path | Config file to read. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
 | `--release-branch` | No | Generated from version | Branch name | Explicit branch to delete. |
 | `--allow-any-branch` | No | `false` | Boolean flag | Disable the configured release branch prefix safety check. Use only when you know exactly what will be deleted. |
 | `--dry-run` | No | `false` | Boolean flag | Print deletion commands without executing them. |
 
 ## Configuration
 
-`github-release` can read either a standalone `github-release.toml` file or a shared `datarose.toml` file. When a Datarose config contains multiple `[[release.targets]]`, pass `--release-target <name>` to select the target.
+`github-release` can read either a standalone `datarose.toml` file or a shared `datarose.toml` file. When a Datarose config contains multiple `[[release.targets]]`, pass `--release-target <name>` to select the target.
 
-A standalone `github-release.toml` file has three main areas.
+A standalone `datarose.toml` file has three main areas.
 
 ```toml
 prepare_commands = ["cargo generate-lockfile"]
@@ -307,9 +307,9 @@ optional = false
 Use this flow when the repository contains the actual source code and version files.
 
 ```sh
-github-release prepare --version 1.4.0 --config crates/my-tool/github-release.toml
+github-release prepare --version 1.4.0 --config datarose.toml
 cargo test --workspace
-github-release finalize --version 1.4.0 --config crates/my-tool/github-release.toml --skip-github-release
+github-release finalize --version 1.4.0 --config datarose.toml --skip-github-release
 ```
 
 `prepare` creates the release branch, updates configured version files, and runs configured prepare commands before the build starts. This keeps generated version artifacts such as `Cargo.lock` in the same release commit. `finalize` merges the release branch and creates the source tag only after the build and tests succeed.
@@ -319,7 +319,7 @@ github-release finalize --version 1.4.0 --config crates/my-tool/github-release.t
 Use this flow when a public repository only receives generated files and binary assets.
 
 ```sh
-github-release publish --version 1.4.0 --config crates/my-tool/github-release.toml --assets dist/my-tool
+github-release publish --version 1.4.0 --config datarose.toml --assets dist/my-tool
 ```
 
 `publish` does not create source branches or edit source files. It creates a GitHub Release from an existing release context and uploads assets.
@@ -329,7 +329,7 @@ When `release.floating_tags = true`, a stable publish updates `v1.4` and `v1` so
 Backfill missing floating tags after older releases already exist:
 
 ```sh
-github-release floating-tags --config crates/my-tool/github-release.toml --all
+github-release floating-tags --config datarose.toml --all
 ```
 
 Use a custom release body when the public repository should not show generated notes:
@@ -337,7 +337,7 @@ Use a custom release body when the public repository should not show generated n
 ```sh
 github-release publish \
   --version 1.4.0 \
-  --config crates/my-tool/github-release.toml \
+  --config datarose.toml \
   --assets dist/my-tool \
   --notes "This version was developed in \`verzly/toolchain\`.
 
@@ -350,7 +350,7 @@ The same body can be stored in `github.notes_body`. In that case, `publish` rend
 ### Failed build cleanup
 
 ```sh
-github-release abort --version 1.4.0 --config crates/my-tool/source-github-release.toml
+github-release abort --version 1.4.0 --config crates/my-tool/source-datarose.toml
 ```
 
 `abort` deletes only the configured release branch by default. Use `--allow-any-branch` only for manual recovery when you have verified the branch name.

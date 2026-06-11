@@ -123,14 +123,12 @@ jobs:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      cargo-release-config: {cargo_release_config}
       distribution-path: {distribution_path}
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{{{ secrets.{secret_name} }}}}
 "#,
         title = title,
         tool = target.name,
-        cargo_release_config = target.cargo_release_config,
         distribution_path = target.distribution_path,
         secret_name = secret_name,
     )
@@ -153,9 +151,6 @@ on:
         required: false
         type: string
         default: auto
-      cargo-release-config:
-        required: true
-        type: string
       distribution-path:
         required: false
         type: string
@@ -244,7 +239,8 @@ jobs:
       - name: Build release assets
         run: >-
           ./.cache/rust/packages/toolchain/target/release/cargo-release build
-          --config "${{ inputs.cargo-release-config }}"
+          --config datarose.toml
+          --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --output dist/release
 
@@ -390,14 +386,12 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      cargo-release-config: {cargo_release_config}
       distribution-path: {distribution_path}
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{{{ secrets.{secret_name} }}}}
 "#,
             job = job,
             tool = target.name,
-            cargo_release_config = target.cargo_release_config,
             distribution_path = target.distribution_path,
             secret_name = secret_name,
         ));

@@ -114,8 +114,11 @@ impl Default for ReleaseConfig {
 pub struct ReleaseTarget {
     pub name: String,
     pub repository: String,
-    pub cargo_release_config: String,
     pub distribution_path: String,
+    pub cargo_binary: String,
+    pub cargo_package: String,
+    pub cargo_out_dir: String,
+    pub cargo_targets: Vec<String>,
     pub prepare_commands: Vec<String>,
     pub version_files: Option<bool>,
     pub version_file: String,
@@ -434,12 +437,24 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
             escape_toml(&target.repository)
         ));
         out.push_str(&format!(
-            "cargo_release_config = \"{}\"\n",
-            escape_toml(&target.cargo_release_config)
-        ));
-        out.push_str(&format!(
             "distribution_path = \"{}\"\n",
             escape_toml(&target.distribution_path)
+        ));
+        out.push_str(&format!(
+            "cargo_binary = \"{}\"\n",
+            escape_toml(&target.cargo_binary)
+        ));
+        out.push_str(&format!(
+            "cargo_package = \"{}\"\n",
+            escape_toml(&target.cargo_package)
+        ));
+        out.push_str(&format!(
+            "cargo_out_dir = \"{}\"\n",
+            escape_toml(&target.cargo_out_dir)
+        ));
+        out.push_str(&format!(
+            "cargo_targets = [{}]\n",
+            render_string_array(&target.cargo_targets)
         ));
         out.push_str(&format!(
             "prepare_commands = [{}]\n",
@@ -475,6 +490,25 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
             render_string_array(&target.include_paths)
         ));
     }
+
+    out.push_str("\n[rust_cache.cache]\n");
+    out.push_str("dir = \".cache\"\n");
+    out.push_str("package = \"auto\"\n");
+    out.push_str("redirect_cargo_home = false\n");
+    out.push_str("redirect_gradle = true\n\n");
+    out.push_str("[rust_cache.cargo]\n");
+    out.push_str("target_dir = \"rust/packages/{package}/target\"\n\n");
+    out.push_str("[rust_cache.env]\n");
+    out.push_str("GRADLE_USER_HOME = \"android/gradle\"\n");
+    out.push_str("NPM_CONFIG_CACHE = \"js/npm\"\n");
+    out.push_str("PNPM_STORE_PATH = \"js/pnpm-store\"\n");
+    out.push_str("YARN_CACHE_FOLDER = \"js/yarn\"\n\n");
+    out.push_str("[tauri_release.project]\n");
+    out.push_str("root = \".\"\n");
+    out.push_str("frontend_install = \"aube install\"\n\n");
+    out.push_str("[tauri_release.build]\n");
+    out.push_str("out_dir = \"dist\"\n");
+    out.push_str("cache_dir = \".cache/tauri-release\"\n");
 
     out
 }
@@ -539,11 +573,25 @@ fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
 
 fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
     for target in targets {
-        if target.cargo_release_config.is_empty() && !target.name.is_empty() {
-            target.cargo_release_config = format!("crates/{}/cargo-release.toml", target.name);
-        }
         if target.distribution_path.is_empty() && !target.name.is_empty() {
             target.distribution_path = format!(".codex/distributions/{}", target.name);
+        }
+        if target.cargo_binary.is_empty() && !target.name.is_empty() {
+            target.cargo_binary = target.name.clone();
+        }
+        if target.cargo_package.is_empty() && !target.name.is_empty() {
+            target.cargo_package = target.name.clone();
+        }
+        if target.cargo_out_dir.is_empty() && !target.name.is_empty() {
+            target.cargo_out_dir = format!("dist/{}", target.name);
+        }
+        if target.cargo_targets.is_empty() {
+            target.cargo_targets = vec![
+                "linux-x64".into(),
+                "macos-x64".into(),
+                "macos-arm64".into(),
+                "windows-x64".into(),
+            ];
         }
         if target.prepare_commands.is_empty() {
             target
@@ -615,6 +663,7 @@ fn apply_release_value(config: &mut ReleaseConfig, key: &str, value: &str) {
 fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str) {
     match key {
         "prepare_commands" => target.prepare_commands = parse_string_array(value),
+        "cargo_targets" => target.cargo_targets = parse_string_array(value),
         "include_scopes" => target.include_scopes = parse_string_array(value),
         "include_paths" => target.include_paths = parse_string_array(value),
         "version_files" => target.version_files = parse_bool(value),
@@ -625,8 +674,10 @@ fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str
             match key {
                 "name" => target.name = value,
                 "repository" | "target_repository" => target.repository = value,
-                "cargo_release_config" => target.cargo_release_config = value,
                 "distribution_path" => target.distribution_path = value,
+                "cargo_binary" => target.cargo_binary = value,
+                "cargo_package" => target.cargo_package = value,
+                "cargo_out_dir" => target.cargo_out_dir = value,
                 "version_file" => target.version_file = value,
                 "version_key" => target.version_key = value,
                 "version_value" => target.version_value = value,
@@ -800,6 +851,14 @@ fn parse_string(value: &str) -> Option<String> {
         .map(|value| value.replace("\\\"", "\"").replace("\\\\", "\\"))
 }
 
+fn render_string_array(values: &[String]) -> String {
+    values
+        .iter()
+        .map(|value| format!("\"{}\"", escape_toml(value)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn parse_string_array(value: &str) -> Vec<String> {
     let value = value.trim();
     let Some(value) = value
@@ -813,14 +872,6 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .split(',')
         .filter_map(|item| parse_string(item.trim()))
         .collect()
-}
-
-fn render_string_array(values: &[String]) -> String {
-    values
-        .iter()
-        .map(|value| format!("\"{}\"", escape_toml(value)))
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 fn parse_bool(value: &str) -> Option<bool> {
@@ -885,8 +936,8 @@ source_repository = "verzly/toolchain"
 [[release.targets]]
 name = "repo-quality"
 repository = "verzly/repo-quality"
-cargo_release_config = "crates/repo-quality/cargo-release.toml"
 distribution_path = ".codex/distributions/repo-quality"
+cargo_binary = "repo-quality"
 "#,
         )
         .unwrap();

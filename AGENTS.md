@@ -75,7 +75,7 @@ src/
 crates/
 .github/workflows/test.yml
 .github/workflows/release.yml
-cargo-release.toml
+datarose.toml
 CHANGELOG.md
 VERSION
 ```
@@ -115,10 +115,10 @@ Each public tool keeps executable build settings in its own Cargo release config
 
 ```text
 datarose.toml                      # public distribution release targets, source tags, notes, version files
-crates/<tool>/cargo-release.toml   # executable asset build
+datarose.toml   # executable asset build
 ```
 
-Do not add per-crate `github-release.toml` files. `datarose.toml` contains one `[[release.targets]]` entry for every public distribution:
+Do not add per-crate `datarose.toml` files. `datarose.toml` contains one `[[release.targets]]` entry for every public distribution:
 
 ```toml
 [release]
@@ -129,7 +129,7 @@ source_repository = "verzly/toolchain"
 [[release.targets]]
 name = "cargo-release"
 repository = "verzly/cargo-release"
-cargo_release_config = "crates/cargo-release/cargo-release.toml"
+cargo_binary = "cargo-release"
 distribution_path = ".codex/distributions/cargo-release"
 prepare_commands = ["cargo generate-lockfile"]
 version_file = "crates/cargo-release/Cargo.toml"
@@ -155,7 +155,7 @@ The workspace must keep native Cargo build output under `.cache` without requiri
 target-dir = ".cache/rust/packages/toolchain/target"
 ```
 
-The root `rust-cache.toml` is the policy source used by `rust-cache init` to generate or repair that Cargo config. Do not put `rust-cache.toml` inside `crates/rust-cache/`; this is a workspace-level policy, not a crate-local fixture. Workflows should call plain `cargo fmt`, `cargo clippy`, `cargo test`, and `cargo build`; do not wrap normal Cargo commands in `rust-cache run`.
+The root `datarose.toml` is the policy source used by `rust-cache init` to generate or repair that Cargo config. Do not put `datarose.toml` inside `crates/rust-cache/`; this is a workspace-level policy, not a crate-local fixture. Workflows should call plain `cargo fmt`, `cargo clippy`, `cargo test`, and `cargo build`; do not wrap normal Cargo commands in `rust-cache run`.
 
 `rust-cache run` and `rust-cache env` are reserved for environment-only cache values that Cargo cannot read from `.cargo/config.toml`, such as optional `CARGO_HOME` and `GRADLE_USER_HOME` routing.
 

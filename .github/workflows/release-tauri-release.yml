@@ -27,7 +27,6 @@ jobs:
       tool: tauri-release
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      cargo-release-config: crates/tauri-release/cargo-release.toml
       distribution-path: .codex/distributions/tauri-release
     secrets:
       DISTRIBUTION_REPO_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
