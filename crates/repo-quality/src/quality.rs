@@ -168,14 +168,10 @@ fn render_pkl(format_steps: &[Step], quality_steps: &[Step]) -> String {
     out.push_str("  other = \"sh -o errexit -c\"\n");
     out.push_str("}\n\n");
     out.push_str("local formatSteps = new Mapping<String, Step> {\n");
-    for step in format_steps {
-        render_step(&mut out, step);
-    }
+    render_steps(&mut out, format_steps);
     out.push_str("}\n\n");
     out.push_str("local qualitySteps = new Mapping<String, Step> {\n");
-    for step in quality_steps {
-        render_step(&mut out, step);
-    }
+    render_steps(&mut out, quality_steps);
     out.push_str("}\n\n");
     out.push_str("local fullQualitySteps = new Mapping<String, Step> {\n");
     for step in format_steps.iter().chain(quality_steps) {
@@ -213,6 +209,15 @@ fn render_pkl(format_steps: &[Step], quality_steps: &[Step]) -> String {
     out
 }
 
+fn render_steps(out: &mut String, steps: &[Step]) {
+    for (index, step) in steps.iter().enumerate() {
+        render_step(out, step);
+        if index + 1 < steps.len() {
+            out.push('\n');
+        }
+    }
+}
+
 fn render_step(out: &mut String, step: &Step) {
     out.push_str(&format!("  [\"{}\"] {{\n", step.name));
     out.push_str("    shell = defaultShell\n");
@@ -226,7 +231,7 @@ fn render_step(out: &mut String, step: &Step) {
     if !step.stage.is_empty() {
         out.push_str(&format!("    stage = {}\n", render_list(&step.stage)));
     }
-    out.push_str("  }\n\n");
+    out.push_str("  }\n");
 }
 
 fn render_list(items: &[String]) -> String {
@@ -280,5 +285,7 @@ mod tests {
         assert!(config.contains("composer exec rector -- --dry-run"));
         assert!(config.contains("[\"pre-push\"]"));
         assert!(config.contains("windows = \"cmd /d /s /c\""));
+        assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));
+        assert!(!config.contains("  }\n\n}\n\nlocal fullQualitySteps"));
     }
 }
