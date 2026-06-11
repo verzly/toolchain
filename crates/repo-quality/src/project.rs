@@ -92,7 +92,6 @@ pub struct ProjectProfile {
     pub workspace_root: PathBuf,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
-    pub package_scripts: BTreeSet<String>,
     pub has_rector: bool,
     pub has_pest: bool,
     pub has_mise_toml: bool,
@@ -119,7 +118,6 @@ impl ProjectProfile {
                 root.join(&workspace).display()
             )
         })?;
-        let package_scripts = read_package_scripts(&workspace_root)?;
         let composer = read_composer_dependencies(&workspace_root)?;
         let (has_mise_toml, mise_tools) = read_mise_tools(&root)?;
         let mut detected = BTreeSet::new();
@@ -174,7 +172,6 @@ impl ProjectProfile {
             workspace_root,
             languages,
             js_runner,
-            package_scripts,
             has_rector: composer.contains_key("rector/rector")
                 || composer.contains_key("rectorphp/rector"),
             has_pest: composer.contains_key("pestphp/pest"),
@@ -189,7 +186,7 @@ impl ProjectProfile {
     }
 
     pub fn workspace_is_root(&self) -> bool {
-        self.workspace == PathBuf::from(".") || self.workspace.as_os_str().is_empty()
+        self.workspace == Path::new(".") || self.workspace.as_os_str().is_empty()
     }
 
     pub fn workspace_display(&self) -> String {
@@ -382,25 +379,6 @@ fn read_repo_quality_config(root: &Path) -> Result<RepoQualityConfig> {
     }
 
     Ok(config)
-}
-
-fn read_package_scripts(root: &Path) -> Result<BTreeSet<String>> {
-    let path = root.join("package.json");
-    if !path.is_file() {
-        return Ok(BTreeSet::new());
-    }
-
-    let text =
-        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    let json: Value = serde_json::from_str(&text)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
-    let scripts = json
-        .get("scripts")
-        .and_then(Value::as_object)
-        .map(|scripts| scripts.keys().cloned().collect())
-        .unwrap_or_default();
-
-    Ok(scripts)
 }
 
 fn read_composer_dependencies(root: &Path) -> Result<BTreeMap<String, String>> {

@@ -251,7 +251,6 @@ mod tests {
             workspace_root: PathBuf::from("workspace/app"),
             languages: vec![Language::Rust, Language::Js, Language::Php],
             js_runner: Some(JsRunner::Aube),
-            package_scripts: BTreeSet::new(),
             has_rector: true,
             has_pest: true,
             has_mise_toml: true,
