@@ -815,6 +815,14 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .collect()
 }
 
+fn render_string_array(values: &[String]) -> String {
+    values
+        .iter()
+        .map(|value| format!("\"{}\"", escape_toml(value)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn parse_bool(value: &str) -> Option<bool> {
     match value.trim() {
         "true" => Some(true),
