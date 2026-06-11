@@ -16,6 +16,10 @@ manage_workflows = false
 
 [[release.targets]]
 name = "github-release"
+path = "crates/github-release"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/github-release"
 distribution_path = ".codex/distributions/github-release"
 cargo_binary = "github-release"
@@ -33,6 +37,10 @@ include_paths = ["crates/github-release/"]
 
 [[release.targets]]
 name = "cargo-release"
+path = "crates/cargo-release"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/cargo-release"
 distribution_path = ".codex/distributions/cargo-release"
 cargo_binary = "cargo-release"
@@ -50,6 +58,10 @@ include_paths = ["crates/cargo-release/"]
 
 [[release.targets]]
 name = "tauri-release"
+path = "crates/tauri-release"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/tauri-release"
 distribution_path = ".codex/distributions/tauri-release"
 cargo_binary = "tauri-release"
@@ -67,6 +79,10 @@ include_paths = ["crates/tauri-release/"]
 
 [[release.targets]]
 name = "rust-cache"
+path = "crates/rust-cache"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/rust-cache"
 distribution_path = ".codex/distributions/rust-cache"
 cargo_binary = "rust-cache"
@@ -84,6 +100,10 @@ include_paths = ["crates/rust-cache/"]
 
 [[release.targets]]
 name = "android-signing"
+path = "crates/android-signing"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/android-signing"
 distribution_path = ".codex/distributions/android-signing"
 cargo_binary = "android-signing"
@@ -101,6 +121,10 @@ include_paths = ["crates/android-signing/"]
 
 [[release.targets]]
 name = "repository"
+path = "crates/repository"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
 repository = "verzly/repository"
 distribution_path = ".codex/distributions/repository"
 cargo_binary = "repository"
@@ -118,6 +142,10 @@ include_paths = ["crates/repository/"]
 
 [[release.targets]]
 name = "toolchain"
+path = "."
+strategy = "same-repo"
+workflow = "custom"
+source_kind = "custom"
 repository = "verzly/toolchain"
 source_repository = ""
 distribution_path = ""

@@ -314,3 +314,16 @@ https://github.com/verzly/repository
 ## License
 
 AGPL-3.0-only.
+
+
+Manage release targets from CLI flags or an interactive terminal editor:
+
+```sh
+repository release list
+repository release show repository
+repository release set --path crates/repository --repository verzly/repository --strategy self-hosted --workflow custom
+repository release remove repository
+repository release tui
+```
+
+Release targets are path-first. In monorepos this lets each app, package, crate, or library keep an explicit release target for its own directory instead of relying on implicit `crates/*` or `packages/*` guesses. The release strategy is explicit too: use `same-repo`, `distribution-repo`, `self-hosted`, or `custom`. Workflow handling is explicit with `managed`, `preserve`, or `custom`, so `repository update` only owns release workflows that the config marks as managed. Managed workflow generation is intentionally limited to `same-repo` and `distribution-repo`; self-hosted and custom releases stay under custom workflows.

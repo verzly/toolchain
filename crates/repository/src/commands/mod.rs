@@ -2,3 +2,4 @@ pub mod check;
 pub mod doctor;
 pub mod init;
 pub mod plan;
+pub mod release;

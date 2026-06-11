@@ -108,7 +108,7 @@ impl Default for ReleaseConfig {
             secret_name: "DISTRIBUTION_REPO_TOKEN".into(),
             release_all: true,
             manage_cargo_packages: false,
-            manage_workflows: true,
+            manage_workflows: false,
             targets: Vec::new(),
         }
     }
@@ -117,6 +117,11 @@ impl Default for ReleaseConfig {
 #[derive(Clone, Debug, Default)]
 pub struct ReleaseTarget {
     pub name: String,
+    pub path: String,
+    pub workspace: String,
+    pub strategy: String,
+    pub workflow: String,
+    pub source_kind: String,
     pub repository: String,
     pub source_repository: Option<String>,
     pub distribution_path: String,
@@ -517,6 +522,31 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
     for target in &profile.stored_config.release.targets {
         out.push_str("\n[[release.targets]]\n");
         out.push_str(&format!("name = \"{}\"\n", escape_toml(&target.name)));
+        out.push_str(&format!("path = \"{}\"\n", escape_toml(&target.path)));
+        if !target.workspace.is_empty() {
+            out.push_str(&format!(
+                "workspace = \"{}\"\n",
+                escape_toml(&target.workspace)
+            ));
+        }
+        if !target.strategy.is_empty() {
+            out.push_str(&format!(
+                "strategy = \"{}\"\n",
+                escape_toml(&target.strategy)
+            ));
+        }
+        if !target.workflow.is_empty() {
+            out.push_str(&format!(
+                "workflow = \"{}\"\n",
+                escape_toml(&target.workflow)
+            ));
+        }
+        if !target.source_kind.is_empty() {
+            out.push_str(&format!(
+                "source_kind = \"{}\"\n",
+                escape_toml(&target.source_kind)
+            ));
+        }
         out.push_str(&format!(
             "repository = \"{}\"\n",
             escape_toml(&target.repository)
@@ -670,7 +700,7 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
     out
 }
 
-fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
+pub fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
     if !path.is_file() {
         return Ok(DataroseConfig::default());
     }
@@ -760,7 +790,7 @@ pub fn detect_cargo_packages(root: &Path) -> Result<Vec<String>> {
     Ok(packages.into_iter().collect())
 }
 
-fn read_cargo_package_name(path: &Path) -> Result<Option<String>> {
+pub fn read_cargo_package_name(path: &Path) -> Result<Option<String>> {
     if !path.is_file() {
         return Ok(None);
     }
@@ -791,13 +821,40 @@ fn read_cargo_package_name(path: &Path) -> Result<Option<String>> {
     Ok(None)
 }
 
-fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
+pub fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
     for target in targets {
         let assetless = target.version_files == Some(false)
-            && target.cargo_binary.is_empty()
-            && target.cargo_package.is_empty()
-            && target.cargo_out_dir.is_empty()
-            && target.cargo_targets.is_empty();
+            || (!target.source_kind.is_empty() && target.source_kind != "cargo-package")
+            || (target.cargo_binary.is_empty()
+                && target.cargo_package.is_empty()
+                && target.cargo_out_dir.is_empty()
+                && target.cargo_targets.is_empty()
+                && target.version_file.is_empty());
+
+        if target.path.is_empty() {
+            if !target.version_file.is_empty() {
+                target.path = parent_path_string(&target.version_file);
+            } else if let Some(include_path) = target.include_paths.first() {
+                target.path = include_path.trim_end_matches('/').to_string();
+            } else if !target.name.is_empty() && !assetless {
+                target.path = format!("crates/{}", target.name);
+            } else {
+                target.path = ".".into();
+            }
+        }
+        if target.workflow.is_empty() {
+            target.workflow = "custom".into();
+        }
+        if target.strategy.is_empty() {
+            target.strategy = if assetless {
+                "same-repo".into()
+            } else {
+                "distribution-repo".into()
+            };
+        }
+        if target.source_kind.is_empty() && !assetless {
+            target.source_kind = "cargo-package".into();
+        }
 
         if target.distribution_path.is_empty() && !target.name.is_empty() && !assetless {
             target.distribution_path = format!(".codex/distributions/{}", target.name);
@@ -827,8 +884,8 @@ fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
                 .push("cargo generate-lockfile".into());
         }
         if target.version_files != Some(false) {
-            if target.version_file.is_empty() && !target.name.is_empty() {
-                target.version_file = format!("crates/{}/Cargo.toml", target.name);
+            if target.version_file.is_empty() {
+                target.version_file = format!("{}/Cargo.toml", target.path.trim_end_matches('/'));
             }
             if target.version_key.is_empty() {
                 target.version_key = "package.version".into();
@@ -844,12 +901,24 @@ fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
             target.include_scopes.push(target.name.clone());
             target.include_scopes.push("all".into());
         }
-        if target.include_paths.is_empty() && !target.name.is_empty() && !assetless {
-            target
-                .include_paths
-                .push(format!("crates/{}/", target.name));
+        if target.include_paths.is_empty() && !target.path.is_empty() {
+            if target.path == "." {
+                target.include_paths.push(".".into());
+            } else {
+                target
+                    .include_paths
+                    .push(format!("{}/", target.path.trim_end_matches('/')));
+            }
         }
     }
+}
+
+fn parent_path_string(path: &str) -> String {
+    Path::new(path)
+        .parent()
+        .map(|path| path.display().to_string().replace('\\', "/"))
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(|| ".".into())
 }
 
 fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
@@ -969,6 +1038,11 @@ fn apply_release_target_value(target: &mut ReleaseTarget, key: &str, value: &str
             };
             match key {
                 "name" => target.name = value,
+                "path" => target.path = value,
+                "workspace" => target.workspace = value,
+                "strategy" => target.strategy = value,
+                "workflow" => target.workflow = value,
+                "source_kind" => target.source_kind = value,
                 "repository" | "target_repository" => target.repository = value,
                 "source_repository" => target.source_repository = Some(value),
                 "distribution_path" => target.distribution_path = value,
