@@ -29,6 +29,8 @@ pub enum Commands {
     Check(CheckArgs),
     /// Manage datarose.toml release targets.
     Release(Box<ReleaseArgs>),
+    /// Open an interactive terminal dashboard for common repository operations.
+    Tui(TuiArgs),
     /// Check whether the repository has the expected quality tooling.
     Doctor(DoctorArgs),
 }
@@ -265,6 +267,17 @@ pub struct DoctorArgs {
     pub config: Option<PathBuf>,
 }
 
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+pub struct TuiArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub enum LanguageArg {
     Rust,
@@ -386,5 +399,16 @@ mod tests {
             Some(ReleaseStrategyArg::DistributionRepo)
         );
         assert_eq!(set_args.workflow, Some(ReleaseWorkflowArg::Custom));
+    }
+
+    #[test]
+    fn parses_tui_command() {
+        let cli = Cli::parse_from(["repository", "tui", "--root", "repo"]);
+
+        let Commands::Tui(args) = cli.command else {
+            panic!("expected tui command");
+        };
+
+        assert_eq!(args.root, PathBuf::from("repo"));
     }
 }

@@ -95,7 +95,7 @@ fn run_tui(profile: &mut ProjectProfile) -> Result<()> {
     loop {
         println!();
         println!("Datarose release targets ({})", profile.config_display());
-        println!("────────────────────────────────────────");
+        println!("----------------------------------------");
         if profile.stored_config.release.targets.is_empty() {
             println!("No release targets configured.");
         } else {

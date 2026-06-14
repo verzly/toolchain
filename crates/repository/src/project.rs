@@ -1290,6 +1290,23 @@ mod tests {
     }
 
     #[test]
+    fn detects_languages_from_project_markers() {
+        let root = temp_repo("detect-markers");
+        fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();
+        fs::write(root.join("package.json"), "{}\n").unwrap();
+        fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
+        fs::write(root.join("composer.json"), "{}\n").unwrap();
+
+        let profile = ProjectProfile::detect(root, None, None, &[], JsRunnerArg::Auto).unwrap();
+
+        assert_eq!(
+            profile.languages,
+            vec![Language::Rust, Language::Js, Language::Php]
+        );
+        assert_eq!(profile.js_runner, Some(JsRunner::Pnpm));
+    }
+
+    #[test]
     fn reads_datarose_quality_and_release_config() {
         let root = temp_repo("datarose");
         fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();

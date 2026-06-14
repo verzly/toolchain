@@ -446,3 +446,87 @@ fn title_case(value: &str) -> String {
 fn workflow_path(name: &str) -> PathBuf {
     PathBuf::from(format!(".github/workflows/{name}.yml"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::project::{DataroseConfig, ProjectProfile, ReleaseTarget};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn renders_managed_release_workflow_files() {
+        let mut config = DataroseConfig::default();
+        config.release.enabled = true;
+        config.release.manage_workflows = true;
+        config.release.targets = vec![
+            managed_target("api", "distribution-repo"),
+            managed_target("web", "same-repo"),
+            custom_target("ops"),
+        ];
+        let profile = profile_with_config(config);
+
+        let files = release_workflow_files(&profile, false);
+        let paths = files
+            .iter()
+            .map(|file| file.path.to_string_lossy().replace('\\', "/"))
+            .collect::<Vec<_>>();
+
+        assert!(paths.contains(&"/repo/.github/workflows/_release-datarose-tool.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-api.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-web.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-all.yml".into()));
+        assert!(!paths.contains(&"/repo/.github/workflows/release-ops.yml".into()));
+        assert!(files
+            .iter()
+            .any(|file| file.content.contains("DISTRIBUTION_REPO_TOKEN")));
+    }
+
+    #[test]
+    fn skips_release_workflow_files_when_management_is_disabled() {
+        let mut config = DataroseConfig::default();
+        config.release.enabled = true;
+        config.release.manage_workflows = false;
+        config.release.targets = vec![managed_target("api", "distribution-repo")];
+        let profile = profile_with_config(config);
+
+        assert!(release_workflow_files(&profile, false).is_empty());
+    }
+
+    fn managed_target(name: &str, strategy: &str) -> ReleaseTarget {
+        ReleaseTarget {
+            name: name.into(),
+            path: format!("packages/{name}"),
+            strategy: strategy.into(),
+            workflow: "managed".into(),
+            distribution_path: format!(".codex/distributions/{name}"),
+            repository: format!("verzly/{name}"),
+            ..ReleaseTarget::default()
+        }
+    }
+
+    fn custom_target(name: &str) -> ReleaseTarget {
+        ReleaseTarget {
+            name: name.into(),
+            path: format!("packages/{name}"),
+            strategy: "custom".into(),
+            workflow: "custom".into(),
+            ..ReleaseTarget::default()
+        }
+    }
+
+    fn profile_with_config(config: DataroseConfig) -> ProjectProfile {
+        ProjectProfile {
+            root: PathBuf::from("/repo"),
+            workspace: PathBuf::from("."),
+            workspace_root: PathBuf::from("/repo"),
+            config_path: PathBuf::from("/repo/datarose.toml"),
+            languages: Vec::new(),
+            js_runner: None,
+            has_rector: false,
+            has_pest: false,
+            has_mise_toml: false,
+            mise_tools: BTreeSet::new(),
+            stored_config: config,
+        }
+    }
+}

@@ -21,6 +21,7 @@ fn main() -> Result<()> {
         Commands::Plan(args) => commands::plan::run(args),
         Commands::Check(args) => commands::check::run(args),
         Commands::Release(args) => commands::release::run(*args),
+        Commands::Tui(args) => commands::tui::run(args),
         Commands::Doctor(args) => commands::doctor::run(args),
     }
 }

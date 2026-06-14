@@ -3,3 +3,4 @@ pub mod doctor;
 pub mod init;
 pub mod plan;
 pub mod release;
+pub mod tui;
