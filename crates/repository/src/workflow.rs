@@ -4,7 +4,19 @@ use crate::project::{ProjectProfile, ReleaseTarget};
 use crate::standards::ManagedFile;
 use std::path::PathBuf;
 
-pub fn render_test_workflow(_profile: &ProjectProfile) -> String {
+const REUSABLE_RELEASE_WORKFLOW: &str = "_release-tool.yml";
+const REUSABLE_RELEASE_WORKFLOW_PATH: &str = ".github/workflows/_release-tool.yml";
+
+pub fn render_test_workflow(profile: &ProjectProfile) -> String {
+    let repository_policy_step = if profile.root.join("crates/repository/Cargo.toml").is_file() {
+        r#"
+      - name: Repository policy
+        run: cargo run -p repository -- check
+"#
+    } else {
+        ""
+    };
+
     r#"name: Test
 
 on:
@@ -47,11 +59,11 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           cache: true
-
+__REPOSITORY_POLICY_STEP__
       - name: Quality gate
         run: mise exec -- hk check
 "#
-    .into()
+    .replace("__REPOSITORY_POLICY_STEP__", repository_policy_step)
 }
 
 pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
@@ -76,9 +88,7 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
     }
 
     files.push(ManagedFile {
-        path: profile
-            .root
-            .join(".github/workflows/_release-datarose-tool.yml"),
+        path: profile.root.join(REUSABLE_RELEASE_WORKFLOW_PATH),
         content: render_reusable_release_workflow(profile),
         force,
     });
@@ -132,7 +142,7 @@ permissions:
 
 jobs:
   release:
-    uses: ./.github/workflows/_release-datarose-tool.yml
+    uses: ./.github/workflows/{reusable_workflow}
     with:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
@@ -145,12 +155,13 @@ jobs:
         tool = target.name,
         distribution_path = target.distribution_path,
         secret_name = secret_name,
+        reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
     )
 }
 
 fn render_reusable_release_workflow(profile: &ProjectProfile) -> String {
     let target_branch = &profile.stored_config.release.target_branch;
-    r#"name: Release Datarose Tool
+    r#"name: Release Tool
 
 on:
   workflow_call:
@@ -408,7 +419,7 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
   {job}:
     name: Release {tool}
     needs: summary
-    uses: ./.github/workflows/_release-datarose-tool.yml
+    uses: ./.github/workflows/{reusable_workflow}
     with:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
@@ -421,6 +432,7 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
             tool = target.name,
             distribution_path = target.distribution_path,
             secret_name = secret_name,
+            reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
         ));
     }
 
@@ -471,11 +483,14 @@ mod tests {
             .map(|file| file.path.to_string_lossy().replace('\\', "/"))
             .collect::<Vec<_>>();
 
-        assert!(paths.contains(&"/repo/.github/workflows/_release-datarose-tool.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/_release-tool.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-api.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-web.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-all.yml".into()));
         assert!(!paths.contains(&"/repo/.github/workflows/release-ops.yml".into()));
+        assert!(!files
+            .iter()
+            .any(|file| file.content.contains("_release-datarose-tool.yml")));
         assert!(files
             .iter()
             .any(|file| file.content.contains("DISTRIBUTION_REPO_TOKEN")));

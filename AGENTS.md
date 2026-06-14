@@ -24,7 +24,8 @@ rules, and verification expectations. Do not create extra per-tool agent instruc
 - Release workflows in `.github/workflows/`.
 - Workspace release and quality configuration in `datarose.toml`.
 - Public distribution templates in `.codex/distributions/<tool>/`.
-- The only AI instruction file for the whole project: this root `AGENTS.md`.
+- The canonical AI instruction file for the whole project: this root `AGENTS.md`.
+- An optional root `CLAUDE.md` compatibility pointer for Claude Code.
 
 Public distribution repositories such as `verzly/github-release` and
 `verzly/repository` are thin distribution surfaces. Their public files are maintained
@@ -55,6 +56,9 @@ VERSION
 scripts/
 generated assets
 ```
+
+The root `CLAUDE.md` may exist only as a short pointer to `AGENTS.md`. Do not duplicate
+the full rules there.
 
 Also do not add these paths to the toolchain repository:
 

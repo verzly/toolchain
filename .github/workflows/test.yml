@@ -41,5 +41,8 @@ jobs:
         with:
           cache: true
 
+      - name: Repository policy
+        run: cargo run -p repository -- check
+
       - name: Quality gate
         run: mise exec -- hk check
