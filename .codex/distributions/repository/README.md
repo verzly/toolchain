@@ -1,6 +1,6 @@
 # repository
 
-`repository` bootstraps and maintains repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It detects the project shape, writes the expected Datarose configuration, creates quality workflows, and can manage release workflow targets from CLI flags or an interactive terminal dashboard.
+`repository` bootstraps and maintains repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It detects the project shape, writes the expected Datarose configuration, creates quality workflows, and can manage release targets from CLI flags or a fullscreen terminal command center.
 
 This public repository is a distribution surface. The source code, release configuration, and distribution templates live in [`verzly/toolchain`](https://github.com/verzly/toolchain); this repository contains the public `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE`.
 
@@ -42,7 +42,7 @@ The tool is intentionally repository-local. It writes normal files such as `data
 - CI: a pull request quality workflow that runs `mise exec -- hk check`.
 - Releases: optional managed release workflow files derived from `[[release.targets]]` in `datarose.toml`.
 
-Every operation is available through CLI flags. The `repository tui` command provides an interactive dashboard for common local workflows, but it calls the same command handlers as the scriptable CLI.
+Every operation is available through CLI flags. Running `repository` opens the fullscreen TUI for local work, while subcommands such as `repository check`, `repository projects`, and `repository release set` remain scriptable for CI and automation.
 
 ### Use cases
 
@@ -121,6 +121,12 @@ Preview the detected quality profile:
 
 ```sh
 repository plan
+```
+
+Inspect detected projects and release coverage:
+
+```sh
+repository projects
 ```
 
 Prepare a repository:
@@ -221,6 +227,20 @@ repository plan --workspace packages/api --language rust --language php
 | `--js-runner <value>` | No | `auto` | `auto`, `aube`, `npm`, `pnpm`, `yarn`, `bun` | Selects JavaScript runner detection for the preview. |
 | `--workspace <path>` | No | `.` or `[quality].workspace` | Any repository-relative path | Preview a subdirectory workspace. |
 
+#### `projects`
+
+Prints detected languages, Cargo packages, and release target coverage without changing files.
+
+```sh
+repository projects
+repository projects --root apps/mobile
+```
+
+| Argument | Required | Default | Accepted values | Purpose |
+| --- | --- | --- | --- | --- |
+| `--root <path>`, `-r <path>` | No | `.` | Any repository root path | Repository root to inspect. |
+| `--config <path>`, `-c <path>` | No | `<root>/datarose.toml` | Any TOML file path | Custom Datarose config location. |
+
 #### `check`
 
 Validates `datarose.toml` and fails for deprecated, removed, duplicate, or invalid settings.
@@ -250,7 +270,7 @@ repository doctor
 
 #### `tui`
 
-Opens the interactive terminal command center. The TUI starts in `PLAN` mode, where write operations run as dry-runs. Switch to `ACT` mode with `/mode act` when you want write-capable commands; mutating commands still ask for confirmation before changing files or installing hooks.
+Opens the fullscreen terminal command center. Running `repository` with no subcommand opens the same TUI. The TUI starts in `PLAN` mode, where write operations run as dry-runs or print commands. Switch to `ACT` mode with `/mode act` when you want write-capable commands; mutating commands still ask for confirmation before changing files, installing hooks, building artifacts, or running release steps.
 
 ```sh
 repository
@@ -262,17 +282,37 @@ The command palette accepts slash commands and number shortcuts:
 
 | Command | CLI equivalent | Purpose |
 | --- | --- | --- |
+| `/projects` | `repository projects --root .` | Inspect languages, Cargo packages, and release target coverage. |
 | `/plan` | `repository plan --root .` | Show detected quality settings and the release graph. |
+| `/customize` in `PLAN` mode | `repository init --dry-run --workspace <path> --language <lang>` | Preview personalized workspace, language, and JS runner settings. |
+| `/customize` in `ACT` mode | `repository init --force --workspace <path> --language <lang>` | Write personalized managed files after prompts. |
 | `/check` | `repository check --root .` | Validate configuration, distribution templates, README/action docs, and release workflows. |
 | `/doctor` | `repository doctor --root .` | Inspect local tool availability and quality setup readiness. |
 | `/update` in `PLAN` mode | `repository update --dry-run --skip-mise-use --skip-hk-install` | Preview managed-file changes without writing files or running installers. |
 | `/update` in `ACT` mode | `repository update` | Refresh managed files after interactive confirmations. |
 | `/init` in `PLAN` mode | `repository init --dry-run --skip-mise-use --skip-hk-install` | Preview bootstrap output. |
 | `/init` in `ACT` mode | `repository init` | Bootstrap managed files after interactive confirmations. |
-| `/release` | `repository release` | Open the release target editor. |
+| `/targets` | `repository release` | Open the release target editor. |
+| `/release` in `PLAN` mode | `github-release plan` and `cargo-release build --dry-run` | Pick version and target, then print the release/build/publish commands. |
+| `/release` in `ACT` mode | `github-release plan`, `cargo-release build`, or printed workflow commands | Run the selected release planning or build step after prompts. |
 | `/mode plan` | Not needed in automation | Return to preview-only behavior. |
 | `/mode act` | Not needed in automation | Enable write-capable behavior with prompts. |
 | `/quit` | Not needed in automation | Exit the TUI. |
+
+The fullscreen TUI uses lazygit-style navigation and cancellation rules:
+
+| Key | Action |
+| --- | --- |
+| `j`, `k`, arrow keys | Move the selected action. |
+| `PgUp`, `PgDn` | Move five actions at a time. |
+| `g`, `G`, `<`, `>` | Jump to the first or last action. |
+| `1`-`9` | Run an action directly. |
+| `/` | Type a slash command. |
+| `?` | Open or close the keybindings modal. |
+| `R` | Refresh the dashboard state without writing files. |
+| `Tab`, `p`, `a` | Toggle or set `PLAN` and `ACT` mode. |
+| `Esc`, `q` | Close the active modal first; from the top level, exit the TUI. |
+| `Ctrl+C` | Exit immediately and restore the terminal. |
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
@@ -478,8 +518,19 @@ Use the TUI locally to inspect and choose the workflow, then run the equivalent 
 ```sh
 repository
 repository tui
+repository projects
 repository plan
 repository update --dry-run --skip-mise-use --skip-hk-install
+```
+
+Customize a workspace interactively, then commit the generated files:
+
+```sh
+repository
+# /customize
+# /mode act
+# /customize
+repository check
 ```
 
 Add a managed release workflow for a package:
@@ -494,6 +545,15 @@ repository release set \
 
 repository update
 repository check
+```
+
+Plan and build a release from the TUI, then use the printed command in automation:
+
+```sh
+repository
+# /release
+cargo-release build --config datarose.toml --release-target api --version 1.2.3 --dry-run
+cargo-release build --config datarose.toml --release-target api --version 1.2.3
 ```
 
 Validate repository standards in GitHub Actions:

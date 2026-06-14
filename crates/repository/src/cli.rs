@@ -25,6 +25,8 @@ pub enum Commands {
     Update(UpdateArgs),
     /// Print the detected quality profile without changing files.
     Plan(PlanArgs),
+    /// Print detected project inventory and release target coverage.
+    Projects(ProjectsArgs),
     /// Check datarose.toml for deprecated, removed, or invalid settings.
     Check(CheckArgs),
     /// Manage datarose.toml release targets.
@@ -136,6 +138,17 @@ pub struct PlanArgs {
     /// Configure a subdirectory as the quality workspace for the preview.
     #[arg(long)]
     pub workspace: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+pub struct ProjectsArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -407,6 +420,17 @@ mod tests {
 
         let Some(Commands::Tui(args)) = cli.command else {
             panic!("expected tui command");
+        };
+
+        assert_eq!(args.root, PathBuf::from("repo"));
+    }
+
+    #[test]
+    fn parses_projects_command() {
+        let cli = Cli::parse_from(["repository", "projects", "--root", "repo"]);
+
+        let Some(Commands::Projects(args)) = cli.command else {
+            panic!("expected projects command");
         };
 
         assert_eq!(args.root, PathBuf::from("repo"));

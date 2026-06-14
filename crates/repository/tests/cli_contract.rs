@@ -57,10 +57,34 @@ fn tui_renders_command_palette_and_cli_equivalents() {
         ))
         .stdout(predicate::str::contains("Mode: PLAN"))
         .stdout(predicate::str::contains("Command palette"))
+        .stdout(predicate::str::contains("/projects"))
+        .stdout(predicate::str::contains("/customize"))
+        .stdout(predicate::str::contains("/targets"))
+        .stdout(predicate::str::contains("/release"))
         .stdout(predicate::str::contains("/mode act"))
+        .stdout(predicate::str::contains("/refresh"))
+        .stdout(predicate::str::contains("Esc/q"))
+        .stdout(predicate::str::contains("Ctrl+C"))
+        .stdout(predicate::str::contains("repository projects --root ."))
         .stdout(predicate::str::contains(
             "repository update --dry-run --skip-mise-use --skip-hk-install",
         ));
+}
+
+#[test]
+fn projects_prints_inventory_contract() {
+    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
+
+    cmd.current_dir(workspace_root())
+        .args(["projects", "--root", "."])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Projects"))
+        .stdout(predicate::str::contains("Cargo packages:"))
+        .stdout(predicate::str::contains("Package"))
+        .stdout(predicate::str::contains("Release target"))
+        .stdout(predicate::str::contains("repository"))
+        .stdout(predicate::str::contains("Release targets:"));
 }
 
 #[test]
