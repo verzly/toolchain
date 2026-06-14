@@ -135,9 +135,10 @@ Refresh generated files from `datarose.toml`:
 repository update
 ```
 
-Open the interactive dashboard:
+Open the interactive command center:
 
 ```sh
+repository
 repository tui
 ```
 
@@ -249,12 +250,29 @@ repository doctor
 
 #### `tui`
 
-Opens the interactive terminal dashboard. It provides shortcuts for `plan`, `init --dry-run`, `init`, `update --dry-run`, `update`, release target editing, `doctor`, and `check`.
+Opens the interactive terminal command center. The TUI starts in `PLAN` mode, where write operations run as dry-runs. Switch to `ACT` mode with `/mode act` when you want write-capable commands; mutating commands still ask for confirmation before changing files or installing hooks.
 
 ```sh
+repository
 repository tui
 repository tui --root apps/mobile
 ```
+
+The command palette accepts slash commands and number shortcuts:
+
+| Command | CLI equivalent | Purpose |
+| --- | --- | --- |
+| `/plan` | `repository plan --root .` | Show detected quality settings and the release graph. |
+| `/check` | `repository check --root .` | Validate configuration, distribution templates, README/action docs, and release workflows. |
+| `/doctor` | `repository doctor --root .` | Inspect local tool availability and quality setup readiness. |
+| `/update` in `PLAN` mode | `repository update --dry-run --skip-mise-use --skip-hk-install` | Preview managed-file changes without writing files or running installers. |
+| `/update` in `ACT` mode | `repository update` | Refresh managed files after interactive confirmations. |
+| `/init` in `PLAN` mode | `repository init --dry-run --skip-mise-use --skip-hk-install` | Preview bootstrap output. |
+| `/init` in `ACT` mode | `repository init` | Bootstrap managed files after interactive confirmations. |
+| `/release` | `repository release` | Open the release target editor. |
+| `/mode plan` | Not needed in automation | Return to preview-only behavior. |
+| `/mode act` | Not needed in automation | Enable write-capable behavior with prompts. |
+| `/quit` | Not needed in automation | Exit the TUI. |
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
@@ -455,9 +473,10 @@ repository init --workspace apps/web --language js --js-runner pnpm
 repository update
 ```
 
-Use the TUI locally, then run the equivalent CLI in automation:
+Use the TUI locally to inspect and choose the workflow, then run the equivalent CLI in automation:
 
 ```sh
+repository
 repository tui
 repository plan
 repository update --dry-run --skip-mise-use --skip-hk-install

@@ -44,6 +44,40 @@ fn plan_prints_release_graph_contract() {
 }
 
 #[test]
+fn tui_renders_command_palette_and_cli_equivalents() {
+    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
+
+    cmd.current_dir(workspace_root())
+        .arg("tui")
+        .write_stdin("/quit\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Repository standards command center",
+        ))
+        .stdout(predicate::str::contains("Mode: PLAN"))
+        .stdout(predicate::str::contains("Command palette"))
+        .stdout(predicate::str::contains("/mode act"))
+        .stdout(predicate::str::contains(
+            "repository update --dry-run --skip-mise-use --skip-hk-install",
+        ));
+}
+
+#[test]
+fn repository_without_subcommand_opens_tui() {
+    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
+
+    cmd.current_dir(workspace_root())
+        .write_stdin("/quit\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Repository standards command center",
+        ))
+        .stdout(predicate::str::contains("Command palette"));
+}
+
+#[test]
 fn check_rejects_unsupported_distribution_files() {
     let repo = fixture_repo();
     fs::write(

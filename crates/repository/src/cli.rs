@@ -14,7 +14,7 @@ use std::path::PathBuf;
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -359,7 +359,7 @@ mod tests {
             "aube",
         ]);
 
-        let Commands::Init(args) = cli.command else {
+        let Some(Commands::Init(args)) = cli.command else {
             panic!("expected init command");
         };
 
@@ -385,7 +385,7 @@ mod tests {
             "custom",
         ]);
 
-        let Commands::Release(args) = cli.command else {
+        let Some(Commands::Release(args)) = cli.command else {
             panic!("expected release command");
         };
         let Some(ReleaseCommand::Set(set_args)) = args.command else {
@@ -405,10 +405,17 @@ mod tests {
     fn parses_tui_command() {
         let cli = Cli::parse_from(["repository", "tui", "--root", "repo"]);
 
-        let Commands::Tui(args) = cli.command else {
+        let Some(Commands::Tui(args)) = cli.command else {
             panic!("expected tui command");
         };
 
         assert_eq!(args.root, PathBuf::from("repo"));
+    }
+
+    #[test]
+    fn accepts_no_subcommand_for_default_tui() {
+        let cli = Cli::parse_from(["repository"]);
+
+        assert!(cli.command.is_none());
     }
 }

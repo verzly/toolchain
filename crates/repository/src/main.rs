@@ -11,11 +11,16 @@ mod workflow;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, TuiArgs};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
+    match cli.command.unwrap_or_else(|| {
+        Commands::Tui(TuiArgs {
+            root: ".".into(),
+            config: None,
+        })
+    }) {
         Commands::Init(args) => commands::init::run(args),
         Commands::Update(args) => commands::init::run_update(args),
         Commands::Plan(args) => commands::plan::run(args),
