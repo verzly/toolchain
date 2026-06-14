@@ -15,7 +15,7 @@ version = "4.5"
 [package]
 description = "Android release signing keystore helper"
 name = "android-signing"
-version = "0.2.0"
+version = "0.3.0"
 
 [package.edition]
 workspace = true

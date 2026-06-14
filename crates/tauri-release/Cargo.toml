@@ -22,7 +22,7 @@ version = "1.0"
 [package]
 description = "Release builder for Tauri desktop and mobile artifacts"
 name = "tauri-release"
-version = "0.2.0"
+version = "0.3.0"
 
 [package.edition]
 workspace = true
