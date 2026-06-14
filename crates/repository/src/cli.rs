@@ -14,7 +14,7 @@ use std::path::PathBuf;
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -25,10 +25,14 @@ pub enum Commands {
     Update(UpdateArgs),
     /// Print the detected quality profile without changing files.
     Plan(PlanArgs),
+    /// Print detected project inventory and release target coverage.
+    Projects(ProjectsArgs),
     /// Check datarose.toml for deprecated, removed, or invalid settings.
     Check(CheckArgs),
     /// Manage datarose.toml release targets.
     Release(Box<ReleaseArgs>),
+    /// Open an interactive terminal dashboard for common repository operations.
+    Tui(TuiArgs),
     /// Check whether the repository has the expected quality tooling.
     Doctor(DoctorArgs),
 }
@@ -134,6 +138,17 @@ pub struct PlanArgs {
     /// Configure a subdirectory as the quality workspace for the preview.
     #[arg(long)]
     pub workspace: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+pub struct ProjectsArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -265,6 +280,17 @@ pub struct DoctorArgs {
     pub config: Option<PathBuf>,
 }
 
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+pub struct TuiArgs {
+    #[arg(short, long, default_value = ".")]
+    pub root: PathBuf,
+
+    /// Use a custom config path instead of the root datarose.toml.
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub enum LanguageArg {
     Rust,
@@ -346,7 +372,7 @@ mod tests {
             "aube",
         ]);
 
-        let Commands::Init(args) = cli.command else {
+        let Some(Commands::Init(args)) = cli.command else {
             panic!("expected init command");
         };
 
@@ -372,7 +398,7 @@ mod tests {
             "custom",
         ]);
 
-        let Commands::Release(args) = cli.command else {
+        let Some(Commands::Release(args)) = cli.command else {
             panic!("expected release command");
         };
         let Some(ReleaseCommand::Set(set_args)) = args.command else {
@@ -386,5 +412,34 @@ mod tests {
             Some(ReleaseStrategyArg::DistributionRepo)
         );
         assert_eq!(set_args.workflow, Some(ReleaseWorkflowArg::Custom));
+    }
+
+    #[test]
+    fn parses_tui_command() {
+        let cli = Cli::parse_from(["repository", "tui", "--root", "repo"]);
+
+        let Some(Commands::Tui(args)) = cli.command else {
+            panic!("expected tui command");
+        };
+
+        assert_eq!(args.root, PathBuf::from("repo"));
+    }
+
+    #[test]
+    fn parses_projects_command() {
+        let cli = Cli::parse_from(["repository", "projects", "--root", "repo"]);
+
+        let Some(Commands::Projects(args)) = cli.command else {
+            panic!("expected projects command");
+        };
+
+        assert_eq!(args.root, PathBuf::from("repo"));
+    }
+
+    #[test]
+    fn accepts_no_subcommand_for_default_tui() {
+        let cli = Cli::parse_from(["repository"]);
+
+        assert!(cli.command.is_none());
     }
 }

@@ -4,7 +4,19 @@ use crate::project::{ProjectProfile, ReleaseTarget};
 use crate::standards::ManagedFile;
 use std::path::PathBuf;
 
-pub fn render_test_workflow(_profile: &ProjectProfile) -> String {
+const REUSABLE_RELEASE_WORKFLOW: &str = "_release-tool.yml";
+const REUSABLE_RELEASE_WORKFLOW_PATH: &str = ".github/workflows/_release-tool.yml";
+
+pub fn render_test_workflow(profile: &ProjectProfile) -> String {
+    let repository_policy_step = if profile.root.join("crates/repository/Cargo.toml").is_file() {
+        r#"
+      - name: Repository policy
+        run: cargo run -p repository -- check
+"#
+    } else {
+        ""
+    };
+
     r#"name: Test
 
 on:
@@ -47,11 +59,11 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           cache: true
-
+__REPOSITORY_POLICY_STEP__
       - name: Quality gate
         run: mise exec -- hk check
 "#
-    .into()
+    .replace("__REPOSITORY_POLICY_STEP__", repository_policy_step)
 }
 
 pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
@@ -76,9 +88,7 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
     }
 
     files.push(ManagedFile {
-        path: profile
-            .root
-            .join(".github/workflows/_release-datarose-tool.yml"),
+        path: profile.root.join(REUSABLE_RELEASE_WORKFLOW_PATH),
         content: render_reusable_release_workflow(profile),
         force,
     });
@@ -132,7 +142,7 @@ permissions:
 
 jobs:
   release:
-    uses: ./.github/workflows/_release-datarose-tool.yml
+    uses: ./.github/workflows/{reusable_workflow}
     with:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
@@ -145,12 +155,13 @@ jobs:
         tool = target.name,
         distribution_path = target.distribution_path,
         secret_name = secret_name,
+        reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
     )
 }
 
 fn render_reusable_release_workflow(profile: &ProjectProfile) -> String {
     let target_branch = &profile.stored_config.release.target_branch;
-    r#"name: Release Datarose Tool
+    r#"name: Release Tool
 
 on:
   workflow_call:
@@ -408,7 +419,7 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
   {job}:
     name: Release {tool}
     needs: summary
-    uses: ./.github/workflows/_release-datarose-tool.yml
+    uses: ./.github/workflows/{reusable_workflow}
     with:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
@@ -421,6 +432,7 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
             tool = target.name,
             distribution_path = target.distribution_path,
             secret_name = secret_name,
+            reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
         ));
     }
 
@@ -445,4 +457,91 @@ fn title_case(value: &str) -> String {
 #[allow(dead_code)]
 fn workflow_path(name: &str) -> PathBuf {
     PathBuf::from(format!(".github/workflows/{name}.yml"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::project::{DataroseConfig, ProjectProfile, ReleaseTarget};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn renders_managed_release_workflow_files() {
+        let mut config = DataroseConfig::default();
+        config.release.enabled = true;
+        config.release.manage_workflows = true;
+        config.release.targets = vec![
+            managed_target("api", "distribution-repo"),
+            managed_target("web", "same-repo"),
+            custom_target("ops"),
+        ];
+        let profile = profile_with_config(config);
+
+        let files = release_workflow_files(&profile, false);
+        let paths = files
+            .iter()
+            .map(|file| file.path.to_string_lossy().replace('\\', "/"))
+            .collect::<Vec<_>>();
+
+        assert!(paths.contains(&"/repo/.github/workflows/_release-tool.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-api.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-web.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/release-all.yml".into()));
+        assert!(!paths.contains(&"/repo/.github/workflows/release-ops.yml".into()));
+        assert!(!files
+            .iter()
+            .any(|file| file.content.contains("_release-datarose-tool.yml")));
+        assert!(files
+            .iter()
+            .any(|file| file.content.contains("DISTRIBUTION_REPO_TOKEN")));
+    }
+
+    #[test]
+    fn skips_release_workflow_files_when_management_is_disabled() {
+        let mut config = DataroseConfig::default();
+        config.release.enabled = true;
+        config.release.manage_workflows = false;
+        config.release.targets = vec![managed_target("api", "distribution-repo")];
+        let profile = profile_with_config(config);
+
+        assert!(release_workflow_files(&profile, false).is_empty());
+    }
+
+    fn managed_target(name: &str, strategy: &str) -> ReleaseTarget {
+        ReleaseTarget {
+            name: name.into(),
+            path: format!("packages/{name}"),
+            strategy: strategy.into(),
+            workflow: "managed".into(),
+            distribution_path: format!(".codex/distributions/{name}"),
+            repository: format!("verzly/{name}"),
+            ..ReleaseTarget::default()
+        }
+    }
+
+    fn custom_target(name: &str) -> ReleaseTarget {
+        ReleaseTarget {
+            name: name.into(),
+            path: format!("packages/{name}"),
+            strategy: "custom".into(),
+            workflow: "custom".into(),
+            ..ReleaseTarget::default()
+        }
+    }
+
+    fn profile_with_config(config: DataroseConfig) -> ProjectProfile {
+        ProjectProfile {
+            root: PathBuf::from("/repo"),
+            workspace: PathBuf::from("."),
+            workspace_root: PathBuf::from("/repo"),
+            config_path: PathBuf::from("/repo/datarose.toml"),
+            languages: Vec::new(),
+            js_runner: None,
+            has_rector: false,
+            has_pest: false,
+            has_mise_toml: false,
+            mise_tools: BTreeSet::new(),
+            stored_config: config,
+        }
+    }
 }
