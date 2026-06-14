@@ -260,6 +260,84 @@ jobs:
         with:
           path: downloaded-assets
 
+      - name: Prepare public release assets
+        env:
+          TOOL: ${{ inputs.tool }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import hashlib
+          import os
+          import shutil
+          import stat
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          tool = os.environ["TOOL"]
+          version = os.environ["VERSION"].removeprefix("v")
+          source_root = Path("downloaded-assets")
+          release_root = Path("release-assets")
+          release_root.mkdir(parents=True, exist_ok=True)
+
+          if not source_root.exists():
+              raise SystemExit("downloaded-assets does not exist")
+
+          shutil.copytree(source_root, release_root / "raw", dirs_exist_ok=True)
+
+          targets = {
+              "linux-x64": {"ext": "", "archive": "tar.gz"},
+              "macos-x64": {"ext": "", "archive": "tar.gz"},
+              "macos-arm64": {"ext": "", "archive": "tar.gz"},
+              "windows-x64": {"ext": ".exe", "archive": "zip"},
+          }
+
+          archive_paths = []
+
+          def find_executable(target: str, ext: str) -> Path:
+              expected = f"{tool}-v{version}-{target}{ext}"
+              matches = sorted(source_root.rglob(expected))
+              matches = [path for path in matches if path.is_file()]
+              if len(matches) != 1:
+                  formatted = "\n".join(str(path) for path in matches) or "<none>"
+                  raise SystemExit(
+                      f"expected exactly one executable asset named {expected}, found {len(matches)}:\n{formatted}"
+                  )
+              return matches[0]
+
+          def write_sha256(path: Path) -> None:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              path.with_name(f"{path.name}.sha256").write_text(f"{digest}  {path.name}\n")
+
+          for target, spec in targets.items():
+              executable = find_executable(target, spec["ext"])
+              if spec["archive"] == "zip":
+                  archive = release_root / f"{tool}-v{version}-{target}.zip"
+                  with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                      info = zipfile.ZipInfo(f"{tool}{spec['ext']}")
+                      info.external_attr = 0o755 << 16
+                      zip_file.writestr(info, executable.read_bytes())
+              else:
+                  archive = release_root / f"{tool}-v{version}-{target}.tar.gz"
+                  with tarfile.open(archive, "w:gz") as tar:
+                      info = tar.gettarinfo(str(executable), arcname=tool)
+                      info.mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+                      with executable.open("rb") as file:
+                          tar.addfile(info, file)
+
+              write_sha256(archive)
+              archive_paths.append(archive)
+
+          checksum_lines = []
+          for archive in archive_paths:
+              digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+              checksum_lines.append(f"{digest}  {archive.name}\n")
+          (release_root / "checksums.txt").write_text("".join(checksum_lines))
+          PY
+
       - name: Publish public release
         working-directory: source
         env:
@@ -269,5 +347,5 @@ jobs:
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
-          --assets "${{ github.workspace }}/downloaded-assets"
+          --assets "${{ github.workspace }}/release-assets"
           --prerelease "${{ inputs.prerelease }}"
