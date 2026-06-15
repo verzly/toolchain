@@ -23,6 +23,8 @@ pub enum Commands {
     Env(CommonArgs),
     Run(RunArgs),
     Clean(CommonArgs),
+    #[command(name = "clean-generated")]
+    CleanGenerated(CleanGeneratedArgs),
     Doctor(CommonArgs),
 }
 
@@ -45,6 +47,17 @@ pub struct CommonArgs {
 
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
+pub struct CleanGeneratedArgs {
+    #[arg(short, long, default_value = "datarose.toml")]
+    pub config: PathBuf,
+
+    /// Print generated output directories without deleting them.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
 pub struct RunArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -59,6 +72,18 @@ mod tests {
     use super::*;
     use clap::Parser;
     use std::path::PathBuf;
+
+    #[test]
+    fn parses_clean_generated_command() {
+        let cli = Cli::parse_from(["rust-cache", "clean-generated", "--dry-run"]);
+
+        let Commands::CleanGenerated(args) = cli.command else {
+            panic!("expected clean-generated command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("datarose.toml"));
+        assert!(args.dry_run);
+    }
 
     #[test]
     fn parses_run_command_after_separator() {

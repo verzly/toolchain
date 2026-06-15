@@ -1,0 +1,25 @@
+[[bin]]
+name = "ios-signing"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+
+[dependencies.clap]
+features = ["derive"]
+version = "4.5"
+
+[package]
+description = "iOS release signing secret helper"
+name = "ios-signing"
+version = "0.3.0"
+
+[package.edition]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.repository]
+workspace = true

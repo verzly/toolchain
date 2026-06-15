@@ -5,6 +5,7 @@ mod cli;
 mod commands;
 mod config;
 mod env_plan;
+mod generated;
 mod workspace;
 
 use anyhow::Result;
@@ -18,6 +19,7 @@ fn main() -> Result<()> {
         Commands::Env(args) => commands::env::run(args),
         Commands::Run(args) => commands::run::run(args),
         Commands::Clean(args) => commands::clean::run(args),
+        Commands::CleanGenerated(args) => commands::clean_generated::run(args),
         Commands::Doctor(args) => commands::doctor::run(args),
     }
 }

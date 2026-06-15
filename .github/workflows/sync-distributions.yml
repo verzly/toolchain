@@ -16,6 +16,7 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
+          - ios-signing
       commit-message:
         description: "Commit message used in distribution repositories."
         required: false
@@ -90,8 +91,8 @@ jobs:
           esac
 
           case "${SELECTED_TOOL}" in
-            all) tools="github-release cargo-release tauri-release rust-cache android-signing repository" ;;
-            github-release|cargo-release|tauri-release|rust-cache|android-signing|repository) tools="${SELECTED_TOOL}" ;;
+            all) tools="github-release cargo-release tauri-release rust-cache android-signing ios-signing repository" ;;
+            github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) tools="${SELECTED_TOOL}" ;;
             *) echo "::error::Unsupported tool: ${SELECTED_TOOL}"; exit 1 ;;
           esac
 
@@ -99,7 +100,7 @@ jobs:
           git config --global user.email "distribution-bot@verzly.dev"
 
           for tool in ${tools}; do
-            template_dir="${GITHUB_WORKSPACE}/source/.codex/distributions/${tool}"
+            template_dir="${GITHUB_WORKSPACE}/source/.verzly/distributions/${tool}"
             target_dir="${GITHUB_WORKSPACE}/target-${tool}"
             repository="verzly/${tool}"
 

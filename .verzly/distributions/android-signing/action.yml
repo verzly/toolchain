@@ -23,6 +23,14 @@ inputs:
     description: Directory where android-signing should run.
     required: false
     default: "."
+  check-signing-secrets:
+    description: Check that required Android signing environment variables are present before running args.
+    required: false
+    default: "false"
+  require-fingerprint:
+    description: Also require ANDROID_SIGNING_CERT_SHA256 when check-signing-secrets is true.
+    required: false
+    default: "false"
 
 outputs:
   bin-path:
@@ -350,6 +358,20 @@ runs:
         echo "${BIN_DIR}" >> "${GITHUB_PATH}"
         echo "bin-path=${BIN_DIR}/android-signing${EXT}" >> "${GITHUB_OUTPUT}"
         "${BIN_DIR}/android-signing${EXT}" --version || true
+
+    - name: Check Android signing secrets
+      if: inputs.check-signing-secrets == 'true'
+      shell: bash
+      env:
+        BIN_PATH: ${{ steps.install.outputs.bin-path }}
+        REQUIRE_FINGERPRINT: ${{ inputs.require-fingerprint }}
+      run: |
+        set -euo pipefail
+        args=(check-env)
+        if [ "${REQUIRE_FINGERPRINT}" = "true" ]; then
+          args+=(--require-fingerprint)
+        fi
+        "${BIN_PATH}" "${args[@]}"
 
     - name: Run android-signing
       if: inputs.install-only != 'true'

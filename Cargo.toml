@@ -6,6 +6,7 @@ members = [
     "crates/tauri-release",
     "crates/rust-cache",
     "crates/android-signing",
+    "crates/ios-signing",
     "crates/repository",
 ]
 

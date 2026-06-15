@@ -38,7 +38,7 @@ Rust and Tauri builds generate large directories such as `target/`, Gradle cache
 
 The tool detects the workspace root using Cargo metadata first, then Git, then the current directory. It builds an environment plan and either prints it or runs a command with those environment variables applied.
 
-By default it redirects `CARGO_TARGET_DIR` to a package-specific directory under `.cache`. It can also redirect `GRADLE_USER_HOME` for Android/Tauri builds and optionally `CARGO_HOME` when a fully project-local Cargo home is desired.
+By default it redirects `CARGO_TARGET_DIR` to a package-specific directory under `.cache`. It can also redirect `GRADLE_USER_HOME` for Android/Tauri builds and optionally `CARGO_HOME` when a fully project-local Cargo home is desired. The `clean-generated` command also removes reproducible output directories that older Cargo, Tauri, or Gradle commands may have left in the project tree, such as `target/` and `src-tauri/gen/**/build`.
 
 ### Use cases
 
@@ -49,7 +49,7 @@ Use `rust-cache` when you want to:
 - run `cargo fmt`, `cargo test`, `cargo build`, `cargo-release`, or `tauri-release` with consistent cache paths;
 - keep Android/Gradle cache files under the workspace;
 - make local development and CI use the same cache layout;
-- delete all generated build output by removing one `.cache` directory.
+- delete routed cache output by removing `.cache` and scrub stale project-tree build output with `clean-generated`.
 
 ## Get started
 
@@ -94,7 +94,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | Output | Value | Purpose |
 | --- | --- | --- |
 | `bin-path` | Absolute path to the installed executable | Use this when a later step should invoke the exact binary path instead of relying on `PATH`. |
-| `host-target` | Rust-style host target such as `x86_64-unknown-linux-gnu` | Shows which release asset was selected for the current runner. |
+| `host-target` | Asset target such as `linux-x64`, `macos-arm64`, or `windows-x64` | Shows which release asset was selected for the current runner. |
 
 ### CLI usage
 
@@ -103,6 +103,7 @@ rust-cache init
 rust-cache env --config datarose.toml
 rust-cache run --config datarose.toml -- cargo test --workspace
 rust-cache clean --config datarose.toml
+rust-cache clean-generated --config datarose.toml --dry-run
 rust-cache doctor --config datarose.toml
 ```
 
@@ -146,6 +147,13 @@ Use the README for workflow-level guidance and the command help for the exact ar
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `datarose.toml` | File path | Removes the configured cache directory. |
 
+#### `clean-generated`
+
+| Argument | Required | Default | Accepted values | Purpose |
+| --- | --- | --- | --- | --- |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
+| `--dry-run` | No | `false` | Boolean flag | Print stale generated output directories without deleting them. |
+
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
@@ -155,11 +163,17 @@ Use the README for workflow-level guidance and the command help for the exact ar
 ## Configuration
 
 ```toml
-[cache]
+[rust_cache.cache]
 dir = ".cache"
 package = "auto"
 redirect_cargo_home = false
 redirect_gradle = true
+
+[rust_cache.cargo]
+target_dir = "rust/packages/{package}/target"
+
+[rust_cache.generated]
+paths = []
 ```
 
 | Field | Accepted values | Purpose |
@@ -168,6 +182,8 @@ redirect_gradle = true
 | `cache.package` | `auto` or explicit string | Package key used below the cache directory. `auto` uses Cargo metadata when available and falls back to `workspace`. Use an explicit value when monorepo paths must remain stable. |
 | `cache.redirect_cargo_home` | Boolean | When `true`, sets `CARGO_HOME` under the cache directory. Leave `false` when you want to keep using the normal user-level Cargo registry cache. |
 | `cache.redirect_gradle` | Boolean | When `true`, sets `GRADLE_USER_HOME` under the cache directory for Android/Tauri builds. |
+| `cargo.target_dir` | String with `{package}` placeholder | Relative target directory below `cache.dir`, or an absolute path. This is written to native Cargo config and exported as `CARGO_TARGET_DIR`. |
+| `generated.paths` | List of paths | Extra reproducible output directories that `clean-generated` may remove in addition to detected `target/` and Tauri `src-tauri/gen/**/build` directories. |
 
 Generated paths normally look like this:
 
@@ -204,26 +220,27 @@ Use this in CI debugging to verify exactly which cache paths would be used befor
 
 ```sh
 rust-cache clean --config datarose.toml
+rust-cache clean-generated --config datarose.toml --dry-run
+rust-cache clean-generated --config datarose.toml
 ```
 
-This removes the configured cache root. It should not remove source files or project-owned configuration.
+`clean` removes the configured cache root. `clean-generated` removes reproducible build output that should not be part of the repository tree, including stale `target/` directories and Tauri `src-tauri/gen/**/build` or `.gradle` directories outside `.cache`. Run it with `--dry-run` first when introducing the tool in an existing monorepo.
 
 ## Reference
 
 ### Troubleshooting
 
-If cache folders appear in unexpected places, run `rust-cache env` and check `cache.dir` and `cache.package`. In monorepos, prefer an explicit package name when automatic package detection is not stable enough. If a command cannot find dependencies after enabling `redirect_cargo_home`, remember that `CARGO_HOME` has moved into the cache root and may need to be warmed again.
+If cache folders appear in unexpected places, run `rust-cache env` and check `cache.dir`, `cache.package`, and `cargo.target_dir`. In monorepos, prefer an explicit package name when automatic package detection is not stable enough. If a command cannot find dependencies after enabling `redirect_cargo_home`, remember that `CARGO_HOME` has moved into the cache root and may need to be warmed again.
 
 ### Release artifacts
 
 Release assets are named by tool, version, and host target. Typical examples:
 
 ```text
-rust-cache-v1.2.3-x86_64-unknown-linux-gnu
-rust-cache-v1.2.3-aarch64-unknown-linux-gnu
-rust-cache-v1.2.3-x86_64-apple-darwin
-rust-cache-v1.2.3-aarch64-apple-darwin
-rust-cache-v1.2.3-x86_64-pc-windows-msvc.exe
+rust-cache-v1.2.3-linux-x64
+rust-cache-v1.2.3-macos-x64
+rust-cache-v1.2.3-macos-arm64
+rust-cache-v1.2.3-windows-x64.exe
 ```
 
 Checksum files use the same name with `.sha256` appended. The action verifies them when the runner has `sha256sum` or `shasum`.

@@ -26,7 +26,7 @@ concurrency:
 
 env:
   TOOLCHAIN_REPOSITORY: verzly/toolchain
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repository
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   preflight:
@@ -188,6 +188,7 @@ jobs:
           - tauri-release
           - rust-cache
           - android-signing
+          - ios-signing
           - repository
     uses: ./.github/workflows/_release-build-assets.yml
     with:
@@ -301,6 +302,7 @@ jobs:
           - tauri-release
           - rust-cache
           - android-signing
+          - ios-signing
           - repository
 
     steps:

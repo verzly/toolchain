@@ -82,7 +82,7 @@ fn env_cache_path(cache_root: &Path, value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{CacheConfig, CargoConfig, Config};
+    use crate::config::{CacheConfig, CargoConfig, Config, GeneratedConfig};
     use std::path::PathBuf;
 
     #[test]
@@ -97,6 +97,7 @@ mod tests {
             cargo: CargoConfig {
                 target_dir: "rust/packages/{package}/target".to_string(),
             },
+            generated: GeneratedConfig::default(),
             env: BTreeMap::new(),
         };
 
@@ -108,6 +109,7 @@ mod tests {
             .values
             .get("CARGO_TARGET_DIR")
             .expect("target dir")
+            .replace('\\', "/")
             .ends_with(".cache-test/rust/packages/demo-package/target"));
         assert!(plan.values.contains_key("CARGO_HOME"));
         assert!(!plan.values.contains_key("GRADLE_USER_HOME"));
@@ -128,16 +130,19 @@ mod tests {
             .values
             .get("NPM_CONFIG_CACHE")
             .expect("npm cache")
+            .replace('\\', "/")
             .ends_with(".cache-test/js/npm"));
         assert!(plan
             .values
             .get("PNPM_STORE_PATH")
             .expect("pnpm cache")
+            .replace('\\', "/")
             .ends_with(".cache-test/js/pnpm-store"));
         assert!(plan
             .values
             .get("FOO_CACHE")
             .expect("custom cache")
+            .replace('\\', "/")
             .ends_with(".cache-test/foo"));
     }
 

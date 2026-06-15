@@ -36,9 +36,11 @@ Tauri releases are more complex than plain Rust CLI releases. They may involve f
 
 ### How it works
 
-The tool reads `datarose.toml`, optionally runs a frontend install command, iterates over enabled platforms, runs each platform command on the host or in a configured Docker/Podman container, copies matching artifacts into the output directory, writes checksums when enabled, and writes a manifest when enabled.
+The tool reads `datarose.toml`, checks platform prerequisites, optionally runs a frontend install command, iterates over enabled platforms, runs each platform command on the host or in a configured Docker/Podman container, copies matching artifacts into the output directory, writes checksums when enabled, and writes a manifest when enabled.
 
-It does not sign Android keys itself; use `android-signing` for keystore handling. It does not publish GitHub Releases; use `github-release` after artifacts are built.
+When a platform is disabled or its required host OS, commands, container engine, image, or environment variables are missing, the platform is skipped instead of failing the whole build. The command prints the reason and next steps, and the manifest records skipped platforms.
+
+It does not create Android or iOS signing material itself; use `android-signing` for Android keystore handling and `ios-signing` for Apple certificate/profile CI secrets. It does not publish GitHub Releases; use `github-release` after artifacts are built.
 
 ### Use cases
 
@@ -49,7 +51,7 @@ Use `tauri-release` when you want to:
 - isolate supported platforms with Docker or Podman where practical;
 - keep Apple targets host-first where container builds are not realistic;
 - collect `.deb`, `.AppImage`, `.msi`, `.exe`, `.dmg`, `.apk`, `.aab`, or `.ipa` files into one release directory;
-- pair Tauri builds with `rust-cache`, `android-signing`, and `github-release`.
+- pair Tauri builds with `rust-cache`, `android-signing`, `ios-signing`, and `github-release`.
 
 ## Get started
 
@@ -94,7 +96,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | Output | Value | Purpose |
 | --- | --- | --- |
 | `bin-path` | Absolute path to the installed executable | Use this when a later step should invoke the exact binary path instead of relying on `PATH`. |
-| `host-target` | Rust-style host target such as `x86_64-unknown-linux-gnu` | Shows which release asset was selected for the current runner. |
+| `host-target` | Asset target such as `linux-x64`, `macos-arm64`, or `windows-x64` | Shows which release asset was selected for the current runner. |
 
 ### CLI usage
 
@@ -175,8 +177,31 @@ manifest = true
 enabled = true
 strategy = "container"
 image = "ghcr.io/verzly/tauri-release-linux:latest"
+required_commands = []
+required_env = []
 command = "pnpm tauri build"
 artifacts = ["src-tauri/target/release/bundle/**/*.deb", "src-tauri/target/release/bundle/**/*.AppImage"]
+```
+
+Android and iOS signing inputs are modeled as required environment variables so CI can skip unsupported builds with clear instructions instead of failing late. Prepare Android values with `android-signing` and iOS certificate/profile values with `ios-signing`:
+
+```toml
+[tauri_release.platforms.android]
+enabled = true
+strategy = "container"
+image = "ghcr.io/verzly/tauri-release-android:latest"
+required_env = ["ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
+command = "pnpm tauri android build --apk --aab"
+artifacts = ["src-tauri/gen/android/app/build/outputs/**/*.apk", "src-tauri/gen/android/app/build/outputs/**/*.aab"]
+
+[tauri_release.platforms.ios]
+enabled = true
+strategy = "host"
+required_host_os = "macos"
+required_commands = ["pnpm", "xcodebuild"]
+required_env = ["IOS_SIGNING_CERTIFICATE_BASE64", "IOS_SIGNING_CERTIFICATE_PASSWORD", "IOS_SIGNING_PROVISIONING_PROFILE_BASE64", "IOS_SIGNING_KEYCHAIN_PASSWORD", "APPLE_TEAM_ID"]
+command = "pnpm tauri ios build"
+artifacts = ["src-tauri/gen/apple/build/**/*.ipa"]
 ```
 
 | Field | Accepted values | Purpose |
@@ -192,6 +217,9 @@ artifacts = ["src-tauri/target/release/bundle/**/*.deb", "src-tauri/target/relea
 | `platforms.<key>.enabled` | Boolean | Whether the platform participates in normal builds. |
 | `platforms.<key>.strategy` | `host`, `container`, `auto` | How to run the platform command. |
 | `platforms.<key>.image` | Container image | Required when `strategy = "container"`. |
+| `platforms.<key>.required_host_os` | `linux`, `macos`, `windows`, or omitted | Host OS required for host builds. Mismatches skip the platform with a clear explanation. |
+| `platforms.<key>.required_commands` | List of executable names | Commands that must be available before the platform runs. Missing commands skip the platform. |
+| `platforms.<key>.required_env` | List of environment variable names | CI secret or environment values required before the platform runs. Missing values skip the platform. |
 | `platforms.<key>.command` | Shell command | Build command for that platform. |
 | `platforms.<key>.artifacts` | List of paths or globs | Files copied into the output directory after success. |
 | `platforms.<key>.env` | Key/value map | Environment variables passed to the platform command. |
@@ -216,14 +244,17 @@ tauri-release build --config datarose.toml --platform linux
 
 This is the normal debugging path. Once one platform works, enable more platforms in the config and let CI run the full release build.
 
+If the selected platform is disabled or missing prerequisites, the command exits successfully after printing why it was skipped and what to configure next.
+
 ### Combine with cache routing and signing
 
 ```sh
 rust-cache run --config datarose.toml -- tauri-release build --config datarose.toml --platform android
 android-signing write-github-env release.jks --alias release-key
+ios-signing write-github-env --certificate ios-release.p12 --provisioning-profile AppStore.mobileprovision
 ```
 
-`tauri-release` builds and collects app artifacts. `rust-cache` keeps build output out of the repository. `android-signing` manages keystore-related CI values.
+`tauri-release` builds and collects app artifacts. `rust-cache` keeps build output out of the repository. `android-signing` manages Android keystore-related CI values. `ios-signing` manages existing Apple certificate and provisioning profile CI values.
 
 ## Reference
 
@@ -236,11 +267,10 @@ If no artifacts are collected, verify the platform `artifacts` globs against the
 Release assets are named by tool, version, and host target. Typical examples:
 
 ```text
-tauri-release-v1.2.3-x86_64-unknown-linux-gnu
-tauri-release-v1.2.3-aarch64-unknown-linux-gnu
-tauri-release-v1.2.3-x86_64-apple-darwin
-tauri-release-v1.2.3-aarch64-apple-darwin
-tauri-release-v1.2.3-x86_64-pc-windows-msvc.exe
+tauri-release-v1.2.3-linux-x64
+tauri-release-v1.2.3-macos-x64
+tauri-release-v1.2.3-macos-arm64
+tauri-release-v1.2.3-windows-x64.exe
 ```
 
 Checksum files use the same name with `.sha256` appended. The action verifies them when the runner has `sha256sum` or `shasum`.

@@ -513,7 +513,7 @@ mod tests {
             path: format!("packages/{name}"),
             strategy: strategy.into(),
             workflow: "managed".into(),
-            distribution_path: format!(".codex/distributions/{name}"),
+            distribution_path: format!(".verzly/distributions/{name}"),
             repository: format!("verzly/{name}"),
             ..ReleaseTarget::default()
         }

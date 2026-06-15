@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 pub struct Config {
     pub cache: CacheConfig,
     pub cargo: CargoConfig,
+    pub generated: GeneratedConfig,
     pub env: BTreeMap<String, String>,
 }
 
@@ -42,6 +43,7 @@ impl Default for Config {
         Self {
             cache: CacheConfig::default(),
             cargo: CargoConfig::default(),
+            generated: GeneratedConfig::default(),
             env: Self::default_env(),
         }
     }
@@ -78,6 +80,18 @@ impl Default for CargoConfig {
         Self {
             target_dir: "rust/packages/{package}/target".to_string(),
         }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct GeneratedConfig {
+    pub paths: Vec<PathBuf>,
+}
+
+impl Default for GeneratedConfig {
+    fn default() -> Self {
+        Self { paths: Vec::new() }
     }
 }
 
@@ -129,6 +143,16 @@ fn load_datarose_config(value: &toml::Value) -> Config {
         }
     }
 
+    if let Some(generated) = root.get("generated").and_then(toml::Value::as_table) {
+        if let Some(paths) = generated.get("paths").and_then(toml::Value::as_array) {
+            config.generated.paths = paths
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(PathBuf::from)
+                .collect();
+        }
+    }
+
     if let Some(env) = root.get("env").and_then(toml::Value::as_table) {
         config.env.clear();
         for (key, value) in env {
@@ -169,6 +193,9 @@ redirect_gradle = true
 [rust_cache.cargo]
 target_dir = "rust/packages/{package}/target"
 
+[rust_cache.generated]
+paths = []
+
 [rust_cache.env]
 GRADLE_USER_HOME = "android/gradle"
 NPM_CONFIG_CACHE = "js/npm"
@@ -208,6 +235,7 @@ mod tests {
         assert!(!config.cache.redirect_cargo_home);
         assert!(config.cache.redirect_gradle);
         assert_eq!(config.cargo.target_dir, "rust/packages/{package}/target");
+        assert!(config.generated.paths.is_empty());
         assert_eq!(config.env["NPM_CONFIG_CACHE"], "js/npm");
         assert_eq!(config.env["PNPM_STORE_PATH"], "js/pnpm-store");
     }
@@ -236,6 +264,25 @@ mod tests {
 
         assert_eq!(config.cache.package, "demo");
         assert_eq!(config.cargo.target_dir, "rust/{package}/target");
+    }
+
+    #[test]
+    fn datarose_generated_paths_are_loaded() {
+        let path = temp_path("generated");
+        fs::write(
+            &path,
+            "[rust_cache.generated]\npaths = [\"apps/desktop/src-tauri/gen/android/app/build\"]\n",
+        )
+        .expect("write config");
+
+        let config = load(&path).expect("load config");
+
+        assert_eq!(
+            config.generated.paths,
+            vec![PathBuf::from(
+                "apps/desktop/src-tauri/gen/android/app/build"
+            )]
+        );
     }
 
     #[test]

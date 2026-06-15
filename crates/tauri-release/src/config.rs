@@ -19,7 +19,10 @@ impl Default for Config {
     fn default() -> Self {
         let mut platforms = BTreeMap::new();
         platforms.insert("linux".to_string(), PlatformConfig::linux_default());
+        platforms.insert("windows".to_string(), PlatformConfig::windows_default());
+        platforms.insert("macos".to_string(), PlatformConfig::macos_default());
         platforms.insert("android".to_string(), PlatformConfig::android_default());
+        platforms.insert("ios".to_string(), PlatformConfig::ios_default());
         Self {
             project: ProjectConfig::default(),
             build: BuildConfig::default(),
@@ -87,6 +90,9 @@ pub struct PlatformConfig {
     pub enabled: bool,
     pub strategy: Strategy,
     pub image: Option<String>,
+    pub required_host_os: Option<String>,
+    pub required_commands: Vec<String>,
+    pub required_env: Vec<String>,
     pub command: String,
     pub artifacts: Vec<String>,
     pub env: BTreeMap<String, String>,
@@ -98,10 +104,47 @@ impl PlatformConfig {
             enabled: true,
             strategy: Strategy::Host,
             image: None,
+            required_host_os: Some("linux".to_string()),
+            required_commands: vec!["pnpm".to_string()],
+            required_env: Vec::new(),
             command: "pnpm tauri build".to_string(),
             artifacts: vec![
                 "src-tauri/target/release/bundle/**/*.deb".to_string(),
                 "src-tauri/target/release/bundle/**/*.AppImage".to_string(),
+            ],
+            env: BTreeMap::new(),
+        }
+    }
+
+    pub fn windows_default() -> Self {
+        Self {
+            enabled: false,
+            strategy: Strategy::Container,
+            image: Some("ghcr.io/verzly/tauri-release-windows:latest".to_string()),
+            required_host_os: None,
+            required_commands: Vec::new(),
+            required_env: Vec::new(),
+            command: "pnpm tauri build --target x86_64-pc-windows-msvc".to_string(),
+            artifacts: vec![
+                "src-tauri/target/release/bundle/**/*.msi".to_string(),
+                "src-tauri/target/release/bundle/**/*.exe".to_string(),
+            ],
+            env: BTreeMap::new(),
+        }
+    }
+
+    pub fn macos_default() -> Self {
+        Self {
+            enabled: false,
+            strategy: Strategy::Host,
+            image: None,
+            required_host_os: Some("macos".to_string()),
+            required_commands: vec!["pnpm".to_string(), "xcodebuild".to_string()],
+            required_env: Vec::new(),
+            command: "pnpm tauri build".to_string(),
+            artifacts: vec![
+                "src-tauri/target/release/bundle/**/*.dmg".to_string(),
+                "src-tauri/target/release/bundle/**/*.app.tar.gz".to_string(),
             ],
             env: BTreeMap::new(),
         }
@@ -112,11 +155,39 @@ impl PlatformConfig {
             enabled: false,
             strategy: Strategy::Container,
             image: Some("ghcr.io/verzly/tauri-release-android:latest".to_string()),
+            required_host_os: None,
+            required_commands: Vec::new(),
+            required_env: vec![
+                "ANDROID_KEYSTORE_PATH".to_string(),
+                "ANDROID_KEYSTORE_PASSWORD".to_string(),
+                "ANDROID_KEY_ALIAS".to_string(),
+                "ANDROID_KEY_PASSWORD".to_string(),
+            ],
             command: "pnpm tauri android build --apk --aab".to_string(),
             artifacts: vec![
                 "src-tauri/gen/android/app/build/outputs/**/*.apk".to_string(),
                 "src-tauri/gen/android/app/build/outputs/**/*.aab".to_string(),
             ],
+            env: BTreeMap::new(),
+        }
+    }
+
+    pub fn ios_default() -> Self {
+        Self {
+            enabled: false,
+            strategy: Strategy::Host,
+            image: None,
+            required_host_os: Some("macos".to_string()),
+            required_commands: vec!["pnpm".to_string(), "xcodebuild".to_string()],
+            required_env: vec![
+                "IOS_SIGNING_CERTIFICATE_BASE64".to_string(),
+                "IOS_SIGNING_CERTIFICATE_PASSWORD".to_string(),
+                "IOS_SIGNING_PROVISIONING_PROFILE_BASE64".to_string(),
+                "IOS_SIGNING_KEYCHAIN_PASSWORD".to_string(),
+                "APPLE_TEAM_ID".to_string(),
+            ],
+            command: "pnpm tauri ios build".to_string(),
+            artifacts: vec!["src-tauri/gen/apple/build/**/*.ipa".to_string()],
             env: BTreeMap::new(),
         }
     }
@@ -161,16 +232,16 @@ pub fn load(path: &Path) -> Result<Config> {
         toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
 
     if value.get("tauri_release").is_some() {
-        return Ok(load_datarose_config(&value));
+        return load_datarose_config(&value);
     }
 
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
-fn load_datarose_config(value: &toml::Value) -> Config {
+fn load_datarose_config(value: &toml::Value) -> Result<Config> {
     let mut config = Config::default();
     let Some(root) = value.get("tauri_release") else {
-        return config;
+        return Ok(config);
     };
 
     if let Some(project) = root.get("project").and_then(toml::Value::as_table) {
@@ -187,13 +258,128 @@ fn load_datarose_config(value: &toml::Value) -> Config {
         if let Some(path) = string_field(build, "cache_dir") {
             config.build.cache_dir = PathBuf::from(path);
         }
+        if let Some(strategy) = string_field(build, "default_strategy") {
+            config.build.default_strategy = parse_strategy(&strategy)?;
+        }
+        if let Some(engine) = string_field(build, "container_engine") {
+            config.build.container_engine = parse_container_engine(&engine)?;
+        }
     }
 
-    config
+    if let Some(artifacts) = root.get("artifacts").and_then(toml::Value::as_table) {
+        if let Some(value) = bool_field(artifacts, "checksum") {
+            config.artifacts.checksum = value;
+        }
+        if let Some(value) = bool_field(artifacts, "manifest") {
+            config.artifacts.manifest = value;
+        }
+    }
+
+    if let Some(platforms) = root.get("platforms").and_then(toml::Value::as_table) {
+        for (name, value) in platforms {
+            let Some(table) = value.as_table() else {
+                continue;
+            };
+            let mut platform = config
+                .platforms
+                .remove(name)
+                .unwrap_or_else(PlatformConfig::default);
+            apply_platform_overrides(table, &mut platform)?;
+            config.platforms.insert(name.clone(), platform);
+        }
+    }
+
+    Ok(config)
 }
 
 fn string_field(table: &toml::value::Table, key: &str) -> Option<String> {
     table.get(key)?.as_str().map(ToOwned::to_owned)
+}
+
+fn optional_string_field(table: &toml::value::Table, key: &str) -> Option<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn bool_field(table: &toml::value::Table, key: &str) -> Option<bool> {
+    table.get(key)?.as_bool()
+}
+
+fn string_array_field(table: &toml::value::Table, key: &str) -> Option<Vec<String>> {
+    Some(
+        table
+            .get(key)?
+            .as_array()?
+            .iter()
+            .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+            .collect(),
+    )
+}
+
+fn string_table_field(table: &toml::value::Table, key: &str) -> Option<BTreeMap<String, String>> {
+    Some(
+        table
+            .get(key)?
+            .as_table()?
+            .iter()
+            .filter_map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_string())))
+            .collect(),
+    )
+}
+
+fn apply_platform_overrides(
+    table: &toml::value::Table,
+    platform: &mut PlatformConfig,
+) -> Result<()> {
+    if let Some(value) = bool_field(table, "enabled") {
+        platform.enabled = value;
+    }
+    if let Some(value) = string_field(table, "strategy") {
+        platform.strategy = parse_strategy(&value)?;
+    }
+    if table.contains_key("image") {
+        platform.image = optional_string_field(table, "image");
+    }
+    if table.contains_key("required_host_os") {
+        platform.required_host_os = optional_string_field(table, "required_host_os");
+    }
+    if let Some(value) = string_array_field(table, "required_commands") {
+        platform.required_commands = value;
+    }
+    if let Some(value) = string_array_field(table, "required_env") {
+        platform.required_env = value;
+    }
+    if let Some(value) = string_field(table, "command") {
+        platform.command = value;
+    }
+    if let Some(value) = string_array_field(table, "artifacts") {
+        platform.artifacts = value;
+    }
+    if let Some(value) = string_table_field(table, "env") {
+        platform.env = value;
+    }
+
+    Ok(())
+}
+
+fn parse_strategy(value: &str) -> Result<Strategy> {
+    match value {
+        "auto" => Ok(Strategy::Auto),
+        "host" => Ok(Strategy::Host),
+        "container" => Ok(Strategy::Container),
+        _ => anyhow::bail!("invalid tauri release strategy `{value}`"),
+    }
+}
+
+fn parse_container_engine(value: &str) -> Result<ContainerEngine> {
+    match value {
+        "docker" => Ok(ContainerEngine::Docker),
+        "podman" => Ok(ContainerEngine::Podman),
+        _ => anyhow::bail!("invalid tauri release container engine `{value}`"),
+    }
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
@@ -214,6 +400,12 @@ frontend_install = "aube install"
 [tauri_release.build]
 out_dir = "dist"
 cache_dir = ".cache/tauri-release"
+
+[tauri_release.platforms.android]
+enabled = false
+strategy = "container"
+image = "ghcr.io/verzly/tauri-release-android:latest"
+required_env = ["ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
 "#
     .to_string()
 }
@@ -228,6 +420,7 @@ mod tests {
         let config = Config::default();
         let linux = config.platforms.get("linux").expect("linux platform");
         let android = config.platforms.get("android").expect("android platform");
+        let ios = config.platforms.get("ios").expect("ios platform");
 
         assert_eq!(config.build.out_dir, PathBuf::from("dist"));
         assert_eq!(
@@ -238,6 +431,8 @@ mod tests {
         assert!(linux.enabled);
         assert_eq!(android.strategy, Strategy::Container);
         assert!(!android.enabled);
+        assert_eq!(ios.required_host_os.as_deref(), Some("macos"));
+        assert!(!ios.enabled);
         assert!(android.command.contains("tauri android build"));
     }
 
@@ -245,5 +440,45 @@ mod tests {
     fn container_engine_resolves_executable_name() {
         assert_eq!(ContainerEngine::Docker.executable(), "docker");
         assert_eq!(ContainerEngine::Podman.executable(), "podman");
+    }
+
+    #[test]
+    fn datarose_config_accepts_platform_overrides() {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("tauri-release-platform-overrides-{suffix}.toml"));
+        fs::write(
+            &path,
+            r#"version = 1
+
+[tauri_release.project]
+root = "apps/desktop"
+frontend_install = "pnpm install --frozen-lockfile"
+
+[tauri_release.build]
+container_engine = "docker"
+
+[tauri_release.platforms.android]
+enabled = true
+required_env = ["ANDROID_KEYSTORE_PATH"]
+env = { ANDROID_KEYSTORE_PATH = "/tmp/release.jks" }
+"#,
+        )
+        .expect("write config");
+
+        let config = load(&path).expect("load config");
+        let android = config.platforms.get("android").expect("android platform");
+
+        assert_eq!(config.project.root, PathBuf::from("apps/desktop"));
+        assert_eq!(config.build.container_engine, ContainerEngine::Docker);
+        assert!(android.enabled);
+        assert_eq!(android.required_env, vec!["ANDROID_KEYSTORE_PATH"]);
+        assert_eq!(
+            android.env.get("ANDROID_KEYSTORE_PATH").map(String::as_str),
+            Some("/tmp/release.jks")
+        );
     }
 }

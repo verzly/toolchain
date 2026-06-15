@@ -1,6 +1,6 @@
 # Contributing
 
-Source changes for the Verzly toolchain happen in `verzly/toolchain`. Public distribution repositories are release surfaces only; their `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>` and synchronized by workflow.
+Source changes for the Verzly toolchain happen in `verzly/toolchain`. Public distribution repositories are release surfaces only; their `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.verzly/distributions/<tool>` and synchronized by workflow.
 
 ## Setup
 
@@ -30,6 +30,23 @@ cargo test --workspace --all-targets
 The local `mise.toml` should include `hk`, `pkl`, and `rust@stable`. `repository doctor` is expected to suggest missing language tools instead of silently assuming they are globally installed.
 
 Build output is intentionally local to `.cache` through `.cargo/config.toml`. Do not wrap normal Cargo commands with `rust-cache run`.
+
+## Repository layout
+
+Important workspace paths:
+
+```text
+crates/                         Rust source for each public tool
+.github/workflows/              Maintainer test, release, sync, and repair workflows
+.verzly/distributions/<tool>/    Public distribution README, CONTRIBUTING, action.yml, LICENSE templates
+datarose.toml                   Release targets, quality settings, rust-cache, and tauri-release defaults
+hk.pkl                          Local hook and quality gate model
+AGENTS.md                       Canonical AI and repository policy
+README.md                       Maintainer-facing workspace overview
+CONTRIBUTING.md                 Maintainer development workflow
+```
+
+Do not add crate-level README files, `distribution/`, `scripts/`, generated release assets, or public distribution source copies to this repository. Public repositories are synchronized from `.verzly/distributions/<tool>/`.
 
 ## Development
 
@@ -63,6 +80,7 @@ cargo run -p github-release -- plan --config datarose.toml --release-target carg
 cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
+cargo run -p ios-signing -- check-env --skip-apple-team-id
 cargo run -p repository -- plan
 ```
 
@@ -132,7 +150,7 @@ cargo test --workspace --all-targets
 For release workflow and distribution changes, also keep the repository-boundary invariants intact. Important invariants include:
 
 ```text
-.codex/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
+.verzly/distributions/<tool> contains README.md, CONTRIBUTING.md, action.yml, LICENSE only
 datarose.toml contains one [[release.targets]] entry for each public tool
 datarose.toml exists
 crates/<tool>/README.md does not exist
@@ -140,6 +158,20 @@ distribution/ and scripts/ do not exist
 ```
 
 Prefer unit tests for planning, config, path handling, release note rendering, artifact discovery, cache routing, and signing behavior. Avoid tests that require Docker, Podman, Android SDK, Tauri, `gh`, or real signing keys unless they are explicitly guarded.
+
+## Pull requests
+
+Open PRs from focused branches and keep each PR scoped to one behavior, one tool, or one documentation surface. Include:
+
+- what changed and why;
+- which public tool scopes are affected;
+- which checks were run locally;
+- any skipped checks and the reason;
+- release or migration notes when behavior changes.
+
+Use Conventional Commit style for PR titles when the PR is expected to become a squash commit, for example `fix(tauri-release): skip unavailable platform builds`.
+
+Do not mix dependency upgrades with unrelated feature, workflow, or README-only changes unless the dependency change is required for that work.
 
 ## GitHub Actions
 
@@ -153,6 +185,7 @@ Public tool release workflows are:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
+.github/workflows/release-ios-signing.yml
 .github/workflows/release-repository.yml
 ```
 
@@ -185,7 +218,7 @@ Make release-related changes on a normal branch first:
 git switch -c release/prepare-0.1.0
 ```
 
-Update code, configs, workflows, or `.codex/distributions` templates on that branch. Run the full local checks, open a PR, and merge it to `master`.
+Update code, configs, workflows, or `.verzly/distributions` templates on that branch. Run the full local checks, open a PR, and merge it to `master`.
 
 After the PR is on `master`, run the appropriate workflow:
 
@@ -209,7 +242,7 @@ Public distribution actions must also support those moving refs at runtime. When
 
 Root maintainer documentation belongs in `README.md`, `CONTRIBUTING.md`, and `AGENTS.md`.
 
-Public user documentation belongs in `.codex/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.
+Public user documentation belongs in `.verzly/distributions/<tool>/README.md`. Public README files should explain usage, action inputs, action outputs, CLI commands, CLI arguments, config fields, practical workflows, troubleshooting, artifacts, operational notes, and license information. Keep contribution and development-process details in distribution `CONTRIBUTING.md` files.
 
 
 `repository update` prints warnings for deprecated, removed, or invalid `datarose.toml` settings. `repository check` is the non-mutating CI/pre-push guard and exits with `1` only for those configuration problems.

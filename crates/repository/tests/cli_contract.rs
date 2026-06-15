@@ -39,7 +39,7 @@ fn plan_prints_release_graph_contract() {
         .stdout(predicate::str::contains("source tag: repository-vX.Y.Z"))
         .stdout(predicate::str::contains("public repo: verzly/repository"))
         .stdout(predicate::str::contains(
-            "distribution path: .codex/distributions/repository",
+            "distribution path: .verzly/distributions/repository",
         ));
 }
 
@@ -105,7 +105,7 @@ fn repository_without_subcommand_opens_tui() {
 fn check_rejects_unsupported_distribution_files() {
     let repo = fixture_repo();
     fs::write(
-        repo.path().join(".codex/distributions/api/AGENTS.md"),
+        repo.path().join(".verzly/distributions/api/AGENTS.md"),
         "do not put agent files here\n",
     )
     .unwrap();
@@ -144,7 +144,7 @@ fn check_allows_custom_distribution_release_without_workflows() {
 fn check_rejects_undocumented_action_inputs() {
     let repo = fixture_repo();
     fs::write(
-        repo.path().join(".codex/distributions/api/README.md"),
+        repo.path().join(".verzly/distributions/api/README.md"),
         "# api\n\nSource code lives in `verzly/toolchain`.\n\n| Input | Required |\n| --- | --- |\n| `github-token` | No |\n\n| Output | Value |\n| --- | --- |\n| `bin-path` | path |\n",
     )
     .unwrap();
@@ -168,7 +168,7 @@ fn check_rejects_undocumented_action_inputs() {
 fn check_rejects_missing_distribution_source_boundary() {
     let repo = fixture_repo();
     fs::write(
-        repo.path().join(".codex/distributions/api/README.md"),
+        repo.path().join(".verzly/distributions/api/README.md"),
         r#"# api
 
 This repository installs the API binary.
@@ -198,6 +198,28 @@ This repository installs the API binary.
         ));
 }
 
+#[test]
+fn check_rejects_distribution_contributing_without_source_boundary() {
+    let repo = fixture_repo();
+    fs::write(
+        repo.path()
+            .join(".verzly/distributions/api/CONTRIBUTING.md"),
+        "# Contributing\n\nOpen pull requests here.\n",
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
+
+    cmd.arg("check")
+        .arg("--root")
+        .arg(repo.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "CONTRIBUTING.md should explain that the public repository is a distribution surface",
+        ));
+}
+
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -211,7 +233,7 @@ fn fixture_repo() -> TempDir {
     let root = repo.path();
 
     fs::create_dir_all(root.join("packages/api")).unwrap();
-    fs::create_dir_all(root.join(".codex/distributions/api")).unwrap();
+    fs::create_dir_all(root.join(".verzly/distributions/api")).unwrap();
     fs::create_dir_all(root.join(".github/workflows")).unwrap();
 
     fs::write(
@@ -238,7 +260,7 @@ strategy = "distribution-repo"
 workflow = "custom"
 source_kind = "custom"
 repository = "acme/api"
-distribution_path = ".codex/distributions/api"
+distribution_path = ".verzly/distributions/api"
 version_files = false
 source_tag_prefix = "api-v"
 include_scopes = ["api", "all"]
@@ -251,17 +273,17 @@ package = "platform"
     .unwrap();
 
     fs::write(
-        root.join(".codex/distributions/api/CONTRIBUTING.md"),
-        "# Contributing\n",
+        root.join(".verzly/distributions/api/CONTRIBUTING.md"),
+        "# Contributing\n\nThis repository is a public distribution surface. It does not contain the full source code, so source-code contributions cannot be accepted directly here.\n",
     )
     .unwrap();
     fs::write(
-        root.join(".codex/distributions/api/LICENSE"),
+        root.join(".verzly/distributions/api/LICENSE"),
         "AGPL-3.0-only\n",
     )
     .unwrap();
     fs::write(
-        root.join(".codex/distributions/api/action.yml"),
+        root.join(".verzly/distributions/api/action.yml"),
         r#"name: API
 description: Install API tool.
 
@@ -292,7 +314,7 @@ runs:
     )
     .unwrap();
     fs::write(
-        root.join(".codex/distributions/api/README.md"),
+        root.join(".verzly/distributions/api/README.md"),
         r#"# api
 
 Source code lives in `verzly/toolchain`.

@@ -19,6 +19,18 @@ pub fn run(args: CommonArgs) -> Result<()> {
         if target.enabled && target.strategy == Strategy::Container && target.image.is_none() {
             println!("target {name}: missing container image");
         }
+        for env_name in &target.required_env {
+            let present = target
+                .env
+                .get(env_name)
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| {
+                    std::env::var(env_name)
+                        .map(|value| !value.trim().is_empty())
+                        .unwrap_or(false)
+                });
+            println!("target {name} env {env_name}: {}", available_text(present));
+        }
     }
     Ok(())
 }

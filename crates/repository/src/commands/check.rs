@@ -74,7 +74,7 @@ fn collect_removed_files(root: &Path, issues: &mut Vec<String>) {
         }
     }
 
-    for path in ["crates/repo-quality", ".codex/distributions/repo-quality"] {
+    for path in ["crates/repo-quality", ".verzly/distributions/repo-quality"] {
         let full_path = root.join(path);
         if full_path.exists() {
             issues.push(format!(
@@ -249,7 +249,7 @@ fn collect_repository_boundary_issues(
         let full_path = profile.root.join(path);
         if full_path.exists() {
             issues.push(format!(
-                "{} is not allowed; keep distribution templates in .codex/distributions and release behavior in Rust tools",
+                "{} is not allowed; keep distribution templates in .verzly/distributions and release behavior in Rust tools",
                 display_path(profile, &full_path)
             ));
         }
@@ -279,16 +279,16 @@ fn collect_distribution_template_issues(
     profile: &ProjectProfile,
     issues: &mut Vec<String>,
 ) -> Result<()> {
-    let distributions_dir = profile.root.join(".codex/distributions");
+    let distributions_dir = profile.root.join(".verzly/distributions");
     if !distributions_dir.exists() {
         if has_distribution_targets(profile) {
-            issues.push(".codex/distributions is missing".into());
+            issues.push(".verzly/distributions is missing".into());
         }
         return Ok(());
     }
 
     if !distributions_dir.is_dir() {
-        issues.push(".codex/distributions exists but is not a directory".into());
+        issues.push(".verzly/distributions exists but is not a directory".into());
         return Ok(());
     }
 
@@ -376,6 +376,21 @@ fn collect_single_distribution_template_issues(
             "{} must not contain AI instruction files; use the root AGENTS.md and optional root CLAUDE.md only",
             display_path(profile, path)
         ));
+    }
+
+    let contributing_path = path.join("CONTRIBUTING.md");
+    if contributing_path.is_file() {
+        let contributing = fs::read_to_string(&contributing_path)
+            .with_context(|| format!("failed to read {}", contributing_path.display()))?;
+        let normalized = contributing.to_lowercase();
+        if !normalized.contains("does not contain the full source code")
+            || !normalized.contains("source-code contributions cannot be accepted directly here")
+        {
+            issues.push(format!(
+                "{} CONTRIBUTING.md should explain that the public repository is a distribution surface without the full source code",
+                display_path(profile, path)
+            ));
+        }
     }
 
     Ok(())

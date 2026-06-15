@@ -16,6 +16,7 @@ on:
           - tauri-release
           - rust-cache
           - android-signing
+          - ios-signing
           - repository
       mode:
         description: "How to choose release tags for moving tag repair."
@@ -46,7 +47,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing repository
+  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   update:
@@ -83,7 +84,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|github-release|cargo-release|tauri-release|rust-cache|android-signing|repository) ;;
+            all|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
             *) echo "::error::Unsupported target: ${TARGET}"; exit 1 ;;
           esac
 
