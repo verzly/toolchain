@@ -23,21 +23,21 @@ rules, and verification expectations. Do not create extra per-tool agent instruc
 - Rust source code in `crates/`.
 - Release workflows in `.github/workflows/`.
 - Workspace release and quality configuration in `datarose.toml`.
-- Public distribution templates in `.verzly/distributions/<tool>/`.
+- Public distribution templates in `.codex/distributions/<tool>/`.
 - The canonical AI instruction file for the whole project: this root `AGENTS.md`.
 - An optional root `CLAUDE.md` compatibility pointer for Claude Code.
 
 Public distribution repositories such as `verzly/github-release` and
 `verzly/repository` are thin distribution surfaces. Their public files are maintained
-from `.verzly/distributions/<tool>/` and synced by workflow.
+from `.codex/distributions/<tool>/` and synced by workflow.
 
 Correct distribution template contents:
 
 ```text
-.verzly/distributions/<tool>/README.md
-.verzly/distributions/<tool>/CONTRIBUTING.md
-.verzly/distributions/<tool>/action.yml
-.verzly/distributions/<tool>/LICENSE
+.codex/distributions/<tool>/README.md
+.codex/distributions/<tool>/CONTRIBUTING.md
+.codex/distributions/<tool>/action.yml
+.codex/distributions/<tool>/LICENSE
 ```
 
 Do not add any other files to distribution templates:
@@ -70,7 +70,7 @@ crates/<tool>/README.md
 
 Crate-level README files are intentionally not used. Internal context belongs in the
 root `README.md` and this `AGENTS.md`; public product documentation belongs in
-`.verzly/distributions/<tool>/README.md`.
+`.codex/distributions/<tool>/README.md`.
 
 ## Tools and Repositories
 
@@ -81,7 +81,6 @@ root `README.md` and this `AGENTS.md`; public product documentation belongs in
 | `tauri-release` | `crates/tauri-release` | `verzly/tauri-release` | `tauri-release-vX.Y.Z` | `vX.Y.Z` |
 | `rust-cache` | `crates/rust-cache` | `verzly/rust-cache` | `rust-cache-vX.Y.Z` | `vX.Y.Z` |
 | `android-signing` | `crates/android-signing` | `verzly/android-signing` | `android-signing-vX.Y.Z` | `vX.Y.Z` |
-| `ios-signing` | `crates/ios-signing` | `verzly/ios-signing` | `ios-signing-vX.Y.Z` | `vX.Y.Z` |
 | `repository` | `crates/repository` | `verzly/repository` | `repository-vX.Y.Z` | `vX.Y.Z` |
 | `toolchain` | repository root | `verzly/toolchain` | `vX.Y.Z` | `vX.Y.Z` |
 
@@ -253,10 +252,10 @@ available static checks:
 
 ```bash
 git diff --check
-test -d .verzly/distributions
+test -d .codex/distributions
 test ! -d distribution
 test ! -d scripts
-find .verzly/distributions -mindepth 2 -maxdepth 2 -type f \
+find .codex/distributions -mindepth 2 -maxdepth 2 -type f \
   ! -name README.md \
   ! -name CONTRIBUTING.md \
   ! -name action.yml \

@@ -2,7 +2,7 @@
 
 Verzly Toolchain is the private source workspace for the release tools that build Rust executables, prepare Tauri installers, route build caches, generate Android signing material, and publish GitHub Releases.
 
-Public repositories stay intentionally small. Their user-facing `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.verzly/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
+Public repositories stay intentionally small. Their user-facing `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.codex/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
 
 - [Overview](#overview)
   - [Tools](#tools)
@@ -41,8 +41,6 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 
 `android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
 
-`ios-signing` encodes existing Apple signing certificates and provisioning profiles, prints CI secret names, and validates iOS signing environment variables before release jobs run.
-
 `repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
 
 ### Repository model
@@ -52,7 +50,7 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 ```text
 .github/workflows/
 .cargo/config.toml
-.verzly/distributions/
+.codex/distributions/
 crates/
 Cargo.toml
 Cargo.lock
@@ -62,11 +60,11 @@ hk.pkl
 mise.toml
 ```
 
-Crate-level README files are intentionally not used. Maintainer documentation lives in this README, [AGENTS.md](AGENTS.md), and [CONTRIBUTING.md](CONTRIBUTING.md). Public user documentation lives in `.verzly/distributions/<tool>/README.md` and is synchronized to the public repositories.
+Crate-level README files are intentionally not used. Maintainer documentation lives in this README, [AGENTS.md](AGENTS.md), and [CONTRIBUTING.md](CONTRIBUTING.md). Public user documentation lives in `.codex/distributions/<tool>/README.md` and is synchronized to the public repositories.
 
 ### Distribution templates
 
-Each `.verzly/distributions/<tool>` directory contains exactly:
+Each `.codex/distributions/<tool>` directory contains exactly:
 
 ```text
 README.md
@@ -143,7 +141,6 @@ cargo run -p cargo-release -- build --config datarose.toml --release-target carg
 cargo run -p tauri-release -- plan --config datarose.toml
 cargo run -p rust-cache -- init
 cargo run -p android-signing -- generate
-cargo run -p ios-signing -- check-env --skip-apple-team-id
 cargo run -p repository -- plan
 ```
 
@@ -189,7 +186,7 @@ Cargo output is routed by the checked-in config:
 target-dir = ".cache/rust/packages/toolchain/target"
 ```
 
-The root `datarose.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`. Use `rust-cache clean-generated --config datarose.toml --dry-run` to audit stale project-tree build output such as `target/` and Tauri `src-tauri/gen/**/build` directories before deleting them.
+The root `datarose.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`.
 
 ## Release Workflows
 
@@ -203,7 +200,6 @@ Use the matching workflow when one tool needs a public release:
 .github/workflows/release-tauri-release.yml
 .github/workflows/release-rust-cache.yml
 .github/workflows/release-android-signing.yml
-.github/workflows/release-ios-signing.yml
 .github/workflows/release-repository.yml
 ```
 
@@ -235,7 +231,6 @@ release-all.yml
 → _release-tool.yml for tauri-release
 → _release-tool.yml for rust-cache
 → _release-tool.yml for android-signing
-→ _release-tool.yml for ios-signing
 → _release-tool.yml for repository
 ```
 
@@ -269,7 +264,7 @@ The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written 
 
 Use `.github/workflows/sync-distributions.yml` when public `README.md`, `action.yml`, or `LICENSE` files need to be pushed to the separate `verzly/<tool>` repositories without creating a release.
 
-The workflow reads `.verzly/distributions/<tool>`, clones the matching public repository with `DISTRIBUTION_REPO_TOKEN`, replaces the public surface, and commits with the configured message. Manual runs skip the commit when nothing changed unless `force-commit` is enabled. Release workflows call it with `force-commit: true` and a version-specific bump message before public tags and GitHub Releases are created. The default manual message is:
+The workflow reads `.codex/distributions/<tool>`, clones the matching public repository with `DISTRIBUTION_REPO_TOKEN`, replaces the public surface, and commits with the configured message. Manual runs skip the commit when nothing changed unless `force-commit` is enabled. Release workflows call it with `force-commit: true` and a version-specific bump message before public tags and GitHub Releases are created. The default manual message is:
 
 ```text
 chore(distribution): bump public surface
@@ -344,7 +339,6 @@ verzly/cargo-release
 verzly/tauri-release
 verzly/rust-cache
 verzly/android-signing
-verzly/ios-signing
 verzly/repository
 ```
 
