@@ -7,6 +7,8 @@ use anyhow::Result;
 
 pub fn run(args: CommonArgs) -> Result<()> {
     let config = config::load(&args.config)?;
-    EnvPlan::build(&config)?.print_exports();
+    let plan = EnvPlan::build(&config)?;
+    plan.ensure_runtime_files()?;
+    plan.print_exports();
     Ok(())
 }

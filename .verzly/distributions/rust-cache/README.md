@@ -38,7 +38,7 @@ Rust and Tauri builds generate large directories such as `target/`, Gradle cache
 
 The tool detects the workspace root using Cargo metadata first, then Git, then the current directory. It builds an environment plan and either prints it or runs a command with those environment variables applied.
 
-By default it redirects `CARGO_TARGET_DIR` to a package-specific directory under `.cache`. It can also redirect `GRADLE_USER_HOME` for Android/Tauri builds and optionally `CARGO_HOME` when a fully project-local Cargo home is desired. The `clean-generated` command also removes reproducible output directories that older Cargo, Tauri, or Gradle commands may have left in the project tree, such as `target/` and `src-tauri/gen/**/build`.
+By default it redirects `CARGO_TARGET_DIR` to a package-specific directory under `.cache`. It can also redirect `GRADLE_USER_HOME` for Android/Tauri builds and installs a Gradle init script that moves Gradle project `buildDirectory` output into `.cache/android/builds`. This matters for Tauri Android projects because `src-tauri/gen/android/**/build`, `.gradle`, `.cxx`, and related mobile build folders are otherwise written inside the generated mobile project. It can also redirect `CARGO_HOME` when a fully project-local Cargo home is desired. The `clean-generated` command removes reproducible output directories that older Cargo, Tauri, Gradle, Xcode, or Swift commands may have left in the project tree, such as `target/`, `src-tauri/gen/**/build`, `src-tauri/gen/**/.gradle`, `src-tauri/gen/**/.cxx`, and `src-tauri/gen/**/DerivedData`.
 
 ### Use cases
 
@@ -47,7 +47,7 @@ Use `rust-cache` when you want to:
 - keep `target/` out of the repository root;
 - make monorepo cache cleanup safe and predictable;
 - run `cargo fmt`, `cargo test`, `cargo build`, `cargo-release`, or `tauri-release` with consistent cache paths;
-- keep Android/Gradle cache files under the workspace;
+- keep Android/Gradle cache files and Tauri Android project build output under `.cache`;
 - make local development and CI use the same cache layout;
 - delete routed cache output by removing `.cache` and scrub stale project-tree build output with `clean-generated`.
 
@@ -181,9 +181,9 @@ paths = []
 | `cache.dir` | Path | Root directory for generated cache content. Defaults to `.cache`. |
 | `cache.package` | `auto` or explicit string | Package key used below the cache directory. `auto` uses Cargo metadata when available and falls back to `workspace`. Use an explicit value when monorepo paths must remain stable. |
 | `cache.redirect_cargo_home` | Boolean | When `true`, sets `CARGO_HOME` under the cache directory. Leave `false` when you want to keep using the normal user-level Cargo registry cache. |
-| `cache.redirect_gradle` | Boolean | When `true`, sets `GRADLE_USER_HOME` under the cache directory for Android/Tauri builds. |
+| `cache.redirect_gradle` | Boolean | When `true`, sets `GRADLE_USER_HOME` under the cache directory and writes `.cache/android/gradle/init.d/verzly-build-cache.gradle`, which redirects workspace Gradle project build output into `.cache/android/builds`. |
 | `cargo.target_dir` | String with `{package}` placeholder | Relative target directory below `cache.dir`, or an absolute path. This is written to native Cargo config and exported as `CARGO_TARGET_DIR`. |
-| `generated.paths` | List of paths | Extra reproducible output directories that `clean-generated` may remove in addition to detected `target/` and Tauri `src-tauri/gen/**/build` directories. |
+| `generated.paths` | List of paths | Extra reproducible output directories that `clean-generated` may remove in addition to detected `target/` and Tauri mobile generated build directories. |
 
 Generated paths normally look like this:
 
@@ -193,7 +193,9 @@ Generated paths normally look like this:
 │   ├── packages/<package>/target/
 │   └── cargo-home/
 └── android/
-    └── gradle/
+    ├── gradle/
+    │   └── init.d/verzly-build-cache.gradle
+    └── builds/
 ```
 
 ## Practical workflows
@@ -214,7 +216,18 @@ The command after `--` receives environment variables such as `CARGO_TARGET_DIR`
 rust-cache env --config datarose.toml
 ```
 
-Use this in CI debugging to verify exactly which cache paths would be used before running a long build.
+Use this in CI debugging to verify exactly which cache paths would be used before running a long build. This command also writes runtime helper files, including the Gradle init script when `cache.redirect_gradle = true`.
+
+### Tauri Android mobile build output
+
+Run Tauri Android commands through `rust-cache run` so Gradle receives both `GRADLE_USER_HOME` and the generated init script:
+
+```sh
+rust-cache run --config datarose.toml -- pnpm tauri android build --apk --aab
+```
+
+With the default config, Gradle user caches go to `.cache/android/gradle` and project-local Gradle build output goes to `.cache/android/builds`. The generated Android project under `src-tauri/gen/android` should not keep `build/`, `.gradle/`, `.cxx/`, or `.externalNativeBuild/` directories after a correctly routed build. If you have stale output from earlier builds, run `rust-cache clean-generated --dry-run` first, then `rust-cache clean-generated`.
+
 
 ### Clean generated cache
 
@@ -224,7 +237,7 @@ rust-cache clean-generated --config datarose.toml --dry-run
 rust-cache clean-generated --config datarose.toml
 ```
 
-`clean` removes the configured cache root. `clean-generated` removes reproducible build output that should not be part of the repository tree, including stale `target/` directories and Tauri `src-tauri/gen/**/build` or `.gradle` directories outside `.cache`. Run it with `--dry-run` first when introducing the tool in an existing monorepo.
+`clean` removes the configured cache root. `clean-generated` removes reproducible build output that should not be part of the repository tree, including stale `target/` directories and Tauri `src-tauri/gen/**/build`, `.gradle`, `.cxx`, `.externalNativeBuild`, `.kotlin`, `DerivedData`, and `.build` directories outside `.cache`. Run it with `--dry-run` first when introducing the tool in an existing monorepo.
 
 ## Reference
 

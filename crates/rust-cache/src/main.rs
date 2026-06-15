@@ -6,6 +6,7 @@ mod commands;
 mod config;
 mod env_plan;
 mod generated;
+mod gradle_cache;
 mod workspace;
 
 use anyhow::Result;

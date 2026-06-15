@@ -35,7 +35,7 @@ fn collect_from_directory(
         return Ok(());
     }
 
-    if is_rust_target_dir(directory) || is_tauri_generated_build_dir(directory) {
+    if is_rust_target_dir(directory) || is_tauri_generated_output_dir(directory) {
         paths.insert(directory.to_path_buf());
         return Ok(());
     }
@@ -67,14 +67,28 @@ fn is_rust_target_dir(directory: &Path) -> bool {
     directory.file_name().and_then(|name| name.to_str()) == Some("target")
 }
 
-fn is_tauri_generated_build_dir(directory: &Path) -> bool {
+fn is_tauri_generated_output_dir(directory: &Path) -> bool {
     let Some(name) = directory.file_name().and_then(|name| name.to_str()) else {
         return false;
     };
 
-    matches!(name, "build" | ".gradle")
+    is_known_mobile_build_output_name(name)
         && contains_component(directory, "src-tauri")
         && contains_component(directory, "gen")
+}
+
+fn is_known_mobile_build_output_name(name: &str) -> bool {
+    matches!(
+        name,
+        "build"
+            | ".gradle"
+            | ".cxx"
+            | ".externalNativeBuild"
+            | ".kotlin"
+            | "captures"
+            | "DerivedData"
+            | ".build"
+    )
 }
 
 fn contains_component(path: &Path, expected: &str) -> bool {
@@ -111,6 +125,9 @@ mod tests {
         fs::create_dir_all(root.join("target")).unwrap();
         fs::create_dir_all(root.join("apps/desktop/src-tauri/gen/android/app/build")).unwrap();
         fs::create_dir_all(root.join("apps/desktop/src-tauri/gen/android/.gradle")).unwrap();
+        fs::create_dir_all(root.join("apps/desktop/src-tauri/gen/android/app/.cxx")).unwrap();
+        fs::create_dir_all(root.join("apps/desktop/src-tauri/gen/apple/DerivedData")).unwrap();
+        fs::create_dir_all(root.join("apps/desktop/src-tauri/gen/apple/.build")).unwrap();
         fs::create_dir_all(root.join(".cache/rust/packages/app/target")).unwrap();
 
         let outputs = discover_generated_outputs(&root, &root.join(".cache"), &[]).unwrap();
@@ -127,6 +144,9 @@ mod tests {
         assert!(normalized.contains(&"target".to_string()));
         assert!(normalized.contains(&"apps/desktop/src-tauri/gen/android/app/build".to_string()));
         assert!(normalized.contains(&"apps/desktop/src-tauri/gen/android/.gradle".to_string()));
+        assert!(normalized.contains(&"apps/desktop/src-tauri/gen/android/app/.cxx".to_string()));
+        assert!(normalized.contains(&"apps/desktop/src-tauri/gen/apple/DerivedData".to_string()));
+        assert!(normalized.contains(&"apps/desktop/src-tauri/gen/apple/.build".to_string()));
         assert!(!normalized.contains(&".cache/rust/packages/app/target".to_string()));
     }
 

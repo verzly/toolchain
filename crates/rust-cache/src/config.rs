@@ -83,10 +83,16 @@ impl Default for CargoConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct GeneratedConfig {
     pub paths: Vec<PathBuf>,
+}
+
+impl Default for GeneratedConfig {
+    fn default() -> Self {
+        Self { paths: Vec::new() }
+    }
 }
 
 pub fn load(path: &Path) -> Result<Config> {

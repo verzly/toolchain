@@ -2,6 +2,7 @@
 
 use crate::cargo_config;
 use crate::config::Config;
+use crate::gradle_cache;
 use crate::workspace;
 use anyhow::Result;
 use std::collections::BTreeMap;
@@ -13,6 +14,8 @@ pub struct EnvPlan {
     pub package: String,
     pub cache_root: PathBuf,
     pub cargo_target_dir: PathBuf,
+    pub gradle_init_script: Option<PathBuf>,
+    pub gradle_build_root: Option<PathBuf>,
     pub values: BTreeMap<String, String>,
 }
 
@@ -51,16 +54,45 @@ impl EnvPlan {
         }
 
         for (key, value) in &config.env {
+            if key == "GRADLE_USER_HOME" && !config.cache.redirect_gradle {
+                continue;
+            }
             values.insert(key.clone(), env_cache_path(&cache_root, value));
         }
+
+        let gradle_user_home = if config.cache.redirect_gradle {
+            values.get("GRADLE_USER_HOME").map(PathBuf::from)
+        } else {
+            None
+        };
+        let gradle_init_script = gradle_user_home
+            .as_deref()
+            .map(gradle_cache::init_script_path);
+        let gradle_build_root = if config.cache.redirect_gradle {
+            Some(cache_root.join("android").join("builds"))
+        } else {
+            None
+        };
 
         Ok(Self {
             workspace_root: workspace.root,
             package,
             cache_root,
             cargo_target_dir,
+            gradle_init_script,
+            gradle_build_root,
             values,
         })
+    }
+
+    pub fn ensure_runtime_files(&self) -> Result<()> {
+        if let (Some(script), Some(build_root)) =
+            (&self.gradle_init_script, &self.gradle_build_root)
+        {
+            gradle_cache::write_init_script(script, &self.workspace_root, build_root)?;
+        }
+
+        Ok(())
     }
 
     pub fn print_exports(&self) {
@@ -113,6 +145,20 @@ mod tests {
             .ends_with(".cache-test/rust/packages/demo-package/target"));
         assert!(plan.values.contains_key("CARGO_HOME"));
         assert!(!plan.values.contains_key("GRADLE_USER_HOME"));
+        assert!(plan.gradle_init_script.is_none());
+        assert!(plan.gradle_build_root.is_none());
+    }
+
+    #[test]
+    fn redirect_gradle_false_disables_gradle_environment_even_with_defaults() {
+        let mut config = Config::default();
+        config.cache.redirect_gradle = false;
+
+        let plan = EnvPlan::build(&config).expect("build env plan");
+
+        assert!(!plan.values.contains_key("GRADLE_USER_HOME"));
+        assert!(plan.gradle_init_script.is_none());
+        assert!(plan.gradle_build_root.is_none());
     }
 
     #[test]
@@ -144,6 +190,20 @@ mod tests {
             .expect("custom cache")
             .replace('\\', "/")
             .ends_with(".cache-test/foo"));
+        assert!(plan
+            .gradle_init_script
+            .as_ref()
+            .expect("gradle init script")
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with(".cache-test/android/gradle/init.d/verzly-build-cache.gradle"));
+        assert!(plan
+            .gradle_build_root
+            .as_ref()
+            .expect("gradle build root")
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with(".cache-test/android/builds"));
     }
 
     #[test]
