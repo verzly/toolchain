@@ -18,7 +18,7 @@ version = "1.0"
 [package]
 description = "Project-local cache routing helper for Rust and Tauri workspaces"
 name = "rust-cache"
-version = "0.3.0"
+version = "0.4.0"
 
 [package.edition]
 workspace = true

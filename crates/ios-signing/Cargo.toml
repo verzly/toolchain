@@ -13,7 +13,7 @@ version = "4.5"
 [package]
 description = "iOS release signing secret helper"
 name = "ios-signing"
-version = "0.3.0"
+version = "0.4.0"
 
 [package.edition]
 workspace = true

@@ -28,7 +28,7 @@ tempfile = "3.10"
 [package]
 description = "Repository standards manager for hk, mise, Rust, JavaScript, and PHP projects"
 name = "repository"
-version = "0.3.0"
+version = "0.4.0"
 
 [package.edition]
 workspace = true
