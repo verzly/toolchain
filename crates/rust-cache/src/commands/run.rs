@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 pub fn run(args: RunArgs) -> Result<()> {
     let config = config::load(&args.config)?;
     let plan = EnvPlan::build(&config)?;
+    plan.ensure_runtime_files()?;
 
     let (program, rest) = args.command.split_first().context("missing command")?;
     let status = Command::new(program)

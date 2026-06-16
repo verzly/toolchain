@@ -371,7 +371,7 @@ repository release set \
 | `--cargo-package <name>` | No | detected Cargo package or target name | Any Cargo package name | Cargo package to build for `cargo-package` targets. |
 | `--cargo-binary <name>` | No | Cargo package name | Any Cargo binary name | Binary packaged for release assets. |
 | `--cargo-out-dir <path>` | No | `dist/<name>` | Any output path | Directory for built release assets. |
-| `--distribution-path <path>` | No | `.codex/distributions/<name>` for distribution repos | Any repository-relative path | Public distribution template directory. |
+| `--distribution-path <path>` | No | `.verzly/distributions/<name>` for distribution repos | Any repository-relative path | Public distribution template directory. |
 | `--version-file <path>` | No | `<path>/Cargo.toml` for Cargo packages | Any version file path | File updated during release preparation. |
 | `--source-tag-prefix <prefix>` | No | `<name>-v` | Any tag prefix | Source repository tag prefix. |
 | `--allow-missing-path` | No | `false` | Flag | Allows configuring a target before its source path exists. |
@@ -432,7 +432,7 @@ strategy = "distribution-repo"
 workflow = "managed"
 source_kind = "cargo-package"
 repository = "acme/api"
-distribution_path = ".codex/distributions/api"
+distribution_path = ".verzly/distributions/api"
 cargo_binary = "api"
 cargo_package = "api"
 cargo_out_dir = "dist/api"

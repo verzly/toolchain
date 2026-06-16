@@ -18,6 +18,7 @@ fn main() -> Result<()> {
         Commands::VerifyFingerprint(args) => commands::verify_fingerprint::run(args),
         Commands::PrintSecrets(args) => commands::print_secrets::run(args),
         Commands::WriteGithubEnv(args) => commands::write_github_env::run(args),
+        Commands::CheckEnv(args) => commands::check_env::run(args),
         Commands::Doctor => commands::doctor::run(),
     }
 }

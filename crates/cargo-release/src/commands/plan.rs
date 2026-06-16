@@ -14,6 +14,9 @@ pub fn run(args: CommonArgs) -> Result<()> {
             println!("  triple:    {}", target.triple);
             println!("  strategy:  {:?}", target.strategy);
             println!("  command:   {}", target.command);
+            if !target.required_env.is_empty() {
+                println!("  required env: {}", target.required_env.join(", "));
+            }
             for artifact in &target.artifacts {
                 println!("  artifact:  {artifact}");
             }

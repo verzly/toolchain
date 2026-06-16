@@ -101,7 +101,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | Output | Value | Purpose |
 | --- | --- | --- |
 | `bin-path` | Absolute path to the installed executable | Use this when a later step should invoke the exact binary path instead of relying on `PATH`. |
-| `host-target` | Rust-style host target such as `x86_64-unknown-linux-gnu` | Shows which release asset was selected for the current runner. |
+| `host-target` | Asset target such as `linux-x64`, `macos-arm64`, or `windows-x64` | Shows which release asset was selected for the current runner. |
 
 ### CLI usage
 
@@ -366,11 +366,10 @@ If `prepare` fails because the release branch already exists, inspect the branch
 Release assets are named by tool, version, and host target. Typical examples:
 
 ```text
-github-release-v1.2.3-x86_64-unknown-linux-gnu
-github-release-v1.2.3-aarch64-unknown-linux-gnu
-github-release-v1.2.3-x86_64-apple-darwin
-github-release-v1.2.3-aarch64-apple-darwin
-github-release-v1.2.3-x86_64-pc-windows-msvc.exe
+github-release-v1.2.3-linux-x64
+github-release-v1.2.3-macos-x64
+github-release-v1.2.3-macos-arm64
+github-release-v1.2.3-windows-x64.exe
 ```
 
 Checksum files use the same name with `.sha256` appended. The action verifies them when the runner has `sha256sum` or `shasum`.

@@ -7,6 +7,7 @@ use crate::container;
 use crate::manifest;
 use crate::process;
 use anyhow::Result;
+use std::env;
 
 pub fn run(args: BuildArgs) -> Result<()> {
     let config = config::load(&args.config, args.release_target.as_deref())?;
@@ -40,6 +41,14 @@ pub fn run(args: BuildArgs) -> Result<()> {
         };
 
         println!("building {name} ({strategy:?})");
+        let missing_env = missing_required_env(target);
+        if !missing_env.is_empty() {
+            anyhow::bail!(
+                "release target `{name}` is missing required environment variables: {}",
+                missing_env.join(", ")
+            );
+        }
+
         match strategy {
             Strategy::Host | Strategy::Auto => {
                 process::shell(&target.command, &target.env, args.dry_run)?
@@ -82,4 +91,23 @@ pub fn run(args: BuildArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn missing_required_env(target: &crate::config::TargetConfig) -> Vec<String> {
+    target
+        .required_env
+        .iter()
+        .filter(|name| {
+            target
+                .env
+                .get(*name)
+                .map(|value| value.trim().is_empty())
+                .unwrap_or_else(|| {
+                    env::var(name)
+                        .map(|value| value.trim().is_empty())
+                        .unwrap_or(true)
+                })
+        })
+        .cloned()
+        .collect()
 }

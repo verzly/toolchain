@@ -225,7 +225,7 @@ fn detect_cargo_package(path: &Path) -> Result<Option<String>> {
 
 fn default_distribution_path(strategy: &str, name: &str) -> String {
     if strategy == "distribution-repo" {
-        format!(".codex/distributions/{name}")
+        format!(".verzly/distributions/{name}")
     } else {
         String::new()
     }

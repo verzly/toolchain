@@ -21,7 +21,7 @@ strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/github-release"
-distribution_path = ".codex/distributions/github-release"
+distribution_path = ".verzly/distributions/github-release"
 cargo_binary = "github-release"
 cargo_package = "github-release"
 cargo_out_dir = "dist/github-release"
@@ -42,7 +42,7 @@ strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/cargo-release"
-distribution_path = ".codex/distributions/cargo-release"
+distribution_path = ".verzly/distributions/cargo-release"
 cargo_binary = "cargo-release"
 cargo_package = "cargo-release"
 cargo_out_dir = "dist/cargo-release"
@@ -63,7 +63,7 @@ strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/tauri-release"
-distribution_path = ".codex/distributions/tauri-release"
+distribution_path = ".verzly/distributions/tauri-release"
 cargo_binary = "tauri-release"
 cargo_package = "tauri-release"
 cargo_out_dir = "dist/tauri-release"
@@ -84,7 +84,7 @@ strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/rust-cache"
-distribution_path = ".codex/distributions/rust-cache"
+distribution_path = ".verzly/distributions/rust-cache"
 cargo_binary = "rust-cache"
 cargo_package = "rust-cache"
 cargo_out_dir = "dist/rust-cache"
@@ -105,7 +105,7 @@ strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/android-signing"
-distribution_path = ".codex/distributions/android-signing"
+distribution_path = ".verzly/distributions/android-signing"
 cargo_binary = "android-signing"
 cargo_package = "android-signing"
 cargo_out_dir = "dist/android-signing"
@@ -120,13 +120,34 @@ include_scopes = ["android-signing", "all"]
 include_paths = ["crates/android-signing/"]
 
 [[release.targets]]
+name = "ios-signing"
+path = "crates/ios-signing"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
+repository = "verzly/ios-signing"
+distribution_path = ".verzly/distributions/ios-signing"
+cargo_binary = "ios-signing"
+cargo_package = "ios-signing"
+cargo_out_dir = "dist/ios-signing"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/ios-signing/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "ios-signing-v"
+generate_notes = false
+include_scopes = ["ios-signing", "all"]
+include_paths = ["crates/ios-signing/"]
+
+[[release.targets]]
 name = "repository"
 path = "crates/repository"
 strategy = "self-hosted"
 workflow = "custom"
 source_kind = "cargo-package"
 repository = "verzly/repository"
-distribution_path = ".codex/distributions/repository"
+distribution_path = ".verzly/distributions/repository"
 cargo_binary = "repository"
 cargo_package = "repository"
 cargo_out_dir = "dist/repository"
@@ -173,6 +194,9 @@ redirect_gradle = true
 
 [rust_cache.cargo]
 target_dir = "rust/packages/{package}/target"
+
+[rust_cache.generated]
+paths = []
 
 [rust_cache.env]
 GRADLE_USER_HOME = "android/gradle"

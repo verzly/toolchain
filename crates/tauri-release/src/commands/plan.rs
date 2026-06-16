@@ -13,6 +13,15 @@ pub fn run(args: CommonArgs) -> Result<()> {
         if platform.enabled {
             println!("platform:     {name}");
             println!("  strategy:  {:?}", platform.strategy);
+            if let Some(host_os) = platform.required_host_os.as_deref() {
+                println!("  host os:   {host_os}");
+            }
+            if !platform.required_commands.is_empty() {
+                println!("  commands:  {}", platform.required_commands.join(", "));
+            }
+            if !platform.required_env.is_empty() {
+                println!("  env:       {}", platform.required_env.join(", "));
+            }
             println!("  command:   {}", platform.command);
             for artifact in &platform.artifacts {
                 println!("  artifact:  {artifact}");

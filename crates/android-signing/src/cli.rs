@@ -28,6 +28,8 @@ pub enum Commands {
     PrintSecrets(PrintSecretsArgs),
     #[command(name = "write-github-env")]
     WriteGithubEnv(WriteGithubEnvArgs),
+    #[command(name = "check-env")]
+    CheckEnv(CheckEnvArgs),
     #[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
     Doctor,
 }
@@ -132,6 +134,18 @@ pub struct WriteGithubEnvArgs {
     pub alias: String,
 }
 
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+pub struct CheckEnvArgs {
+    /// Also require ANDROID_SIGNING_CERT_SHA256 for fingerprint verification workflows.
+    #[arg(long, default_value_t = false)]
+    pub require_fingerprint: bool,
+
+    /// Additional environment variable names to require. Repeatable.
+    #[arg(long = "require")]
+    pub required: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +189,23 @@ mod tests {
         assert_eq!(args.path, PathBuf::from("release.jks"));
         assert_eq!(args.alias, "release-key");
         assert_eq!(args.expected_sha256, "AA:BB");
+    }
+
+    #[test]
+    fn parses_check_env_options() {
+        let cli = Cli::parse_from([
+            "android-signing",
+            "check-env",
+            "--require-fingerprint",
+            "--require",
+            "ANDROID_KEYSTORE_PATH",
+        ]);
+
+        let Commands::CheckEnv(args) = cli.command else {
+            panic!("expected check-env command");
+        };
+
+        assert!(args.require_fingerprint);
+        assert_eq!(args.required, vec!["ANDROID_KEYSTORE_PATH"]);
     }
 }

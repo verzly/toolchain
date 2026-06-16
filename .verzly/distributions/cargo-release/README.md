@@ -96,7 +96,7 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | Output | Value | Purpose |
 | --- | --- | --- |
 | `bin-path` | Absolute path to the installed executable | Use this when a later step should invoke the exact binary path instead of relying on `PATH`. |
-| `host-target` | Rust-style host target such as `x86_64-unknown-linux-gnu` | Shows which release asset was selected for the current runner. |
+| `host-target` | Asset target such as `linux-x64`, `macos-arm64`, or `windows-x64` | Shows which release asset was selected for the current runner. |
 
 ### CLI usage
 
@@ -135,14 +135,17 @@ Use the README for workflow-level guidance and the command help for the exact ar
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. Prints enabled targets, strategies, commands, and artifacts. |
+| `--release-target` | No | inferred when only one release target exists | Release target name from `[[release.targets]]` | Selects which Datarose release target supplies cargo package, binary, output, and enabled target keys. |
 
 #### `build`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
+| `--release-target` | No | inferred when only one release target exists | Release target name from `[[release.targets]]` | Selects which Datarose release target to build. Required when the config has multiple release targets. |
 | `-v`, `--version` | No | Package/runtime value when available | Version string such as `1.2.3` | Used in artifact file names through the `{version}` template value. |
 | `--target` | No | all enabled targets | Target key from `[targets.<key>]`, for example `linux-x64` | Builds only one configured target. Fails if the key is unknown or disabled. |
+| `--output` | No | configured output directory | Directory path | Overrides the configured output directory for this invocation. |
 | `--dry-run` | No | `false` | Boolean flag | Prints commands and planned artifact work without running build commands or copying files. |
 
 #### `clean`
@@ -150,12 +153,14 @@ Use the README for workflow-level guidance and the command help for the exact ar
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `datarose.toml` | File path | Reads the config and removes generated output directories owned by this tool. |
+| `--release-target` | No | inferred when only one release target exists | Release target name from `[[release.targets]]` | Selects which Datarose release target owns the output directory. |
 
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
 | --- | --- | --- | --- | --- |
 | `-c`, `--config` | No | `datarose.toml` | File path | Checks local tool availability and reports obvious target configuration issues. |
+| `--release-target` | No | inferred when only one release target exists | Release target name from `[[release.targets]]` | Selects which Datarose release target to inspect. |
 
 ## Configuration
 
@@ -180,6 +185,27 @@ triple = "x86_64-unknown-linux-gnu"
 strategy = "host"
 command = "cargo build --release -p my-tool"
 artifacts = ["target/release/my-tool"]
+required_env = []
+```
+
+When using `datarose.toml` release targets, keep public release metadata in `[[release.targets]]` and put build-specific overrides under `[cargo_release]`:
+
+```toml
+[[release.targets]]
+name = "my-tool"
+cargo_binary = "my-tool"
+cargo_package = "my-tool"
+cargo_targets = ["linux-x64", "windows-x64"]
+
+[cargo_release.build]
+container_engine = "podman"
+default_strategy = "container"
+
+[cargo_release.targets.windows-x64]
+strategy = "container"
+image = "ghcr.io/acme/rust-windows-cross:latest"
+command = "cargo build --release -p my-tool --target x86_64-pc-windows-gnu"
+artifacts = ["target/x86_64-pc-windows-gnu/release/my-tool.exe"]
 ```
 
 | Field | Accepted values | Purpose |
@@ -199,6 +225,7 @@ artifacts = ["target/release/my-tool"]
 | `targets.<key>.command` | Shell command | Build command to execute. |
 | `targets.<key>.artifacts` | List of paths or globs | Files to copy into the output directory after a successful build. |
 | `targets.<key>.env` | Key/value map | Environment variables passed to the build command. |
+| `targets.<key>.required_env` | List of names | Environment variables that must be present before the target runs. Missing values fail the target early with a clear message. |
 
 ## Practical workflows
 
@@ -221,6 +248,18 @@ cargo-release build --config datarose.toml --version 1.4.0 --target linux-x64
 
 Use `--dry-run` before changing container images or commands. It shows what would run without creating artifacts.
 
+### Configure a container target
+
+```toml
+[cargo_release.targets.linux-x64]
+strategy = "container"
+image = "ghcr.io/acme/rust-linux-release:latest"
+command = "cargo build --release -p my-tool --target x86_64-unknown-linux-gnu"
+artifacts = ["target/x86_64-unknown-linux-gnu/release/my-tool"]
+```
+
+Container targets are explicit by design. You choose the Docker or Podman image and the exact command; `cargo-release` runs it, then collects the configured files.
+
 ### Keep local machines clean
 
 ```sh
@@ -240,11 +279,10 @@ If a target is skipped, check `targets.<name>.enabled`. If a container target fa
 Release assets are named by tool, version, and host target. Typical examples:
 
 ```text
-cargo-release-v1.2.3-x86_64-unknown-linux-gnu
-cargo-release-v1.2.3-aarch64-unknown-linux-gnu
-cargo-release-v1.2.3-x86_64-apple-darwin
-cargo-release-v1.2.3-aarch64-apple-darwin
-cargo-release-v1.2.3-x86_64-pc-windows-msvc.exe
+cargo-release-v1.2.3-linux-x64
+cargo-release-v1.2.3-macos-x64
+cargo-release-v1.2.3-macos-arm64
+cargo-release-v1.2.3-windows-x64.exe
 ```
 
 Checksum files use the same name with `.sha256` appended. The action verifies them when the runner has `sha256sum` or `shasum`.

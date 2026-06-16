@@ -24,6 +24,30 @@ pub fn run(args: CommonArgs) -> Result<()> {
         {
             println!("platform {name}: missing container image");
         }
+        if let Some(host_os) = platform.required_host_os.as_deref() {
+            println!("platform {name} host requirement: {host_os}");
+        }
+        for command in &platform.required_commands {
+            println!(
+                "platform {name} command {command}: {}",
+                available_text(process::available(command))
+            );
+        }
+        for env_name in &platform.required_env {
+            let present = platform
+                .env
+                .get(env_name)
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| {
+                    std::env::var(env_name)
+                        .map(|value| !value.trim().is_empty())
+                        .unwrap_or(false)
+                });
+            println!(
+                "platform {name} env {env_name}: {}",
+                available_text(present)
+            );
+        }
     }
     Ok(())
 }

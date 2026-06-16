@@ -121,6 +121,8 @@ When the action is used through a moving ref such as `@latest`, `@next`, `@v1`, 
 | `install-only` | No | `"false"` | String `"true"` or `"false"` | When `"true"`, the action only installs the executable and adds it to `PATH`. When `"false"`, it installs and immediately runs the executable with `args`. |
 | `args` | No | `--help` | Any valid CLI argument string for the executable | Passed to the installed executable when `install-only` is not `"true"`. Quote values carefully because this string is evaluated by the shell. |
 | `working-directory` | No | `.` | Relative or absolute path | Directory where the executable runs when `install-only` is not `"true"`. |
+| `check-signing-secrets` | No | `"false"` | String `"true"` or `"false"` | When `"true"`, the action verifies that the required Android signing environment variables are present before running `args`. |
+| `require-fingerprint` | No | `"false"` | String `"true"` or `"false"` | When `"true"` and `check-signing-secrets` is also `"true"`, the action also requires `ANDROID_SIGNING_CERT_SHA256`. |
 
 ### Action outputs
 
@@ -140,6 +142,7 @@ android-signing fingerprint android-release.jks --alias release-key
 android-signing verify-fingerprint android-release.jks --alias release-key --expected-sha256 AA:BB:CC
 android-signing print-secrets android-release.jks --alias release-key
 android-signing write-github-env android-release.jks --alias release-key
+android-signing check-env --require-fingerprint
 ```
 
 
@@ -224,6 +227,15 @@ Writes non-password signing values to the file referenced by `$GITHUB_ENV`.
 | `path` | Yes | none | File path | Keystore file to encode. |
 | `-a`, `--alias` | No | `release-key` | String | Alias written as `ANDROID_KEY_ALIAS`. |
 
+#### `check-env`
+
+Checks that CI provided the expected Android signing environment variables without printing secret values.
+
+| Argument | Required | Default | Accepted values | Purpose |
+| --- | --- | --- | --- | --- |
+| `--require-fingerprint` | No | `false` | Boolean flag | Also requires `ANDROID_SIGNING_CERT_SHA256`, which is normally used before `verify-fingerprint`. |
+| `--require <name>` | No | none | Environment variable name; repeatable | Adds project-specific required values to the preflight check. |
+
 #### `doctor`
 
 | Argument | Required | Default | Accepted values | Purpose |
@@ -277,7 +289,15 @@ Base64 is transport encoding, not encryption. The base64 value is still sensitiv
 
 - name: Verify Android release signing key
   uses: verzly/android-signing@v1
+  env:
+    ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+    ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    ANDROID_SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
   with:
+    check-signing-secrets: "true"
+    require-fingerprint: "true"
     args: >-
       verify-fingerprint
       "$RUNNER_TEMP/android-release.jks"
@@ -296,7 +316,7 @@ If any secret is missing or the fingerprint does not match, the release job shou
 - name: Build Android release
   uses: verzly/tauri-release@v1
   with:
-    platform: android
+    args: build --config datarose.toml --platform android
   env:
     ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-release.jks
     ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}

@@ -857,7 +857,7 @@ pub fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
         }
 
         if target.distribution_path.is_empty() && !target.name.is_empty() && !assetless {
-            target.distribution_path = format!(".codex/distributions/{}", target.name);
+            target.distribution_path = format!(".verzly/distributions/{}", target.name);
         }
         if !assetless {
             if target.cargo_binary.is_empty() && !target.name.is_empty() {
@@ -1325,7 +1325,7 @@ source_repository = "verzly/toolchain"
 [[release.targets]]
 name = "repository"
 repository = "verzly/repository"
-distribution_path = ".codex/distributions/repository"
+distribution_path = ".verzly/distributions/repository"
 cargo_binary = "repository"
 "#,
         )

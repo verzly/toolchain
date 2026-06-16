@@ -16,6 +16,14 @@ pub struct ArtifactRecord {
     pub sha256: Option<String>,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, Serialize)]
+pub struct SkippedPlatform {
+    pub platform: String,
+    pub reasons: Vec<String>,
+    pub next_steps: Vec<String>,
+}
+
 pub fn collect(
     platform_name: &str,
     project_root: &Path,

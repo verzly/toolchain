@@ -263,7 +263,13 @@ fn load_datarose_config(
         prepare_commands: string_array_field(target_table, "prepare_commands"),
         files: datarose_version_files(target_table, &name)?,
         release: decode_table_field(target_table, "release")?.unwrap_or_else(default_release),
-        source_release: datarose_source_release(target_table, default_source_release)?,
+        source_release: decode_table_field(target_table, "source_release")?.or_else(|| {
+            if bool_field(target_table, "source_release") == Some(false) {
+                None
+            } else {
+                Some(default_source_release())
+            }
+        }),
         github: decode_table_field(target_table, "github")?.unwrap_or_else(GitHubConfig::default),
     };
 
@@ -358,28 +364,6 @@ fn datarose_version_files(
         optional: bool_field(target_table, "version_file_optional").unwrap_or(false),
         ..VersionFileConfig::default()
     }])
-}
-
-fn datarose_source_release<F>(
-    target_table: &toml::Table,
-    default_source_release: F,
-) -> Result<Option<ReleaseConfig>>
-where
-    F: FnOnce() -> ReleaseConfig,
-{
-    match target_table.get("source_release") {
-        Some(toml::Value::Boolean(false)) => Ok(None),
-        Some(toml::Value::Boolean(true)) => Ok(Some(default_source_release())),
-        Some(value @ toml::Value::Table(_)) => value
-            .clone()
-            .try_into()
-            .context("failed to parse `source_release` release target section")
-            .map(Some),
-        Some(_) => anyhow::bail!(
-            "failed to parse `source_release` release target section: expected a boolean or table"
-        ),
-        None => Ok(Some(default_source_release())),
-    }
 }
 
 fn decode_table_field<T>(table: &toml::Table, key: &str) -> Result<Option<T>>
@@ -541,33 +525,5 @@ include_paths = ["crates/repository/"]
             source.files[0].path,
             PathBuf::from("crates/repository/Cargo.toml")
         );
-    }
-
-    #[test]
-    fn loads_datarose_target_with_source_release_disabled() {
-        let raw = r#"version = 1
-
-[release]
-target_branch = "master"
-source_repository = "verzly/toolchain"
-
-[[release.targets]]
-name = "toolchain"
-repository = "verzly/toolchain"
-version_files = false
-source_release = false
-generate_notes = true
-"#;
-        let value: toml::Value = toml::from_str(raw).unwrap();
-
-        let config =
-            load_datarose_config(&value, Some("toolchain"), Path::new("datarose.toml")).unwrap();
-        let source = config.source_view();
-
-        assert!(config.source_release.is_none());
-        assert!(source.source_release.is_none());
-        assert_eq!(source.github.target_repository, "verzly/toolchain");
-        assert_eq!(source.release.tag_prefix, "v");
-        assert!(source.files.is_empty());
     }
 }

@@ -93,6 +93,7 @@ pub struct TargetConfig {
     pub command: String,
     pub artifacts: Vec<String>,
     pub env: BTreeMap<String, String>,
+    pub required_env: Vec<String>,
 }
 
 impl TargetConfig {
@@ -105,6 +106,7 @@ impl TargetConfig {
             command: "cargo build --release --target x86_64-unknown-linux-gnu".to_string(),
             artifacts: vec![format!("target/x86_64-unknown-linux-gnu/release/{binary}")],
             env: BTreeMap::new(),
+            required_env: Vec::new(),
         }
     }
 }
@@ -210,6 +212,8 @@ fn load_datarose_config(
         }
     }
 
+    apply_cargo_release_overrides(value, &mut config)?;
+
     if config.targets.is_empty() {
         anyhow::bail!(
             "{} has no enabled cargo release targets for {}",
@@ -219,6 +223,100 @@ fn load_datarose_config(
     }
 
     Ok(config)
+}
+
+fn apply_cargo_release_overrides(value: &toml::Value, config: &mut Config) -> Result<()> {
+    let Some(root) = value.get("cargo_release") else {
+        return Ok(());
+    };
+
+    if let Some(project) = root.get("project").and_then(toml::Value::as_table) {
+        if let Some(path) = string_field(project, "root") {
+            config.project.root = PathBuf::from(path);
+        }
+        if let Some(binary) = string_field(project, "binary") {
+            config.project.binary = binary;
+        }
+    }
+
+    if let Some(build) = root.get("build").and_then(toml::Value::as_table) {
+        if let Some(path) = string_field(build, "out_dir") {
+            config.build.out_dir = PathBuf::from(path);
+        }
+        if let Some(strategy) = string_field(build, "default_strategy") {
+            config.build.default_strategy = parse_strategy(&strategy)?;
+        }
+        if let Some(engine) = string_field(build, "container_engine") {
+            config.build.container_engine = parse_container_engine(&engine)?;
+        }
+    }
+
+    if let Some(artifacts) = root.get("artifacts").and_then(toml::Value::as_table) {
+        if let Some(value) = bool_field(artifacts, "checksum") {
+            config.artifacts.checksum = value;
+        }
+        if let Some(value) = bool_field(artifacts, "manifest") {
+            config.artifacts.manifest = value;
+        }
+        if let Some(template) = string_field(artifacts, "name_template") {
+            config.artifacts.name_template = template;
+        }
+    }
+
+    let Some(targets) = root.get("targets").and_then(toml::Value::as_table) else {
+        return Ok(());
+    };
+
+    for (name, value) in targets {
+        let Some(table) = value.as_table() else {
+            continue;
+        };
+        let mut target = config
+            .targets
+            .remove(name)
+            .unwrap_or_else(|| TargetConfig::linux_default(&config.project.binary));
+        apply_target_overrides(name, table, &mut target)?;
+        config.targets.insert(name.clone(), target);
+    }
+
+    Ok(())
+}
+
+fn apply_target_overrides(
+    name: &str,
+    table: &toml::value::Table,
+    target: &mut TargetConfig,
+) -> Result<()> {
+    if let Some(value) = bool_field(table, "enabled") {
+        target.enabled = value;
+    }
+    if let Some(value) = string_field(table, "triple") {
+        target.triple = value;
+    }
+    if let Some(value) = string_field(table, "strategy") {
+        target.strategy = parse_strategy(&value)?;
+    }
+    if table.contains_key("image") {
+        target.image = optional_string_field(table, "image");
+    }
+    if let Some(value) = string_field(table, "command") {
+        target.command = value;
+    }
+    if let Some(value) = string_array_field(table, "artifacts") {
+        target.artifacts = value;
+    }
+    if let Some(value) = string_table_field(table, "env") {
+        target.env = value;
+    }
+    if let Some(value) = string_array_field(table, "required_env") {
+        target.required_env = value;
+    }
+
+    if target.strategy == Strategy::Container && target.image.is_none() && target.enabled {
+        anyhow::bail!("cargo release target `{name}` uses container strategy but has no image");
+    }
+
+    Ok(())
 }
 
 fn select_release_target<'a>(
@@ -278,11 +376,24 @@ fn datarose_cargo_target(binary: &str, package: &str, target_name: &str) -> Opti
             ".cache/rust/packages/toolchain/target/release/{executable}"
         )],
         env: BTreeMap::new(),
+        required_env: Vec::new(),
     })
 }
 
 fn string_field(table: &toml::value::Table, key: &str) -> Option<String> {
     table.get(key)?.as_str().map(ToOwned::to_owned)
+}
+
+fn optional_string_field(table: &toml::value::Table, key: &str) -> Option<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn bool_field(table: &toml::value::Table, key: &str) -> Option<bool> {
+    table.get(key)?.as_bool()
 }
 
 fn string_array_field(table: &toml::value::Table, key: &str) -> Option<Vec<String>> {
@@ -294,6 +405,34 @@ fn string_array_field(table: &toml::value::Table, key: &str) -> Option<Vec<Strin
             .filter_map(|value| value.as_str().map(ToOwned::to_owned))
             .collect(),
     )
+}
+
+fn string_table_field(table: &toml::value::Table, key: &str) -> Option<BTreeMap<String, String>> {
+    Some(
+        table
+            .get(key)?
+            .as_table()?
+            .iter()
+            .filter_map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_string())))
+            .collect(),
+    )
+}
+
+fn parse_strategy(value: &str) -> Result<Strategy> {
+    match value {
+        "auto" => Ok(Strategy::Auto),
+        "host" => Ok(Strategy::Host),
+        "container" => Ok(Strategy::Container),
+        _ => anyhow::bail!("invalid cargo release strategy `{value}`"),
+    }
+}
+
+fn parse_container_engine(value: &str) -> Result<ContainerEngine> {
+    match value {
+        "docker" => Ok(ContainerEngine::Docker),
+        "podman" => Ok(ContainerEngine::Podman),
+        _ => anyhow::bail!("invalid cargo release container engine `{value}`"),
+    }
 }
 
 pub fn write_default_config(path: &Path, force: bool) -> Result<()> {
@@ -315,7 +454,7 @@ release_all = false
 [[release.targets]]
 name = "my-tool"
 repository = "owner/my-tool"
-distribution_path = ".codex/distributions/my-tool"
+distribution_path = ".verzly/distributions/my-tool"
 cargo_binary = "my-tool"
 cargo_package = "my-tool"
 cargo_out_dir = "dist/my-tool"
@@ -369,5 +508,51 @@ mod tests {
         assert!(error.to_string().contains("config already exists"));
 
         write_default_config(&path, true).expect("force overwrites config");
+    }
+
+    #[test]
+    fn datarose_config_accepts_container_target_overrides() {
+        let path = temp_path("datarose-container");
+        fs::write(
+            &path,
+            r#"version = 1
+
+[release]
+enabled = true
+
+[[release.targets]]
+name = "demo"
+repository = "acme/demo"
+cargo_binary = "demo"
+cargo_package = "demo"
+cargo_out_dir = "dist/demo"
+cargo_targets = ["linux-x64", "windows-x64"]
+
+[cargo_release.build]
+container_engine = "docker"
+default_strategy = "container"
+
+[cargo_release.targets.windows-x64]
+strategy = "container"
+image = "ghcr.io/acme/windows-cross:latest"
+command = "cargo build --release -p demo --target x86_64-pc-windows-gnu"
+artifacts = ["target/x86_64-pc-windows-gnu/release/demo.exe"]
+required_env = ["WINDOWS_SDK_READY"]
+"#,
+        )
+        .expect("write datarose config");
+
+        let config = load(&path, Some("demo")).expect("load datarose config");
+        let windows = config.targets.get("windows-x64").expect("windows target");
+
+        assert_eq!(config.build.container_engine, ContainerEngine::Docker);
+        assert_eq!(config.build.default_strategy, Strategy::Container);
+        assert_eq!(windows.strategy, Strategy::Container);
+        assert_eq!(
+            windows.image.as_deref(),
+            Some("ghcr.io/acme/windows-cross:latest")
+        );
+        assert!(windows.command.contains("x86_64-pc-windows-gnu"));
+        assert_eq!(windows.required_env, vec!["WINDOWS_SDK_READY"]);
     }
 }
