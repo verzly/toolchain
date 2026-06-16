@@ -5,7 +5,7 @@ use crate::domain::ReleasePlan;
 use anyhow::{Context, Result};
 use semver::Version;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -81,6 +81,7 @@ pub struct FloatingTagOptions {
     pub stable_line_tags: bool,
     pub latest_tag: bool,
     pub next_tag: bool,
+    pub prune: bool,
 }
 
 impl FloatingTagOptions {
@@ -89,6 +90,7 @@ impl FloatingTagOptions {
             stable_line_tags: plan.floating_tags,
             latest_tag: plan.latest_tag,
             next_tag: plan.next_tag,
+            prune: false,
         }
     }
 
@@ -109,11 +111,12 @@ impl FloatingTagOptions {
             stable_line_tags: true,
             latest_tag: true,
             next_tag: true,
+            prune: false,
         }
     }
 
     pub fn any(&self) -> bool {
-        self.stable_line_tags || self.latest_tag || self.next_tag
+        self.stable_line_tags || self.latest_tag || self.next_tag || self.prune
     }
 }
 
@@ -211,6 +214,7 @@ pub fn refresh_floating_tags_for_tag(
                 stable_line_tags: false,
                 latest_tag: options.latest_tag,
                 next_tag: options.next_tag,
+                prune: options.prune,
             },
             dry_run,
         )?;
@@ -233,7 +237,7 @@ pub fn refresh_highest_floating_tags(
     }
 
     let tags = list_matching_tags(repository, tag_prefix)?;
-    let analysis = analyze_floating_tags(tags, tag_prefix, tag_suffix);
+    let analysis = analyze_floating_tags(&tags, tag_prefix, tag_suffix);
 
     if options.stable_line_tags {
         if analysis.highest_major.is_empty() && analysis.highest_minor.is_empty() {
@@ -241,6 +245,10 @@ pub fn refresh_highest_floating_tags(
                 "no stable tags matching {}X.Y.Z{} were found in {repository}",
                 tag_prefix, tag_suffix
             );
+        }
+
+        for stale_tag in stale_stable_floating_tags(&tags, &analysis, tag_prefix, tag_suffix) {
+            delete_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
         }
 
         for (version, tag) in analysis.highest_minor.values() {
@@ -265,6 +273,10 @@ pub fn refresh_highest_floating_tags(
             let floating_tag = format!("{}{}{}", tag_prefix, version.major, tag_suffix);
             upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
         }
+    } else if options.prune {
+        for stale_tag in existing_stable_floating_tags(&tags, tag_prefix, tag_suffix) {
+            delete_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
+        }
     }
 
     if options.latest_tag {
@@ -272,7 +284,12 @@ pub fn refresh_highest_floating_tags(
             update_named_floating_tag(repository, latest_tag_name, tag, dry_run)?;
         } else {
             println!("no stable release tags were found for latest tag in {repository}");
+            if options.prune {
+                delete_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
+            }
         }
+    } else if options.prune {
+        delete_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
     }
 
     if options.next_tag {
@@ -284,7 +301,12 @@ pub fn refresh_highest_floating_tags(
             update_named_floating_tag(repository, next_tag_name, tag, dry_run)?;
         } else {
             println!("no preview or stable release tags were found for next tag in {repository}");
+            if options.prune {
+                delete_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
+            }
         }
+    } else if options.prune {
+        delete_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
     }
 
     Ok(())
@@ -313,14 +335,14 @@ struct FloatingTagAnalysis {
 }
 
 fn analyze_floating_tags(
-    tags: Vec<String>,
+    tags: &[String],
     tag_prefix: &str,
     tag_suffix: &str,
 ) -> FloatingTagAnalysis {
     let mut analysis = FloatingTagAnalysis::default();
 
     for tag in tags {
-        let Some(version) = version_from_tag(&tag, tag_prefix, tag_suffix) else {
+        let Some(version) = version_from_tag(tag, tag_prefix, tag_suffix) else {
             continue;
         };
 
@@ -339,13 +361,76 @@ fn analyze_floating_tags(
                 version.clone(),
                 tag.clone(),
             );
-            keep_optional_highest(&mut analysis.latest_stable, version, tag);
+            keep_optional_highest(&mut analysis.latest_stable, version, tag.clone());
         } else {
-            keep_optional_highest(&mut analysis.next_preview, version, tag);
+            keep_optional_highest(&mut analysis.next_preview, version, tag.clone());
         }
     }
 
     analysis
+}
+
+fn stale_stable_floating_tags(
+    tags: &[String],
+    analysis: &FloatingTagAnalysis,
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> Vec<String> {
+    let expected = expected_stable_floating_tags(analysis, tag_prefix, tag_suffix);
+    existing_stable_floating_tags(tags, tag_prefix, tag_suffix)
+        .into_iter()
+        .filter(|tag| !expected.contains(tag))
+        .collect()
+}
+
+fn expected_stable_floating_tags(
+    analysis: &FloatingTagAnalysis,
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> HashSet<String> {
+    let mut expected = HashSet::new();
+
+    for (version, _) in analysis.highest_minor.values() {
+        expected.insert(format!(
+            "{}{}.{}{}",
+            tag_prefix, version.major, version.minor, tag_suffix
+        ));
+    }
+
+    for (version, _) in analysis.highest_major.values() {
+        expected.insert(format!("{}{}{}", tag_prefix, version.major, tag_suffix));
+    }
+
+    expected
+}
+
+fn existing_stable_floating_tags(
+    tags: &[String],
+    tag_prefix: &str,
+    tag_suffix: &str,
+) -> Vec<String> {
+    let mut floating_tags = tags
+        .iter()
+        .filter(|tag| stable_floating_tag_level(tag, tag_prefix, tag_suffix).is_some())
+        .cloned()
+        .collect::<Vec<_>>();
+    floating_tags.sort();
+    floating_tags.dedup();
+    floating_tags
+}
+
+fn stable_floating_tag_level(tag: &str, tag_prefix: &str, tag_suffix: &str) -> Option<()> {
+    let version = tag.strip_prefix(tag_prefix)?.strip_suffix(tag_suffix)?;
+    let parts = version.split('.').collect::<Vec<_>>();
+    match parts.as_slice() {
+        [major] if is_numeric_identifier(major) => Some(()),
+        [major, minor] if is_numeric_identifier(major) && is_numeric_identifier(minor) => Some(()),
+        _ => None,
+    }
+}
+
+fn is_numeric_identifier(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit())
 }
 
 pub fn version_from_tag_for_release(
@@ -850,6 +935,30 @@ fn upsert_tag_ref(repository: &str, tag: &str, target_sha: &str, dry_run: bool) 
     Ok(())
 }
 
+fn delete_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
+    if dry_run {
+        println!("gh api --method DELETE repos/{repository}/git/refs/tags/{tag}");
+        return Ok(());
+    }
+
+    if tag_ref_exists(repository, tag)? {
+        run_gh(
+            &[
+                "api".to_string(),
+                "--method".to_string(),
+                "DELETE".to_string(),
+                format!("repos/{repository}/git/refs/tags/{tag}"),
+            ],
+            false,
+        )?;
+        println!("deleted floating tag {repository}@{tag}");
+    } else {
+        println!("floating tag {repository}@{tag} does not exist");
+    }
+
+    Ok(())
+}
+
 fn tag_ref_exists(repository: &str, tag: &str) -> Result<bool> {
     let endpoint = format!("repos/{repository}/git/ref/tags/{tag}");
     let status = Command::new("gh")
@@ -1300,23 +1409,58 @@ mod tests {
 
     #[test]
     fn floating_tag_analysis_finds_latest_stable_and_next_preview() {
-        let analysis = analyze_floating_tags(
-            vec![
-                "v1.0.0".to_string(),
-                "v1.1.0".to_string(),
-                "v1.2.0-rc.1".to_string(),
-                "v2.0.0-alpha.1".to_string(),
-                "v1.1".to_string(),
-                "latest".to_string(),
-            ],
-            "v",
-            "",
-        );
+        let tags = vec![
+            "v1.0.0".to_string(),
+            "v1.1.0".to_string(),
+            "v1.2.0-rc.1".to_string(),
+            "v2.0.0-alpha.1".to_string(),
+            "v1.1".to_string(),
+            "latest".to_string(),
+        ];
+        let analysis = analyze_floating_tags(&tags, "v", "");
 
         assert_eq!(analysis.latest_stable.expect("latest stable").1, "v1.1.0");
         assert_eq!(
             analysis.next_preview.expect("next preview").1,
             "v2.0.0-alpha.1"
+        );
+    }
+
+    #[test]
+    fn stale_stable_floating_tags_find_lines_without_release_targets() {
+        let tags = vec![
+            "v0".to_string(),
+            "v0.3".to_string(),
+            "v0.3.0".to_string(),
+            "v0.4".to_string(),
+            "v0.4.0-rc.1".to_string(),
+            "v1".to_string(),
+            "v1.0".to_string(),
+            "v1.0.0".to_string(),
+            "v2".to_string(),
+            "latest".to_string(),
+        ];
+        let analysis = analyze_floating_tags(&tags, "v", "");
+
+        assert_eq!(
+            stale_stable_floating_tags(&tags, &analysis, "v", ""),
+            vec!["v0.4".to_string(), "v2".to_string()]
+        );
+    }
+
+    #[test]
+    fn stable_floating_tag_detection_respects_prefix_and_suffix() {
+        let tags = vec![
+            "tool-v1-dist".to_string(),
+            "tool-v1.2-dist".to_string(),
+            "tool-v1.2.3-dist".to_string(),
+            "tool-v1.2.3-rc.1-dist".to_string(),
+            "v1".to_string(),
+        ];
+
+        assert_eq!(
+            existing_stable_floating_tags(&tags, "tool-v", "-dist"),
+            vec!["tool-v1-dist".to_string(), "tool-v1.2-dist".to_string()]
         );
     }
 

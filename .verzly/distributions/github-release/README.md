@@ -218,6 +218,7 @@ Creates or repairs moving tags for already-published releases. With `tag_prefix 
 | `--all` | No | `false` | Boolean flag | Scan all matching SemVer tags, find the highest release for each enabled moving tag, and update them. |
 | `--repository` | No | Config value | `owner/repo` | Override `github.target_repository`. |
 | `--force` | No | `false` | Boolean flag | Run and enable all moving tag families even when they are disabled in config. |
+| `--prune` | No | `false` | Boolean flag | Use with `--all` to delete stale moving tags while repairing. Disabled moving tag families are removed instead of recreated. |
 | `--dry-run` | No | `false` | Boolean flag | Print planned ref updates without writing tags. |
 
 #### `abort`
@@ -330,6 +331,12 @@ Backfill missing floating tags after older releases already exist:
 
 ```sh
 github-release floating-tags --config datarose.toml --all
+```
+
+Fully reconcile floating tags after deleting or repairing releases:
+
+```sh
+github-release floating-tags --config datarose.toml --all --prune
 ```
 
 Use a custom release body when the public repository should not show generated notes:

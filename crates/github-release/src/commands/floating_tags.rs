@@ -12,6 +12,9 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
     if selected_modes != 1 {
         anyhow::bail!("use exactly one of --version, --tag, or --all");
     }
+    if args.prune && !args.all {
+        anyhow::bail!("--prune can only be used with --all");
+    }
 
     let config = config::load(&args.config, args.release_target.as_deref())?;
     let options = if args.force {
@@ -21,7 +24,12 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
             stable_line_tags: config.release.floating_tags,
             latest_tag: config.release.latest_tag,
             next_tag: config.release.next_tag,
+            prune: args.prune,
         }
+    };
+    let options = FloatingTagOptions {
+        prune: args.prune,
+        ..options
     };
 
     if !options.any() {

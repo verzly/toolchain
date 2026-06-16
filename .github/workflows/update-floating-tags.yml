@@ -38,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      prune:
+        description: "Delete stale or disabled floating tags while repairing."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -74,6 +79,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
+          PRUNE: ${{ inputs.prune }}
         shell: bash
         run: |
           set -euo pipefail
@@ -128,6 +134,9 @@ jobs:
 
             if [ "${DRY_RUN}" = "true" ]; then
               args+=(--dry-run)
+            fi
+            if [ "${PRUNE}" = "true" ]; then
+              args+=(--prune)
             fi
 
             echo "Updating floating tags for ${repository}."

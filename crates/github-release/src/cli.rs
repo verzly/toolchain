@@ -292,6 +292,10 @@ pub struct FloatingTagsArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
+    /// Delete stale floating tags during a full --all repair.
+    #[arg(long, default_value_t = false)]
+    pub prune: bool,
+
     /// Print commands without executing them.
     #[arg(long, default_value_t = false)]
     pub dry_run: bool,
@@ -451,6 +455,7 @@ mod tests {
             "--config",
             "release.toml",
             "--all",
+            "--prune",
             "--dry-run",
         ]);
 
@@ -460,6 +465,7 @@ mod tests {
 
         assert_eq!(args.config, PathBuf::from("release.toml"));
         assert!(args.all);
+        assert!(args.prune);
         assert!(args.dry_run);
     }
 }
