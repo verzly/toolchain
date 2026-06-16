@@ -1531,6 +1531,51 @@ mod tests {
     }
 
     #[test]
+    fn rollback_analysis_reuses_remaining_stable_release_when_exact_tag_is_missing() {
+        let tags = vec![
+            "v0".to_string(),
+            "v0.3".to_string(),
+            "v0.3.0".to_string(),
+            "v0.4".to_string(),
+            "v0.4.0-rc.1".to_string(),
+            "latest".to_string(),
+            "next".to_string(),
+        ];
+        let analysis = analyze_floating_tags(&tags, "v", "");
+
+        assert_eq!(
+            analysis.latest_stable.as_ref().expect("latest stable").1,
+            "v0.3.0"
+        );
+        assert_eq!(
+            analysis.next_preview.as_ref().expect("next preview").1,
+            "v0.4.0-rc.1"
+        );
+        assert_eq!(
+            stale_stable_floating_tags(&tags, &analysis, "v", ""),
+            vec!["v0.4".to_string()]
+        );
+    }
+
+    #[test]
+    fn expected_stable_floating_tags_drop_removed_minor_line_after_rollback() {
+        let tags = vec![
+            "v0".to_string(),
+            "v0.3".to_string(),
+            "v0.3.0".to_string(),
+            "v0.4".to_string(),
+            "v0.4.0-rc.1".to_string(),
+        ];
+        let analysis = analyze_floating_tags(&tags, "v", "");
+        let expected = expected_stable_floating_tags(&analysis, "v", "");
+
+        assert_eq!(
+            expected,
+            HashSet::from(["v0".to_string(), "v0.3".to_string()])
+        );
+    }
+
+    #[test]
     fn stable_floating_tag_detection_respects_prefix_and_suffix() {
         let tags = vec![
             "tool-v1-dist".to_string(),
