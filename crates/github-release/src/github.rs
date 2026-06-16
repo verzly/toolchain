@@ -260,7 +260,7 @@ pub fn refresh_highest_floating_tags(
         }
 
         for stale_tag in stale_stable_floating_tags(&tags, &analysis, tag_prefix, tag_suffix) {
-            delete_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
+            delete_release_and_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
         }
 
         for (version, tag) in analysis.highest_minor.values() {
@@ -273,6 +273,7 @@ pub fn refresh_highest_floating_tags(
                 "{}{}.{}{}",
                 tag_prefix, version.major, version.minor, tag_suffix
             );
+            delete_release_if_exists(repository, &floating_tag, dry_run)?;
             upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
         }
 
@@ -283,11 +284,12 @@ pub fn refresh_highest_floating_tags(
                 resolve_tag_target_sha(repository, tag)?
             };
             let floating_tag = format!("{}{}{}", tag_prefix, version.major, tag_suffix);
+            delete_release_if_exists(repository, &floating_tag, dry_run)?;
             upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
         }
     } else if options.prune {
         for stale_tag in existing_stable_floating_tags(&tags, tag_prefix, tag_suffix) {
-            delete_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
+            delete_release_and_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
         }
     }
 
@@ -297,11 +299,11 @@ pub fn refresh_highest_floating_tags(
         } else {
             println!("no stable release tags were found for latest tag in {repository}");
             if options.prune {
-                delete_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
+                delete_release_and_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
             }
         }
     } else if options.prune {
-        delete_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
+        delete_release_and_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
     }
 
     if options.next_tag {
@@ -314,11 +316,11 @@ pub fn refresh_highest_floating_tags(
         } else {
             println!("no preview or stable release tags were found for next tag in {repository}");
             if options.prune {
-                delete_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
+                delete_release_and_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
             }
         }
     } else if options.prune {
-        delete_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
+        delete_release_and_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
     }
 
     Ok(())
@@ -330,6 +332,7 @@ fn update_named_floating_tag(
     target_tag: &str,
     dry_run: bool,
 ) -> Result<()> {
+    delete_release_if_exists(repository, floating_tag, dry_run)?;
     let target_sha = if dry_run {
         format!("<resolved target of {target_tag}>")
     } else {
@@ -949,8 +952,7 @@ fn upsert_tag_ref(repository: &str, tag: &str, target_sha: &str, dry_run: bool) 
 
 pub fn delete_release_and_tag(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
     ensure_repository_access(repository, dry_run)?;
-    delete_release_if_exists(repository, tag, dry_run)?;
-    delete_tag_ref_if_exists(repository, tag, dry_run)
+    delete_release_and_tag_ref_if_exists(repository, tag, dry_run)
 }
 
 pub fn ensure_repository_access(repository: &str, dry_run: bool) -> Result<()> {
@@ -1032,6 +1034,11 @@ pub fn delete_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> R
     }
 
     Ok(())
+}
+
+fn delete_release_and_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
+    delete_release_if_exists(repository, tag, dry_run)?;
+    delete_tag_ref_if_exists(repository, tag, dry_run)
 }
 
 fn tag_ref_exists(repository: &str, tag: &str) -> Result<bool> {
