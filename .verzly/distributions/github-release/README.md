@@ -113,6 +113,7 @@ github-release plan --version 1.2.3 --config datarose.toml --release-target my-t
 github-release prepare --version 1.2.3 --config datarose.toml
 github-release finalize --version 1.2.3 --config datarose.toml --assets dist
 github-release publish --version 1.2.3 --config datarose.toml --assets dist
+github-release delete --version 1.2.3 --config datarose.toml
 github-release floating-tags --config datarose.toml --all
 github-release abort --version 1.2.3 --config datarose.toml
 ```
@@ -205,6 +206,21 @@ Creates a GitHub Release without preparing or merging a branch. This is the dist
 | `--update-floating-tags` | No | `false` | Boolean flag | Update stable major/minor floating tags such as `v1.2` and `v1` after publishing. Config can enable this without the flag. |
 | `--update-latest-tag` | No | `false` | Boolean flag | Update the configured `latest` tag after publishing. |
 | `--update-next-tag` | No | `false` | Boolean flag | Update the configured `next` tag after publishing. |
+
+#### `delete`
+
+Deletes a configured release version and repairs moving tags from the remaining release tags. `rollback` is an alias for this command.
+
+| Argument | Required | Default | Accepted values | Purpose |
+| --- | --- | --- | --- | --- |
+| `-v`, `--version` | Yes | none | SemVer / prerelease version | Version to delete. The configured tag prefix and suffix decide the concrete tag. |
+| `-c`, `--config` | No | `datarose.toml` | File path | Config file to read. |
+| `--release-target` | No | none | Target name from `datarose.toml` | Selects one release target from a shared Datarose config. |
+| `--repository` | No | Config value or current repository | `owner/repo` | Override the target release repository. |
+| `--source-repository` | No | Config value | `owner/repo` | Override the source repository whose source tag should be deleted. |
+| `--skip-target` | No | `false` | Boolean flag | Skip deleting the configured target release and tag. Useful when a workflow must use a different token for the source repository. |
+| `--skip-source` | No | `false` | Boolean flag | Skip deleting the configured source release/tag surface. Useful when deleting only a public distribution repository with a distribution token. |
+| `--dry-run` | No | `false` | Boolean flag | Print planned GitHub operations without deleting releases or tags. |
 
 #### `floating-tags`
 
@@ -337,6 +353,19 @@ Fully reconcile floating tags after deleting or repairing releases:
 
 ```sh
 github-release floating-tags --config datarose.toml --all --prune
+```
+
+Delete a published version and repair configured moving tags:
+
+```sh
+github-release delete --version 1.4.0 --config datarose.toml
+```
+
+When the target release repository and source repository require different tokens, run the two surfaces separately:
+
+```sh
+github-release delete --version 1.4.0 --config datarose.toml --release-target my-tool --skip-source
+github-release delete --version 1.4.0 --config datarose.toml --release-target my-tool --skip-target
 ```
 
 Use a custom release body when the public repository should not show generated notes:

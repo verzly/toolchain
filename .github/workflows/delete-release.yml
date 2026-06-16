@@ -55,7 +55,6 @@ jobs:
 
       - name: Delete selected release surfaces
         env:
-          SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_TOKEN: ${{ github.token }}
           DISTRIBUTION_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
           INPUT_VERSION: ${{ inputs.version }}
@@ -75,7 +74,6 @@ jobs:
             exit 1
           fi
 
-          release_tag="v${version}"
           expected_confirmation="DELETE ${version}"
 
           if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
@@ -100,81 +98,23 @@ jobs:
             fi
           done
 
-          check_repository_access() {
-            local repository="$1"
-            local token="$2"
-            local token_name="$3"
-
-            if ! GH_TOKEN="${token}" gh api "repos/${repository}" >/dev/null 2>&1; then
-              echo "::error::${token_name} cannot access ${repository}. Check the token owner, scopes, and repository access."
-              exit 1
-            fi
-          }
-
-          check_repository_access "${SOURCE_REPOSITORY}" "${SOURCE_TOKEN}" "GITHUB_TOKEN"
-          for tool in "${selected_tools[@]}"; do
-            check_repository_access "verzly/${tool}" "${DISTRIBUTION_TOKEN}" "DISTRIBUTION_REPO_TOKEN"
-          done
-
-          delete_release_if_exists() {
-            local repository="$1"
-            local tag="$2"
-            local token="$3"
-            local release_id
-
-            if release_id="$(GH_TOKEN="${token}" gh api "repos/${repository}/releases/tags/${tag}" --jq '.id' 2>/dev/null)"; then
-              if ! [[ "${release_id}" =~ ^[0-9]+$ ]]; then
-                echo "::error::GitHub returned an invalid release id for ${tag} in ${repository}."
-                exit 1
-              fi
-              echo "Deleting release ${tag} from ${repository}."
-              GH_TOKEN="${token}" gh api --method DELETE "repos/${repository}/releases/${release_id}" >/dev/null
-            else
-              echo "::notice::Release ${tag} does not exist in ${repository}."
-            fi
-          }
-
-          delete_tag_if_exists() {
-            local repository="$1"
-            local tag="$2"
-            local token="$3"
-
-            if GH_TOKEN="${token}" gh api "repos/${repository}/git/ref/tags/${tag}" >/dev/null 2>&1; then
-              echo "Deleting tag ${tag} from ${repository}."
-              GH_TOKEN="${token}" gh api --method DELETE "repos/${repository}/git/refs/tags/${tag}" >/dev/null
-            else
-              echo "::notice::Tag ${tag} does not exist in ${repository}."
-            fi
-          }
-
-          repair_distribution_floating_tags() {
-            local tool="$1"
-            local token="$2"
-
-            echo "Repairing floating tags for verzly/${tool}."
-            GH_TOKEN="${token}" github-release floating-tags \
-              --config datarose.toml \
-              --release-target "${tool}" \
-              --all \
-              --prune
-          }
-
-          delete_release_and_tag() {
-            local repository="$1"
-            local tag="$2"
-            local token="$3"
-
-            delete_release_if_exists "${repository}" "${tag}" "${token}"
-            delete_tag_if_exists "${repository}" "${tag}" "${token}"
-          }
-
           if [ "${TARGET}" = "all" ] || [ "${TARGET}" = "toolchain" ]; then
-            delete_release_and_tag "${SOURCE_REPOSITORY}" "${release_tag}" "${SOURCE_TOKEN}"
+            GH_TOKEN="${SOURCE_TOKEN}" github-release delete \
+              --config datarose.toml \
+              --release-target toolchain \
+              --version "${version}"
           fi
 
           for tool in "${selected_tools[@]}"; do
-            distribution_repository="verzly/${tool}"
-            delete_release_and_tag "${distribution_repository}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
-            repair_distribution_floating_tags "${tool}" "${DISTRIBUTION_TOKEN}"
-            delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}" "${SOURCE_TOKEN}"
+            GH_TOKEN="${DISTRIBUTION_TOKEN}" github-release delete \
+              --config datarose.toml \
+              --release-target "${tool}" \
+              --version "${version}" \
+              --skip-source
+
+            GH_TOKEN="${SOURCE_TOKEN}" github-release delete \
+              --config datarose.toml \
+              --release-target "${tool}" \
+              --version "${version}" \
+              --skip-target
           done

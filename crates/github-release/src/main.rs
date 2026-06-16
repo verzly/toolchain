@@ -23,6 +23,7 @@ fn main() -> Result<()> {
         Commands::Finalize(args) => commands::finalize::run(args),
         Commands::FinalizeBatch(args) => commands::finalize::run_batch(args),
         Commands::Publish(args) => commands::publish::run(args),
+        Commands::Delete(args) => commands::delete::run(args),
         Commands::FloatingTags(args) => commands::floating_tags::run(args),
         Commands::Abort(args) => commands::abort::run(args),
     }
