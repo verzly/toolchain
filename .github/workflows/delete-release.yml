@@ -111,9 +111,11 @@ jobs:
             local token="$3"
             local release_id
 
-            release_id="$(GH_TOKEN="${token}" gh api "repos/${repository}/releases/tags/${tag}" --jq '.id' 2>/dev/null || true)"
-
-            if [ -n "${release_id}" ]; then
+            if release_id="$(GH_TOKEN="${token}" gh api "repos/${repository}/releases/tags/${tag}" --jq '.id' 2>/dev/null)"; then
+              if ! [[ "${release_id}" =~ ^[0-9]+$ ]]; then
+                echo "::error::GitHub returned an invalid release id for ${tag} in ${repository}."
+                exit 1
+              fi
               echo "Deleting release ${tag} from ${repository}."
               GH_TOKEN="${token}" gh api --method DELETE "repos/${repository}/releases/${release_id}" >/dev/null
             else
