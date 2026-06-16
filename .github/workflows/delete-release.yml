@@ -42,6 +42,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap github-release
+        run: |
+          cargo build --release -p github-release
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
       - name: Delete selected release surfaces
         env:
           SOURCE_REPOSITORY: ${{ github.repository }}
@@ -66,6 +77,11 @@ jobs:
 
           release_tag="v${version}"
           expected_confirmation="DELETE ${version}"
+          version_without_build="${version%%+*}"
+          version_without_prerelease="${version_without_build%%-*}"
+          major="${version_without_prerelease%%.*}"
+          minor_patch="${version_without_prerelease#*.}"
+          minor="${minor_patch%%.*}"
 
           if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
             echo "::error::Confirmation mismatch. Type '${expected_confirmation}' to delete release and tag data."
@@ -136,6 +152,28 @@ jobs:
             fi
           }
 
+          delete_distribution_floating_tags_for_version() {
+            local repository="$1"
+            local token="$2"
+
+            delete_tag_if_exists "${repository}" "v${major}.${minor}" "${token}"
+            delete_tag_if_exists "${repository}" "v${major}" "${token}"
+            delete_tag_if_exists "${repository}" "latest" "${token}"
+            delete_tag_if_exists "${repository}" "next" "${token}"
+          }
+
+          repair_distribution_floating_tags() {
+            local tool="$1"
+            local token="$2"
+
+            echo "Repairing floating tags for verzly/${tool}."
+            GH_TOKEN="${token}" github-release floating-tags \
+              --config datarose.toml \
+              --release-target "${tool}" \
+              --all \
+              --force
+          }
+
           delete_release_and_tag() {
             local repository="$1"
             local tag="$2"
@@ -150,6 +188,9 @@ jobs:
           fi
 
           for tool in "${selected_tools[@]}"; do
-            delete_release_and_tag "verzly/${tool}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
+            distribution_repository="verzly/${tool}"
+            delete_release_and_tag "${distribution_repository}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
+            delete_distribution_floating_tags_for_version "${distribution_repository}" "${DISTRIBUTION_TOKEN}"
+            repair_distribution_floating_tags "${tool}" "${DISTRIBUTION_TOKEN}"
             delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}" "${SOURCE_TOKEN}"
           done
