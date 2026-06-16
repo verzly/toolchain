@@ -160,6 +160,10 @@ fn target_repository_for_tag_updates(plan: &ReleasePlan, dry_run: bool) -> Resul
     current_repository()
 }
 
+pub fn target_repository_for_plan(plan: &ReleasePlan, dry_run: bool) -> Result<String> {
+    target_repository_for_tag_updates(plan, dry_run)
+}
+
 pub struct FloatingTagUpdate<'a> {
     pub repository: &'a str,
     pub full_tag: &'a str,
@@ -233,6 +237,14 @@ pub fn refresh_highest_floating_tags(
     dry_run: bool,
 ) -> Result<()> {
     if !options.any() {
+        return Ok(());
+    }
+
+    if dry_run {
+        println!(
+            "gh api --paginate repos/{repository}/git/matching-refs/tags/{tag_prefix} --jq .[].ref"
+        );
+        println!("floating tag repair would reconcile configured moving tags in {repository}");
         return Ok(());
     }
 
@@ -935,7 +947,70 @@ fn upsert_tag_ref(repository: &str, tag: &str, target_sha: &str, dry_run: bool) 
     Ok(())
 }
 
-fn delete_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
+pub fn delete_release_and_tag(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
+    ensure_repository_access(repository, dry_run)?;
+    delete_release_if_exists(repository, tag, dry_run)?;
+    delete_tag_ref_if_exists(repository, tag, dry_run)
+}
+
+pub fn ensure_repository_access(repository: &str, dry_run: bool) -> Result<()> {
+    if dry_run {
+        println!("gh api repos/{repository}");
+        return Ok(());
+    }
+
+    gh_output(&["api".to_string(), format!("repos/{repository}")])
+        .with_context(|| format!("failed to access {repository}"))?;
+    Ok(())
+}
+
+pub fn delete_release_if_exists(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
+    if dry_run {
+        println!("gh api repos/{repository}/releases/tags/{tag} --jq .id");
+        println!("gh api --method DELETE repos/{repository}/releases/<release-id>");
+        return Ok(());
+    }
+
+    let endpoint = format!("repos/{repository}/releases/tags/{tag}");
+    let output = Command::new("gh")
+        .args(["api", endpoint.as_str(), "--jq", ".id"])
+        .stdin(Stdio::null())
+        .output()
+        .with_context(|| format!("failed to inspect release {tag} in {repository}"))?;
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stdout.contains("Not Found")
+            || stdout.contains("404")
+            || stderr.contains("Not Found")
+            || stderr.contains("404")
+        {
+            println!("release {repository}@{tag} does not exist");
+            return Ok(());
+        }
+        anyhow::bail!("gh api failed while inspecting release {tag} in {repository}: {stderr}");
+    }
+
+    let release_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if release_id.is_empty() || !release_id.chars().all(|ch| ch.is_ascii_digit()) {
+        anyhow::bail!("GitHub returned an invalid release id for {tag} in {repository}");
+    }
+
+    run_gh(
+        &[
+            "api".to_string(),
+            "--method".to_string(),
+            "DELETE".to_string(),
+            format!("repos/{repository}/releases/{release_id}"),
+        ],
+        false,
+    )?;
+    println!("deleted release {repository}@{tag}");
+    Ok(())
+}
+
+pub fn delete_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> Result<()> {
     if dry_run {
         println!("gh api --method DELETE repos/{repository}/git/refs/tags/{tag}");
         return Ok(());
@@ -951,9 +1026,9 @@ fn delete_tag_ref_if_exists(repository: &str, tag: &str, dry_run: bool) -> Resul
             ],
             false,
         )?;
-        println!("deleted floating tag {repository}@{tag}");
+        println!("deleted tag {repository}@{tag}");
     } else {
-        println!("floating tag {repository}@{tag} does not exist");
+        println!("tag {repository}@{tag} does not exist");
     }
 
     Ok(())
@@ -1164,7 +1239,7 @@ fn gh_output(args: &[String]) -> Result<Vec<u8>> {
     Ok(output.stdout)
 }
 
-fn current_repository() -> Result<String> {
+pub fn current_repository() -> Result<String> {
     let output = gh_output(&[
         "repo".to_string(),
         "view".to_string(),

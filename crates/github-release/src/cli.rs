@@ -31,6 +31,9 @@ pub enum Commands {
     FinalizeBatch(FinalizeBatchArgs),
     /// Publish a GitHub Release without preparing or merging a branch.
     Publish(PublishArgs),
+    /// Delete a release version, its tags, and repair configured moving tags.
+    #[command(alias = "rollback")]
+    Delete(DeleteArgs),
     /// Create or refresh moving tags for published releases.
     FloatingTags(FloatingTagsArgs),
     /// Delete a temporary release branch after a failed build.
@@ -263,6 +266,42 @@ pub struct PublishArgs {
 
 #[derive(Args, Debug)]
 #[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+pub struct DeleteArgs {
+    /// Version to delete. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
+    #[arg(short, long)]
+    pub version: String,
+
+    /// Config path.
+    #[arg(short, long, default_value = "datarose.toml")]
+    pub config: PathBuf,
+
+    /// Release target name inside datarose.toml.
+    #[arg(long)]
+    pub release_target: Option<String>,
+
+    /// Override target repository instead of using github.target_repository.
+    #[arg(long)]
+    pub repository: Option<String>,
+
+    /// Override source repository instead of using github.source_repository.
+    #[arg(long)]
+    pub source_repository: Option<String>,
+
+    /// Skip deleting the configured target release repository surface.
+    #[arg(long, default_value_t = false)]
+    pub skip_target: bool,
+
+    /// Skip deleting the configured source repository tag surface.
+    #[arg(long, default_value_t = false)]
+    pub skip_source: bool,
+
+    /// Print GitHub commands without executing them.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
 pub struct FloatingTagsArgs {
     /// Config path.
     #[arg(short, long, default_value = "datarose.toml")]
@@ -466,6 +505,32 @@ mod tests {
         assert_eq!(args.config, PathBuf::from("release.toml"));
         assert!(args.all);
         assert!(args.prune);
+        assert!(args.dry_run);
+    }
+
+    #[test]
+    fn parses_delete_source_only() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "rollback",
+            "--version",
+            "1.2.3",
+            "--config",
+            "datarose.toml",
+            "--release-target",
+            "cargo-release",
+            "--skip-target",
+            "--dry-run",
+        ]);
+
+        let Commands::Delete(args) = cli.command else {
+            panic!("expected delete command");
+        };
+
+        assert_eq!(args.version, "1.2.3");
+        assert_eq!(args.config, PathBuf::from("datarose.toml"));
+        assert_eq!(args.release_target.as_deref(), Some("cargo-release"));
+        assert!(args.skip_target);
         assert!(args.dry_run);
     }
 }
