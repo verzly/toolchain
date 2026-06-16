@@ -77,11 +77,6 @@ jobs:
 
           release_tag="v${version}"
           expected_confirmation="DELETE ${version}"
-          version_without_build="${version%%+*}"
-          version_without_prerelease="${version_without_build%%-*}"
-          major="${version_without_prerelease%%.*}"
-          minor_patch="${version_without_prerelease#*.}"
-          minor="${minor_patch%%.*}"
 
           if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
             echo "::error::Confirmation mismatch. Type '${expected_confirmation}' to delete release and tag data."
@@ -152,16 +147,6 @@ jobs:
             fi
           }
 
-          delete_distribution_floating_tags_for_version() {
-            local repository="$1"
-            local token="$2"
-
-            delete_tag_if_exists "${repository}" "v${major}.${minor}" "${token}"
-            delete_tag_if_exists "${repository}" "v${major}" "${token}"
-            delete_tag_if_exists "${repository}" "latest" "${token}"
-            delete_tag_if_exists "${repository}" "next" "${token}"
-          }
-
           repair_distribution_floating_tags() {
             local tool="$1"
             local token="$2"
@@ -171,7 +156,7 @@ jobs:
               --config datarose.toml \
               --release-target "${tool}" \
               --all \
-              --force
+              --prune
           }
 
           delete_release_and_tag() {
@@ -190,7 +175,6 @@ jobs:
           for tool in "${selected_tools[@]}"; do
             distribution_repository="verzly/${tool}"
             delete_release_and_tag "${distribution_repository}" "${release_tag}" "${DISTRIBUTION_TOKEN}"
-            delete_distribution_floating_tags_for_version "${distribution_repository}" "${DISTRIBUTION_TOKEN}"
             repair_distribution_floating_tags "${tool}" "${DISTRIBUTION_TOKEN}"
             delete_tag_if_exists "${SOURCE_REPOSITORY}" "${tool}-v${version}" "${SOURCE_TOKEN}"
           done
