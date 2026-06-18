@@ -212,6 +212,14 @@ fn paint(tone: Tone, value: &str) -> String {
     format!("{code}{value}\x1b[0m")
 }
 
+fn action_surface_for_target(target: &crate::project::ReleaseTarget) -> &str {
+    if target.name == "verzly" {
+        "action.yml, actions/"
+    } else {
+        "-"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,13 +232,5 @@ mod tests {
     #[test]
     fn compact_text_truncates_with_three_dot_ellipsis() {
         assert_eq!(compact_text("abcdefghijklmnopqrstuvwxyz", 10), "abcdefg...");
-    }
-}
-
-fn action_surface_for_target(target: &crate::project::ReleaseTarget) -> &str {
-    if target.name == "verzly" {
-        "action.yml, actions/"
-    } else {
-        "-"
     }
 }

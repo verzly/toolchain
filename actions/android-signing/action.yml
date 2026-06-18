@@ -1,5 +1,5 @@
-name: Verzly iOS Signing
-description: Install Verzly and validate iOS signing configuration for GitHub release workflows.
+name: Verzly Android Signing
+description: Install Verzly and validate Android signing configuration for GitHub release workflows.
 author: Verzly
 
 inputs:
@@ -12,7 +12,7 @@ inputs:
     required: false
     default: verzly/toolchain
   github-token:
-    description: Token used by the GitHub CLI to download release assets.
+    description: Token used to download release assets.
     required: false
     default: ""
   optional:
@@ -20,15 +20,15 @@ inputs:
     required: false
     default: "true"
   run-doctor:
-    description: Run `verzly ios-signing doctor` before checking secrets.
+    description: Run `verzly android-signing doctor` before checking secrets.
     required: false
     default: "true"
   check-env:
-    description: Validate required iOS signing environment variables.
+    description: Validate required Android signing environment variables.
     required: false
     default: "true"
-  skip-apple-team-id:
-    description: Do not require APPLE_TEAM_ID during the environment check.
+  require-fingerprint:
+    description: Also require ANDROID_SIGNING_CERT_SHA256 during the environment check.
     required: false
     default: "false"
   extra-required-env:
@@ -36,11 +36,7 @@ inputs:
     required: false
     default: ""
   args:
-    description: Optional additional ios-signing command to run after preflight, without the leading `verzly ios-signing`.
-    required: false
-    default: ""
-  command:
-    description: Deprecated alias for args. Prefer args in new workflows.
+    description: Optional additional android-signing command to run after preflight, without the leading `verzly android-signing`.
     required: false
     default: ""
   working-directory:
@@ -54,7 +50,7 @@ inputs:
 
 outputs:
   signing-ready:
-    description: true when all required signing variables are present.
+    description: true when all required signing variables are present, false when missing, or unknown when checks are skipped.
     value: ${{ steps.check.outputs.signing-ready }}
   missing-secrets:
     description: Comma-separated list of missing required signing variables.
@@ -86,18 +82,18 @@ runs:
         VERZLY_CREATE_SHIMS: "true"
       run: ${{ github.action_path }}/../_shared/install-verzly.sh
 
-    - name: Inspect iOS signing tools
+    - name: Inspect Android signing tools
       if: ${{ inputs['run-doctor'] == 'true' }}
       shell: bash
-      run: verzly ios-signing doctor
+      run: verzly android-signing doctor
 
-    - name: Check iOS signing environment
+    - name: Check Android signing environment
       id: check
       shell: bash
       env:
         INPUT_CHECK_ENV: ${{ inputs['check-env'] }}
         INPUT_OPTIONAL: ${{ inputs.optional }}
-        INPUT_SKIP_APPLE_TEAM_ID: ${{ inputs['skip-apple-team-id'] }}
+        INPUT_REQUIRE_FINGERPRINT: ${{ inputs['require-fingerprint'] }}
         INPUT_EXTRA_REQUIRED_ENV: ${{ inputs['extra-required-env'] }}
       run: |
         set -euo pipefail
@@ -107,13 +103,13 @@ runs:
             echo "signing-ready=unknown"
             echo "missing-secrets="
           } >> "${GITHUB_OUTPUT}"
-          echo "::notice::iOS signing environment check was skipped."
+          echo "::notice::Android signing environment check was skipped."
           exit 0
         fi
 
-        args=(ios-signing check-env)
-        if [ "${INPUT_SKIP_APPLE_TEAM_ID}" = "true" ]; then
-          args+=(--skip-apple-team-id)
+        args=(android-signing check-env)
+        if [ "${INPUT_REQUIRE_FINGERPRINT}" = "true" ]; then
+          args+=(--require-fingerprint)
         fi
 
         normalized_extra="$(printf '%s\n' "${INPUT_EXTRA_REQUIRED_ENV}" | tr ', ' '\n\n' | sed '/^$/d')"
@@ -143,27 +139,18 @@ runs:
 
         if [ "${ready}" = "false" ]; then
           if [ "${INPUT_OPTIONAL}" = "true" ]; then
-            echo "::notice::iOS signing is not configured; missing: ${missing:-unknown}. The workflow may skip iOS release artifacts."
+            echo "::notice::Android signing is not configured; missing: ${missing:-unknown}. The workflow may skip Android release artifacts."
             exit 0
           fi
-          echo "::error::iOS signing is not configured; missing: ${missing:-unknown}."
+          echo "::error::Android signing is not configured; missing: ${missing:-unknown}."
           if [ "${status}" -eq 0 ]; then
             exit 1
           fi
           exit "${status}"
         fi
 
-    - name: Run additional iOS signing command
-      if: ${{ inputs.args != '' || inputs.command != '' }}
+    - name: Run additional Android signing command
+      if: ${{ inputs.args != '' }}
       shell: bash
       working-directory: ${{ inputs['working-directory'] }}
-      env:
-        INPUT_ARGS: ${{ inputs.args }}
-        INPUT_COMMAND: ${{ inputs.command }}
-      run: |
-        set -euo pipefail
-        if [ -n "${INPUT_ARGS}" ]; then
-          verzly ios-signing ${INPUT_ARGS}
-        else
-          verzly ios-signing ${INPUT_COMMAND}
-        fi
+      run: verzly android-signing ${{ inputs.args }}
