@@ -122,7 +122,7 @@ fn validate_quality(table: &Table, issues: &mut Vec<String>) {
     validate_unknown_keys(
         table,
         "quality",
-        &["workspace", "languages", "js_runner", "rust"],
+        &["workspace", "languages", "js_runner", "configs", "rust"],
         issues,
     );
     expect_string(table, "workspace", "quality.workspace", issues);
@@ -145,8 +145,37 @@ fn validate_quality(table: &Table, issues: &mut Vec<String>) {
             ));
         }
     }
+    if let Some(configs) = table_field(table, "configs", "quality.configs", issues) {
+        validate_quality_configs(configs, issues);
+    }
     if let Some(rust) = table_field(table, "rust", "quality.rust", issues) {
         validate_quality_rust(rust, issues);
+    }
+}
+
+fn validate_quality_configs(table: &Table, issues: &mut Vec<String>) {
+    validate_unknown_keys(
+        table,
+        "quality.configs",
+        &["directory", "dir", "placement", "update_mode"],
+        issues,
+    );
+    expect_string(table, "directory", "quality.configs.directory", issues);
+    expect_string(table, "dir", "quality.configs.dir", issues);
+    if let Some(placement) = expect_string(table, "placement", "quality.configs.placement", issues)
+    {
+        if !matches!(placement.as_str(), "root" | "directory" | "config") {
+            issues.push(format!(
+                "quality.configs.placement has unsupported value `{placement}`; expected one of root, directory"
+            ));
+        }
+    }
+    if let Some(mode) = expect_string(table, "update_mode", "quality.configs.update_mode", issues) {
+        if !matches!(mode.as_str(), "preserve" | "replace" | "force") {
+            issues.push(format!(
+                "quality.configs.update_mode has unsupported value `{mode}`; expected one of preserve, replace"
+            ));
+        }
     }
 }
 
@@ -788,6 +817,11 @@ workspace = "."
 languages = ["rust", "js"]
 js_runner = "pnpm"
 
+[quality.configs]
+directory = "config"
+placement = "directory"
+update_mode = "preserve"
+
 [quality.rust]
 manage_cargo_lints = true
 manage_clippy_config = true
@@ -916,12 +950,14 @@ targets = "verzly"
 
         let issues = validate_datarose_schema(&path).unwrap();
 
-        insta::assert_snapshot!(issues.join("\n"), @"datarose.toml.version must be an integer; found string
+        insta::assert_snapshot!(issues.join("\n"), @r###"
+datarose.toml.version must be an integer; found string
 quality.languages[1] must be a string; found integer
 quality.js_runner has unsupported value `bower`; expected one of aube, npm, pnpm, yarn, bun
 release.enabled must be a boolean; found string
 release.target_branch must be a string; found integer
-release.targets must be an array of tables; found string");
+release.targets must be an array of tables; found string
+"###);
     }
 
     #[test]

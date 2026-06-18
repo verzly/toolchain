@@ -65,6 +65,9 @@
         },
         "rust": {
           "$ref": "#/$defs/rustQuality"
+        },
+        "configs": {
+          "$ref": "#/$defs/qualityConfigs"
         }
       }
     },
@@ -530,6 +533,34 @@
           "deny",
           "forbid"
         ]
+      }
+    },
+    "qualityConfigs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "root",
+            "directory",
+            "config"
+          ]
+        },
+        "update_mode": {
+          "type": "string",
+          "enum": [
+            "preserve",
+            "replace",
+            "force"
+          ]
+        }
       }
     }
   }

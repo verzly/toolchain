@@ -33,16 +33,22 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
     }];
 
     if profile.has_language(&Language::Rust) {
+        let rustfmt_config = shell_quote(&profile.quality_config_display("rustfmt.toml"));
+        let clippy_config_dir = shell_quote(&profile.quality_config_directory_display());
         format_steps.push(Step {
             name: "format-rust".into(),
-            check: profile.command("cargo fmt --all -- --check"),
-            fix: Some(profile.command("cargo fmt --all")),
+            check: profile.command(&format!(
+                "cargo fmt --all -- --config-path {rustfmt_config} --check"
+            )),
+            fix: Some(profile.command(&format!(
+                "cargo fmt --all -- --config-path {rustfmt_config}"
+            ))),
             stage: vec![profile.glob("**/*.rs")],
             depends: vec![],
         });
         quality_steps.push(Step {
             name: "lint-rust".into(),
-            check: profile.command("cargo clippy --workspace --all-targets -- -D warnings"),
+            check: profile.command(&format!("CLIPPY_CONF_DIR={clippy_config_dir} cargo clippy --workspace --all-targets -- -D warnings")),
             fix: None,
             stage: vec![],
             depends: vec!["format-rust".into(), "check-datarose".into()],
@@ -95,10 +101,14 @@ fn add_js_steps(
     format_steps: &mut Vec<Step>,
     quality_steps: &mut Vec<Step>,
 ) {
+    let oxfmt_config = shell_quote(&profile.quality_config_display(".oxfmtrc.json"));
+    let oxlint_config = shell_quote(&profile.quality_config_display(".oxlintrc.json"));
+    let vitest_config = shell_quote(&profile.quality_config_display("vitest.config.ts"));
+
     format_steps.push(Step {
         name: "format-js".into(),
-        check: profile.command("oxfmt --check ."),
-        fix: Some(profile.command("oxfmt .")),
+        check: profile.command(&format!("oxfmt --config {oxfmt_config} --check .")),
+        fix: Some(profile.command(&format!("oxfmt --config {oxfmt_config} ."))),
         stage: vec![
             profile.glob("package.json"),
             profile.glob("*.js"),
@@ -122,7 +132,7 @@ fn add_js_steps(
 
     quality_steps.push(Step {
         name: "lint-js".into(),
-        check: profile.command("oxlint ."),
+        check: profile.command(&format!("oxlint --config {oxlint_config} .")),
         fix: None,
         stage: vec![],
         depends: vec!["format-js".into(), "check-datarose".into()],
@@ -130,7 +140,7 @@ fn add_js_steps(
 
     quality_steps.push(Step {
         name: "test-js".into(),
-        check: profile.command("vitest run"),
+        check: profile.command(&format!("vitest run --config {vitest_config}")),
         fix: None,
         stage: vec![],
         depends: vec!["format-js".into(), "lint-js".into()],
@@ -142,17 +152,24 @@ fn add_php_steps(
     format_steps: &mut Vec<Step>,
     quality_steps: &mut Vec<Step>,
 ) {
+    let rector_config = shell_quote(&profile.quality_config_display("rector.php"));
+    let pest_config = shell_quote(&profile.quality_config_display("phpunit.xml.dist"));
+
     format_steps.push(Step {
         name: "format-php".into(),
-        check: profile.command("composer exec rector -- --dry-run"),
-        fix: Some(profile.command("composer exec rector")),
+        check: profile.command(&format!(
+            "composer exec rector -- --config {rector_config} --dry-run"
+        )),
+        fix: Some(profile.command(&format!("composer exec rector -- --config {rector_config}"))),
         stage: vec![profile.glob("composer.json"), profile.glob("**/*.php")],
         depends: vec![],
     });
 
     quality_steps.push(Step {
         name: "test-php".into(),
-        check: profile.command("composer exec pest"),
+        check: profile.command(&format!(
+            "composer exec pest -- --configuration {pest_config}"
+        )),
         fix: None,
         stage: vec![],
         depends: vec!["format-php".into(), "check-datarose".into()],
@@ -285,9 +302,15 @@ mod tests {
         let config = render_hk_config(&profile);
 
         assert!(config.contains("[\"format-rust\"]"));
-        assert!(config.contains("cd \\\"workspace/app\\\" && oxfmt --check ."));
-        assert!(config.contains("cd \\\"workspace/app\\\" && vitest run"));
-        assert!(config.contains("composer exec rector -- --dry-run"));
+        assert!(config.contains(
+            "cd \\\"workspace/app\\\" && oxfmt --config \\\"config/.oxfmtrc.json\\\" --check ."
+        ));
+        assert!(config.contains(
+            "cd \\\"workspace/app\\\" && vitest run --config \\\"config/vitest.config.ts\\\""
+        ));
+        assert!(
+            config.contains("composer exec rector -- --config \\\"config/rector.php\\\" --dry-run")
+        );
         assert!(config.contains("[\"pre-push\"]"));
         assert!(config.contains("windows = \"cmd /d /s /c\""));
         assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));

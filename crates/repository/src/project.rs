@@ -102,11 +102,75 @@ impl Default for RustQualityConfig {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum QualityConfigPlacement {
+    Root,
+    Directory,
+}
+
+impl QualityConfigPlacement {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Root => "root",
+            Self::Directory => "directory",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "root" => Some(Self::Root),
+            "directory" | "config" => Some(Self::Directory),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum QualityConfigUpdateMode {
+    Preserve,
+    Replace,
+}
+
+impl QualityConfigUpdateMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Preserve => "preserve",
+            Self::Replace => "replace",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "preserve" => Some(Self::Preserve),
+            "replace" | "force" => Some(Self::Replace),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityConfigFiles {
+    pub directory: PathBuf,
+    pub placement: QualityConfigPlacement,
+    pub update_mode: QualityConfigUpdateMode,
+}
+
+impl Default for QualityConfigFiles {
+    fn default() -> Self {
+        Self {
+            directory: PathBuf::from("config"),
+            placement: QualityConfigPlacement::Directory,
+            update_mode: QualityConfigUpdateMode::Preserve,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct QualityConfig {
     pub workspace: Option<PathBuf>,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
+    pub configs: QualityConfigFiles,
     pub rust: RustQualityConfig,
 }
 
@@ -358,6 +422,42 @@ impl ProjectProfile {
             .unwrap_or_else(|_| normalize_path(&self.config_path))
     }
 
+    pub fn quality_config_path(&self, file_name: &str) -> PathBuf {
+        match self.stored_config.quality.configs.placement {
+            QualityConfigPlacement::Root => self.workspace_root.join(file_name),
+            QualityConfigPlacement::Directory => self
+                .workspace_root
+                .join(&self.stored_config.quality.configs.directory)
+                .join(file_name),
+        }
+    }
+
+    pub fn quality_config_display(&self, file_name: &str) -> String {
+        let path = self.quality_config_path(file_name);
+        path.strip_prefix(&self.workspace_root)
+            .map(normalize_path)
+            .unwrap_or_else(|_| normalize_path(&path))
+    }
+
+    pub fn quality_config_directory_display(&self) -> String {
+        let path = match self.stored_config.quality.configs.placement {
+            QualityConfigPlacement::Root => self.workspace_root.clone(),
+            QualityConfigPlacement::Directory => self
+                .workspace_root
+                .join(&self.stored_config.quality.configs.directory),
+        };
+
+        let display = path
+            .strip_prefix(&self.workspace_root)
+            .map(normalize_path)
+            .unwrap_or_else(|_| normalize_path(&path));
+        if display.is_empty() {
+            ".".into()
+        } else {
+            display
+        }
+    }
+
     pub fn default_package_name(&self) -> String {
         self.root
             .file_name()
@@ -535,6 +635,22 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
     if let Some(runner) = &profile.js_runner {
         out.push_str(&format!("js_runner = \"{}\"\n", runner.as_str()));
     }
+
+    out.push_str("\n[quality.configs]\n");
+    out.push_str(&format!(
+        "directory = \"{}\"\n",
+        escape_toml(&normalize_path(
+            &profile.stored_config.quality.configs.directory
+        ))
+    ));
+    out.push_str(&format!(
+        "placement = \"{}\"\n",
+        profile.stored_config.quality.configs.placement.as_str()
+    ));
+    out.push_str(&format!(
+        "update_mode = \"{}\"\n",
+        profile.stored_config.quality.configs.update_mode.as_str()
+    ));
 
     if profile.has_language(&Language::Rust) {
         out.push_str("\n[quality.rust]\n");
@@ -812,6 +928,9 @@ pub fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
         let value = value.trim();
         match section.as_str() {
             "quality" | "" => apply_quality_value(&mut config.quality, key, value),
+            "quality.configs" => {
+                apply_quality_config_files_value(&mut config.quality.configs, key, value)
+            }
             "quality.rust" => apply_quality_rust_value(&mut config.quality.rust, key, value),
             "quality.rust.lints.rust" => {
                 apply_lint_value(&mut config.quality.rust.rust_lints, key, value)
@@ -1009,6 +1128,31 @@ fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
                 .into_iter()
                 .filter_map(|value| Language::from_str(&value))
                 .collect();
+        }
+        _ => {}
+    }
+}
+
+fn apply_quality_config_files_value(config: &mut QualityConfigFiles, key: &str, value: &str) {
+    match key {
+        "directory" | "dir" => {
+            if let Some(value) = parse_string(value) {
+                config.directory = PathBuf::from(value);
+            }
+        }
+        "placement" => {
+            if let Some(value) =
+                parse_string(value).and_then(|value| QualityConfigPlacement::from_str(&value))
+            {
+                config.placement = value;
+            }
+        }
+        "update_mode" => {
+            if let Some(value) =
+                parse_string(value).and_then(|value| QualityConfigUpdateMode::from_str(&value))
+            {
+                config.update_mode = value;
+            }
         }
         _ => {}
     }
@@ -1418,6 +1562,11 @@ mod tests {
 workspace = "."
 languages = ["rust"]
 
+[quality.configs]
+directory = "tools/config"
+placement = "directory"
+update_mode = "preserve"
+
 [quality.rust]
 manage_cargo_lints = true
 manage_clippy_config = false
@@ -1444,6 +1593,14 @@ cargo_binary = "repository"
         assert!(profile.release_enabled());
         assert_eq!(profile.stored_config.release.targets[0].name, "repository");
         assert!(!profile.stored_config.quality.rust.manage_clippy_config);
+        assert_eq!(
+            profile.stored_config.quality.configs.directory,
+            PathBuf::from("tools/config")
+        );
+        assert_eq!(
+            profile.quality_config_display("rustfmt.toml"),
+            "tools/config/rustfmt.toml"
+        );
         assert_eq!(
             profile
                 .stored_config
