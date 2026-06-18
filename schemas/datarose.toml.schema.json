@@ -2,18 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json",
   "title": "datarose.toml",
-  "description": "JSON Schema representation for datarose.toml. Add a top-level `\"$schema\" = \"https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json\"` entry so TOML editors and repository tooling can discover this schema without repository-local config. The project config file remains datarose.toml.",
+  "description": "JSON Schema representation for datarose.toml. TOML editors can discover this schema from the leading `#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json` directive in the config file. The project config file remains datarose.toml.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "$schema",
     "version"
   ],
   "properties": {
-    "$schema": {
-      "type": "string",
-      "const": "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json"
-    },
     "version": {
       "type": "integer",
       "const": 1

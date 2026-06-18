@@ -12,7 +12,7 @@ use toml::{Table, Value};
 
 pub const DATAROSE_SCHEMA_URL: &str =
     "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json";
-pub const DATAROSE_SCHEMA_KEY: &str = "$schema";
+pub const DATAROSE_SCHEMA_DIRECTIVE: &str = "#:schema";
 
 pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
     if !path.is_file() {
@@ -21,8 +21,8 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
 
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let value = match raw.parse::<Value>() {
-        Ok(value) => value,
+    let root = match raw.parse::<Table>() {
+        Ok(root) => root,
         Err(error) => {
             return Ok(vec![format!(
                 "{} has invalid TOML syntax: {error}",
@@ -31,38 +31,31 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
         }
     };
 
-    let Some(root) = value.as_table() else {
-        return Ok(vec!["datarose.toml must be a TOML table".into()]);
-    };
-
     let mut issues = Vec::new();
-    validate_schema_reference(root, &mut issues);
-    validate_root(root, &mut issues);
+    validate_schema_reference(&raw, &mut issues);
+    validate_root(&root, &mut issues);
     Ok(issues)
 }
 
-fn validate_schema_reference(root: &Table, issues: &mut Vec<String>) {
-    match root.get(DATAROSE_SCHEMA_KEY) {
-        Some(Value::String(value)) if value == DATAROSE_SCHEMA_URL => {}
-        Some(Value::String(value)) => issues.push(format!(
-            "datarose.toml.$schema must be `{DATAROSE_SCHEMA_URL}`; found `{value}`"
+fn validate_schema_reference(raw: &str, issues: &mut Vec<String>) {
+    let expected = format!("{DATAROSE_SCHEMA_DIRECTIVE} {DATAROSE_SCHEMA_URL}");
+    let first_content_line = raw.lines().map(str::trim).find(|line| !line.is_empty());
+
+    match first_content_line {
+        Some(line) if line == expected => {}
+        Some(line) if line.starts_with(DATAROSE_SCHEMA_DIRECTIVE) => issues.push(format!(
+            "datarose.toml schema directive must be `{expected}`; found `{line}`"
         )),
-        Some(value) => issues.push(format!(
-            "datarose.toml.$schema must be a string; found {}",
-            type_name(value)
-        )),
-        None => issues.push(format!(
-            "datarose.toml.$schema is missing; add `\"$schema\" = \"{DATAROSE_SCHEMA_URL}\"` as the first line"
+        _ => issues.push(format!(
+            "datarose.toml schema directive is missing; add `{expected}` as the first line"
         )),
     }
 }
-
 fn validate_root(root: &Table, issues: &mut Vec<String>) {
     validate_unknown_keys(
         root,
         "datarose.toml",
         &[
-            "$schema",
             "version",
             "quality",
             "release",
@@ -694,7 +687,7 @@ mod tests {
     fn accepts_current_schema_surface() {
         let path = temp_config(
             "valid",
-            r#""$schema" = "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json"
+            r#"#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
 version = 1
 
 [quality]
@@ -775,7 +768,7 @@ nam = "verzly"
 
         assert!(issues
             .iter()
-            .any(|issue| issue.contains("$schema is missing")));
+            .any(|issue| issue.contains("schema directive is missing")));
     }
 
     fn temp_config(name: &str, content: &str) -> std::path::PathBuf {

@@ -1,4 +1,4 @@
-"$schema" = "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json"
+#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
 # Managed by repository. Project-specific overrides are allowed.
 version = 1
 
