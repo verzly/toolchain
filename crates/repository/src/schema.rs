@@ -950,12 +950,14 @@ targets = "verzly"
 
         let issues = validate_datarose_schema(&path).unwrap();
 
-        insta::assert_snapshot!(issues.join("\n"), @"datarose.toml.version must be an integer; found string
+        insta::assert_snapshot!(issues.join("\n"), @r###"
+datarose.toml.version must be an integer; found string
 quality.languages[1] must be a string; found integer
 quality.js_runner has unsupported value `bower`; expected one of aube, npm, pnpm, yarn, bun
 release.enabled must be a boolean; found string
 release.target_branch must be a string; found integer
-release.targets must be an array of tables; found string");
+release.targets must be an array of tables; found string
+"###);
     }
 
     #[test]
