@@ -789,14 +789,12 @@ nam = "verzly"
     }
 
     #[test]
-    fn reports_missing_schema_reference() {
+    fn allows_missing_schema_reference_for_runtime_validation() {
         let path = temp_config("missing-directive", "version = 1\n");
 
         let issues = validate_datarose_schema(&path).unwrap();
 
-        assert!(issues
-            .iter()
-            .any(|issue| issue.contains("schema directive is missing")));
+        assert!(issues.is_empty());
     }
 
     fn temp_config(name: &str, content: &str) -> std::path::PathBuf {
