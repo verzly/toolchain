@@ -1,6 +1,6 @@
 # Verzly Toolchain
 
-Verzly Toolchain is the private source workspace for the release tools that build Rust executables, prepare Tauri installers, route build caches, generate Android signing material, and publish GitHub Releases.
+Verzly Toolchain is the private source workspace for the unified `verzly` executable, composite GitHub Actions, and the modular release tools that build Rust executables, prepare Tauri installers, route build caches, generate Android signing material, and publish GitHub Releases.
 
 Public repositories stay intentionally small. Their user-facing `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.verzly/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
 
@@ -30,6 +30,8 @@ Public repositories stay intentionally small. Their user-facing `README.md`, `CO
 ## Overview
 
 ### Tools
+
+`verzly` is the primary executable and GitHub Action entrypoint. It exposes every tool as a subcommand, for example `verzly github-release`, `verzly tauri-release`, `verzly ios-signing`, and `verzly repository`. The standalone tool binaries remain as compatibility entrypoints during migration.
 
 `github-release` creates release branches, updates configured version files, merges successful source releases, creates tags, publishes GitHub Releases, uploads assets, and aborts failed release branches.
 
@@ -138,13 +140,13 @@ Release targets are path-first. In monorepos this lets each app, package, crate,
 Use `cargo run -p <crate> -- ...` while developing:
 
 ```sh
-cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p tauri-release -- plan --config datarose.toml
-cargo run -p rust-cache -- init
-cargo run -p android-signing -- generate
-cargo run -p ios-signing -- check-env --skip-apple-team-id
-cargo run -p repository -- plan
+cargo run -p verzly -- github-release plan --config datarose.toml --release-target cargo-release --version 1.2.3
+cargo run -p verzly -- cargo-release build --config datarose.toml --release-target cargo-release --version 1.2.3
+cargo run -p verzly -- tauri-release plan --config datarose.toml
+cargo run -p verzly -- rust-cache init
+cargo run -p verzly -- android-signing generate
+cargo run -p verzly -- ios-signing check-env --skip-apple-team-id
+cargo run -p verzly -- repository plan
 ```
 
 A tool does not need a public release before you can test it locally. Cargo can run the current source directly:
@@ -152,7 +154,7 @@ A tool does not need a public release before you can test it locally. Cargo can 
 ```sh
 cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
 cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repository -- plan
+cargo run -p verzly -- repository plan
 cargo run -p repository -- doctor
 ```
 
@@ -178,7 +180,37 @@ cargo install --path crates/repository --force
 repository plan
 ```
 
-Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
+You can also install the unified executable from the current source:
+
+```sh
+cargo install --path crates/verzly --force
+verzly repository plan
+verzly github-release plan --config datarose.toml --release-target repository --version 1.2.3
+```
+
+For GitHub Actions, prefer installing the unified action once per job and running subcommands through it:
+
+```yaml
+- uses: verzly/verzly@v1
+  with:
+    install-only: "true"
+
+- run: verzly repository check
+
+- uses: verzly/ios-signing@v1
+  with:
+    check-signing-secrets: "true"
+    optional: "true"
+    install-only: "true"
+  env:
+    IOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.IOS_SIGNING_CERTIFICATE_BASE64 }}
+    IOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
+    IOS_SIGNING_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_SIGNING_PROVISIONING_PROFILE_BASE64 }}
+    IOS_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.IOS_SIGNING_KEYCHAIN_PASSWORD }}
+    APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+```
+
+Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. The `verzly` executable is the preferred user-facing entrypoint, and every standalone compatibility executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
 
 ### Cache layout
 
@@ -198,6 +230,7 @@ The root `datarose.toml` is the policy source for regenerating or repairing cach
 Use the matching workflow when one tool needs a public release:
 
 ```text
+.github/workflows/release-verzly.yml
 .github/workflows/release-github-release.yml
 .github/workflows/release-cargo-release.yml
 .github/workflows/release-tauri-release.yml
@@ -210,10 +243,10 @@ Use the matching workflow when one tool needs a public release:
 The flow is:
 
 ```text
-github-release prepare
+verzly github-release prepare
 cargo fmt / clippy / test
-cargo-release build
-github-release finalize --merge-strategy squash --skip-github-release
+verzly cargo-release build
+verzly github-release finalize --merge-strategy squash --skip-github-release
 sync released distribution repository
 github-release publish
 ```
@@ -230,6 +263,7 @@ The generated workflow can run the shared `_release-tool.yml` workflow once per 
 
 ```text
 release-all.yml
+→ _release-tool.yml for verzly
 → _release-tool.yml for github-release
 → _release-tool.yml for cargo-release
 → _release-tool.yml for tauri-release
@@ -239,7 +273,7 @@ release-all.yml
 → _release-tool.yml for repository
 ```
 
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
+Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `verzly-vX.Y.Z` and `cargo-release-vX.Y.Z`.
 
 Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
 

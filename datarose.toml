@@ -14,6 +14,28 @@ release_all = true
 manage_cargo_packages = true
 manage_workflows = false
 
+
+[[release.targets]]
+name = "verzly"
+path = "crates/verzly"
+strategy = "self-hosted"
+workflow = "custom"
+source_kind = "cargo-package"
+repository = "verzly/verzly"
+distribution_path = ".verzly/distributions/verzly"
+cargo_binary = "verzly"
+cargo_package = "verzly"
+cargo_out_dir = "dist/verzly"
+cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
+prepare_commands = ["cargo generate-lockfile"]
+version_file = "crates/verzly/Cargo.toml"
+version_key = "package.version"
+version_value = "{version}"
+source_tag_prefix = "verzly-v"
+generate_notes = false
+include_scopes = ["verzly", "all"]
+include_paths = ["crates/verzly/"]
+
 [[release.targets]]
 name = "github-release"
 path = "crates/github-release"

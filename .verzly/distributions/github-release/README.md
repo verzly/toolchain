@@ -287,6 +287,22 @@ kind = "toml"
 key = "package.version"
 value = "{version}"
 optional = false
+
+[[files]]
+path = "src-tauri/tauri.conf.json"
+kind = "json"
+key = "bundle.android.versionCode"
+value = "{android_version_code}"
+value_type = "integer"
+optional = false
+
+[[files]]
+path = "Cargo.lock"
+kind = "cargo-lock-package"
+package = "my_tool"
+key = "version"
+value = "{version}"
+optional = false
 ```
 
 | Field | Accepted values | Purpose |
@@ -310,9 +326,11 @@ optional = false
 | `github.generate_notes` | Boolean | Use GitHub-generated notes when no custom body is provided. Set this to `false` to create a release without a description unless `github.notes_body`, `--notes`, or `--notes-file` is supplied. |
 | `github.notes_body` | String template | Optional custom GitHub Release body. When non-empty, it takes precedence over generated notes. Supported placeholders are `{version}`, `{tag}`, `{release_name}`, `{target_repository}`, `{source_repository}`, `{source_tag}`, `{previous_source_tag}`, and `{source_compare_url}`. |
 | `files` | Array | Version files to update during `prepare`. Use an empty array for source-free distribution repositories. |
-| `files[].kind` | `toml`, `json`, `text` | File update strategy. |
-| `files[].key` | Key path or search text | TOML/JSON key path or text target depending on kind. |
-| `files[].value` | String template | New value to write. |
+| `files[].kind` | `toml`, `json`, `text`, `cargo-lock-package` | File update strategy. |
+| `files[].key` | Key path or search text | TOML/JSON key path, Cargo.lock package field, or text target depending on kind. |
+| `files[].value` | String template | New value to write. Supports `{version}`, `{tag}`, and `{android_version_code}`. |
+| `files[].value_type` | `string`, `integer` | Writes JSON/TOML values as strings by default; use `integer` for fields such as Android `versionCode`. |
+| `files[].package` | Cargo package name | Required when `kind = "cargo-lock-package"`; selects the `[[package]]` entry to update. |
 | `files[].optional` | Boolean | When `true`, missing files are skipped instead of failing the release. |
 
 ## Practical workflows

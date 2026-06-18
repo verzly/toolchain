@@ -1,5 +1,5 @@
 name: Verzly iOS Signing
-description: Install and optionally run the ios-signing standalone executable published by this repository.
+description: Install the unified Verzly toolchain and validate iOS signing secrets for release workflows.
 author: Verzly
 
 inputs:
@@ -8,15 +8,19 @@ inputs:
     required: false
     default: ""
   version:
-    description: GitHub Release tag to download. Use 1.2.3, v1.2.3, latest, next, v1, or v1.2. Leave empty to use the action ref when it is a release selector, otherwise the latest release.
+    description: Verzly executable release selector. Use 1.2.3, v1.2.3, latest, next, v1, or v1.2. Leave empty to use the action ref when possible, otherwise the latest release.
     required: false
     default: ""
+  toolchain-repository:
+    description: Repository that publishes the unified verzly executable assets.
+    required: false
+    default: verzly/verzly
   install-only:
-    description: Install the executable and add it to PATH without running it.
+    description: Install verzly and the ios-signing compatibility shim without running ios-signing args.
     required: false
     default: "false"
   args:
-    description: Arguments passed to ios-signing when install-only is false.
+    description: Arguments passed to `verzly ios-signing` when install-only is false.
     required: false
     default: "--help"
   working-directory:
@@ -24,21 +28,52 @@ inputs:
     required: false
     default: "."
   check-signing-secrets:
-    description: Check that required iOS signing environment variables are present before running args.
+    description: Check required iOS signing environment variables before running args.
     required: false
     default: "false"
-  require-apple-team-id:
-    description: Require APPLE_TEAM_ID when check-signing-secrets is true.
+  optional:
+    description: Do not fail when signing secrets are missing. Sets signing-ready=false so callers can skip iOS builds cleanly.
+    required: false
+    default: "false"
+  skip-run-when-unavailable:
+    description: Skip the args step when check-signing-secrets is true, optional is true, and signing secrets are missing.
     required: false
     default: "true"
+  require-apple-team-id:
+    description: Require APPLE_TEAM_ID during signing secret preflight.
+    required: false
+    default: "true"
+  required-env:
+    description: Additional newline-separated environment variable names that must be present for this project's iOS signing flow.
+    required: false
+    default: ""
+  run-doctor:
+    description: Run `verzly ios-signing doctor` after installation. This is informational and does not fail the action.
+    required: false
+    default: "false"
 
 outputs:
   bin-path:
-    description: Absolute path to the installed executable.
+    description: Absolute path to the ios-signing compatibility shim.
     value: ${{ steps.install.outputs.bin-path }}
+  verzly-bin-path:
+    description: Absolute path to the installed verzly executable.
+    value: ${{ steps.install.outputs.verzly-bin-path }}
   host-target:
     description: Release target used to select the executable asset.
     value: ${{ steps.host.outputs.host-target }}
+  tool-version:
+    description: Version output from the installed verzly executable.
+    value: ${{ steps.install.outputs.tool-version }}
+  release-tag:
+    description: Release tag used to download the executable. Empty means GitHub latest release resolution was used.
+    value: ${{ steps.install.outputs.release-tag }}
+  signing-ready:
+    description: true when all requested signing variables are available, false when optional preflight found missing values, or unchecked when preflight was not requested.
+    value: ${{ steps.preflight.outputs.signing-ready }}
+  missing-secrets:
+    description: Comma-separated environment variable names missing during optional preflight.
+    value: ${{ steps.preflight.outputs.missing-secrets }}
 
 runs:
   using: composite
@@ -85,15 +120,15 @@ runs:
         echo "host-target=${HOST}" >> "${GITHUB_OUTPUT}"
         echo "extension=${EXT}" >> "${GITHUB_OUTPUT}"
 
-    - name: Install ios-signing
+    - name: Install verzly
       id: install
       shell: bash
       env:
         INPUT_TOKEN: ${{ inputs.github-token }}
         DEFAULT_TOKEN: ${{ github.token }}
-        ACTION_REPOSITORY: ${{ github.action_repository }}
         ACTION_REF: ${{ github.action_ref }}
         VERSION: ${{ inputs.version }}
+        RELEASE_REPOSITORY: ${{ inputs.toolchain-repository }}
         HOST: ${{ steps.host.outputs.host-target }}
         EXT: ${{ steps.host.outputs.extension }}
       run: |
@@ -114,59 +149,36 @@ runs:
         fi
         export GH_TOKEN="${TOKEN}"
 
-        REPOSITORY="${ACTION_REPOSITORY:-}"
-        if [ -z "${REPOSITORY}" ]; then
-          REPOSITORY="${GITHUB_ACTION_REPOSITORY:-}"
-        fi
-        if [ -z "${REPOSITORY}" ]; then
-          REPOSITORY="verzly/ios-signing"
-        fi
-
+        REPOSITORY="${RELEASE_REPOSITORY:-verzly/verzly}"
         TOOL_DIR="${RUNNER_TEMP}/ios-signing-action"
         BIN_DIR="${RUNNER_TEMP}/ios-signing-bin"
-        PATTERN="ios-signing-v*-${HOST}${EXT}"
+        PATTERN="verzly-v*-${HOST}${EXT}"
 
         normalize_release_selector() {
           local selector="$1"
-
           if [[ "${selector}" =~ ^[0-9]+([.][0-9]+){0,2}([-+].*)?$ ]]; then
             selector="v${selector}"
           fi
-
-          printf '%s\n' "${selector}"
-        }
-
-        is_action_ref_release_selector() {
-          local selector="$1"
-
-          case "${selector}" in
-            latest|next) return 0 ;;
-          esac
-
-          [[ "${selector}" =~ ^v[0-9]+([.][0-9]+){0,2}([-+].*)?$ ]]
-        }
-
-        is_exact_release_tag() {
-          local selector="$1"
-
-          [[ "${selector}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
-        }
-
-        release_has_asset() {
-          local tag="$1"
-          local pattern="$2"
-          local assets=""
-
-          if ! assets="$(gh release view "${tag}" --repo "${REPOSITORY}" --json assets --jq '.assets[].name' 2>/dev/null)"; then
-            return 1
-          fi
-
+          {
+            echo '#!/usr/bin/env bash'
+            echo 'set -euo pipefail'
+            echo 'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"'
+            echo 'exec "${DIR}/verzly" ios-signing "$@"'
+          } > "${BIN_DIR}/ios-signing"
+          chmod 755 "${BIN_DIR}/ios-signing"
+          shim_path="${BIN_DIR}/ios-signing"
+        else
+          {
+            echo '@echo off'
+            echo '"%~dp0verzly.exe" ios-signing %*'
+          } > "${BIN_DIR}/ios-signing.cmd"
+          shim_path="${BIN_DIR}/ios-signing.cmd"
+        fi
           while IFS= read -r asset; do
             case "${asset}" in
-              $pattern) return 0 ;;
+              ${pattern}) return 0 ;;
             esac
           done <<< "${assets}"
-
           return 1
         }
 
@@ -174,84 +186,55 @@ runs:
           local tag="$1"
           local object_sha=""
           local object_type=""
-
           read -r object_sha object_type < <(
             gh api "repos/${REPOSITORY}/git/ref/tags/${tag}" --jq '.object | "\(.sha) \(.type)"'
           )
-
           for _ in 1 2 3 4 5 6 7 8; do
             case "${object_type}" in
-              commit)
-                printf '%s\n' "${object_sha}"
-                return 0
-                ;;
+              commit) printf '%s\n' "${object_sha}"; return 0 ;;
               tag)
                 read -r object_sha object_type < <(
                   gh api "repos/${REPOSITORY}/git/tags/${object_sha}" --jq '.object | "\(.sha) \(.type)"'
                 )
                 ;;
-              *)
-                echo "::error::Tag ${tag} in ${REPOSITORY} resolves to unsupported Git object type: ${object_type}."
-                return 1
-                ;;
+              *) echo "::error::Tag ${tag} in ${REPOSITORY} resolves to unsupported Git object type: ${object_type}."; return 1 ;;
             esac
           done
-
           echo "::error::Tag ${tag} in ${REPOSITORY} contains too many nested tag objects."
           return 1
         }
 
         candidate_prefix_for_selector() {
           local selector="$1"
-
           case "${selector}" in
-            latest|next)
-              printf 'v\n'
-              return 0
-              ;;
+            latest) printf 'v\n'; return 0 ;;
+            next) printf 'v\n'; return 0 ;;
           esac
-
           if [[ "${selector}" =~ ^v([0-9]+)$ ]]; then
-            printf 'v%s.\n' "${BASH_REMATCH[1]}"
-            return 0
+            printf 'v%s.\n' "${BASH_REMATCH[1]}"; return 0
           fi
-
           if [[ "${selector}" =~ ^v([0-9]+)[.]([0-9]+)$ ]]; then
-            printf 'v%s.%s.\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
-            return 0
+            printf 'v%s.%s.\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0
           fi
-
           printf '%s\n' "${selector}"
         }
 
         semver_sort_key() {
           local tag="$1"
           local version="${tag#v}"
-          local major=""
-          local minor=""
-          local patch=""
-          local qualifier=""
           local stable=1
           local qualifier_key="~"
-
           if [[ ! "${version}" =~ ^([0-9]+)[.]([0-9]+)[.]([0-9]+)([-+][0-9A-Za-z.-]+)?$ ]]; then
             return 1
           fi
-
-          major="${BASH_REMATCH[1]}"
-          minor="${BASH_REMATCH[2]}"
-          patch="${BASH_REMATCH[3]}"
-          qualifier="${BASH_REMATCH[4]:-}"
-
-          if [[ "${qualifier}" == -* ]]; then
+          if [[ "${BASH_REMATCH[4]:-}" == -* ]]; then
             stable=0
-            qualifier_key="${qualifier#-}"
+            qualifier_key="${BASH_REMATCH[4]#-}"
           fi
-
           printf '%010d.%010d.%010d.%d.%s\n' \
-            "$((10#${major}))" \
-            "$((10#${minor}))" \
-            "$((10#${patch}))" \
+            "$((10#${BASH_REMATCH[1]}))" \
+            "$((10#${BASH_REMATCH[2]}))" \
+            "$((10#${BASH_REMATCH[3]}))" \
             "${stable}" \
             "${qualifier_key}"
         }
@@ -266,7 +249,7 @@ runs:
           local candidate_sha=""
           local key=""
 
-          if [ -z "${selector}" ]; then
+          if [ -z "${selector}" ] || [ "${selector}" = "latest" ]; then
             return 0
           fi
 
@@ -280,23 +263,18 @@ runs:
 
           while IFS= read -r candidate; do
             candidate="${candidate#refs/tags/}"
-
             if ! key="$(semver_sort_key "${candidate}")"; then
               continue
             fi
-
             if ! candidate_sha="$(resolve_tag_commit_sha "${candidate}" 2>/dev/null)"; then
               continue
             fi
-
             if [ "${candidate_sha}" != "${selector_sha}" ]; then
               continue
             fi
-
             if ! release_has_asset "${candidate}" "${pattern}"; then
               continue
             fi
-
             best="$(printf '%s\n%s\t%s' "${best}" "${key}" "${candidate}" | sed '/^$/d' | sort | tail -n 1)"
           done < <(gh api --paginate "repos/${REPOSITORY}/git/matching-refs/tags/${prefix}" --jq '.[].ref')
 
@@ -336,7 +314,7 @@ runs:
 
         TOOL="$(find "${TOOL_DIR}" -maxdepth 1 -type f -name "${PATTERN}" | sort | tail -n 1)"
         if [ -z "${TOOL}" ]; then
-          echo "::error::No ios-signing executable matched ${PATTERN} in ${REPOSITORY}."
+          echo "::error::No verzly executable matched ${PATTERN} in ${REPOSITORY}."
           find "${TOOL_DIR}" -maxdepth 1 -type f -print || true
           exit 1
         fi
@@ -347,41 +325,142 @@ runs:
             (cd "$(dirname "${TOOL}")" && sha256sum -c "$(basename "${CHECKSUM}")")
           elif command -v shasum >/dev/null 2>&1; then
             (cd "$(dirname "${TOOL}")" && shasum -a 256 -c "$(basename "${CHECKSUM}")")
+          else
+            echo "::warning::Checksum file is present but no SHA-256 checker is available."
           fi
         fi
 
-        cp "${TOOL}" "${BIN_DIR}/ios-signing${EXT}"
+        cp "${TOOL}" "${BIN_DIR}/verzly${EXT}"
         if [ "${{ runner.os }}" != "Windows" ]; then
-          chmod 755 "${BIN_DIR}/ios-signing${EXT}"
+          chmod 755 "${BIN_DIR}/verzly${EXT}"
+          {
+            echo '#!/usr/bin/env bash'
+            echo 'set -euo pipefail'
+            echo 'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"'
+            echo 'exec "${DIR}/verzly" ios-signing "$@"'
+          } > "${BIN_DIR}/ios-signing"
+          chmod 755 "${BIN_DIR}/ios-signing"
+          shim_path="${BIN_DIR}/ios-signing"
+        else
+          {
+            echo '@echo off'
+            echo '"%~dp0verzly.exe" ios-signing %*'
+          } > "${BIN_DIR}/ios-signing.cmd"
+          shim_path="${BIN_DIR}/ios-signing.cmd"
         fi
 
         echo "${BIN_DIR}" >> "${GITHUB_PATH}"
-        echo "bin-path=${BIN_DIR}/ios-signing${EXT}" >> "${GITHUB_OUTPUT}"
-        "${BIN_DIR}/ios-signing${EXT}" --version || true
+        echo "bin-path=${shim_path}" >> "${GITHUB_OUTPUT}"
+        echo "verzly-bin-path=${BIN_DIR}/verzly${EXT}" >> "${GITHUB_OUTPUT}"
+        echo "release-tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+        tool_version="$(${BIN_DIR}/verzly${EXT} --version || true)"
+        echo "tool-version=${tool_version}" >> "${GITHUB_OUTPUT}"
+        printf '%s\n' "${tool_version}"
 
-    - name: Check iOS signing secrets
-      if: inputs.check-signing-secrets == 'true'
+    - name: Run iOS signing doctor
+      if: inputs.run-doctor == 'true'
       shell: bash
       env:
-        BIN_PATH: ${{ steps.install.outputs.bin-path }}
-        REQUIRE_APPLE_TEAM_ID: ${{ inputs.require-apple-team-id }}
+        BIN_PATH: ${{ steps.install.outputs.verzly-bin-path }}
       run: |
         set -euo pipefail
-        args=(check-env)
-        if [ "${REQUIRE_APPLE_TEAM_ID}" != "true" ]; then
-          args+=(--skip-apple-team-id)
+        "${BIN_PATH}" ios-signing doctor || true
+
+    - name: Check iOS signing secrets
+      id: preflight
+      shell: bash
+      env:
+        BIN_PATH: ${{ steps.install.outputs.verzly-bin-path }}
+        CHECK_SIGNING_SECRETS: ${{ inputs.check-signing-secrets }}
+        OPTIONAL: ${{ inputs.optional }}
+        REQUIRE_APPLE_TEAM_ID: ${{ inputs.require-apple-team-id }}
+        REQUIRED_ENV: ${{ inputs.required-env }}
+      run: |
+        set -euo pipefail
+
+        echo "signing-ready=unchecked" >> "${GITHUB_OUTPUT}"
+        echo "missing-secrets=" >> "${GITHUB_OUTPUT}"
+
+        if [ "${CHECK_SIGNING_SECRETS}" != "true" ]; then
+          exit 0
         fi
-        "${BIN_PATH}" "${args[@]}"
+
+        required=(
+          IOS_SIGNING_CERTIFICATE_BASE64
+          IOS_SIGNING_CERTIFICATE_PASSWORD
+          IOS_SIGNING_PROVISIONING_PROFILE_BASE64
+          IOS_SIGNING_KEYCHAIN_PASSWORD
+        )
+
+        if [ "${REQUIRE_APPLE_TEAM_ID}" = "true" ]; then
+          required+=(APPLE_TEAM_ID)
+        fi
+
+        while IFS= read -r name; do
+          name="$(printf '%s' "${name}" | xargs)"
+          if [ -z "${name}" ]; then
+            continue
+          fi
+          if ! [[ "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo "::error::Invalid environment variable name in required-env: ${name}"
+            exit 1
+          fi
+          required+=("${name}")
+        done <<< "${REQUIRED_ENV}"
+
+        missing=()
+        seen=" "
+        for name in "${required[@]}"; do
+          case "${seen}" in
+            *" ${name} "*) continue ;;
+          esac
+          seen="${seen}${name} "
+          if [ -z "${!name:-}" ]; then
+            missing+=("${name}")
+          fi
+        done
+
+        if [ "${#missing[@]}" -eq 0 ]; then
+          args=(ios-signing check-env)
+          if [ "${REQUIRE_APPLE_TEAM_ID}" != "true" ]; then
+            args+=(--skip-apple-team-id)
+          fi
+          while IFS= read -r name; do
+            name="$(printf '%s' "${name}" | xargs)"
+            if [ -n "${name}" ]; then
+              args+=(--require "${name}")
+            fi
+          done <<< "${REQUIRED_ENV}"
+          "${BIN_PATH}" "${args[@]}"
+          echo "signing-ready=true" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+
+        missing_csv="$(IFS=,; printf '%s' "${missing[*]}")"
+        echo "signing-ready=false" >> "${GITHUB_OUTPUT}"
+        echo "missing-secrets=${missing_csv}" >> "${GITHUB_OUTPUT}"
+
+        for name in "${missing[@]}"; do
+          echo "::notice title=iOS signing secret missing::${name} is not available in this job."
+        done
+
+        if [ "${OPTIONAL}" = "true" ]; then
+          echo "iOS signing secrets are incomplete; continuing because optional=true."
+          exit 0
+        fi
+
+        echo "::error::Missing iOS signing environment variables: ${missing_csv}"
+        exit 1
 
     - name: Run ios-signing
-      if: inputs.install-only != 'true'
+      if: inputs.install-only != 'true' && (steps.preflight.outputs.signing-ready != 'false' || inputs.skip-run-when-unavailable != 'true')
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        BIN_PATH: ${{ steps.install.outputs.bin-path }}
+        BIN_PATH: ${{ steps.install.outputs.verzly-bin-path }}
         ARGS: ${{ inputs.args }}
       run: |
         set -euo pipefail
         # The arguments are intentionally passed through the shell so workflow authors can provide normal CLI strings.
         # shellcheck disable=SC2086
-        "${BIN_PATH}" ${ARGS}
+        "${BIN_PATH}" ios-signing ${ARGS}

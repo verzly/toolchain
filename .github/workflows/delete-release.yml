@@ -15,6 +15,7 @@ on:
         options:
           - all
           - toolchain
+          - verzly
           - github-release
           - cargo-release
           - tauri-release
@@ -34,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
+  TOOLS: verzly github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   delete:
@@ -95,7 +96,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
+            all|toolchain|verzly|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
             *) echo "::error::Unsupported delete target: ${TARGET}"; exit 1 ;;
           esac
 

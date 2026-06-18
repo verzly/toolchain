@@ -1,9 +1,10 @@
-//! Version file updates for TOML, JSON, and plain text files. Commands decide when to call this; this module decides how values are written.
+//! Version file updates for TOML, JSON, Cargo.lock package entries, and plain text files.
+//! Commands decide when to call this; this module decides how values are written.
 
-use crate::config::{VersionFileConfig, VersionFileKind};
+use crate::config::{VersionFileConfig, VersionFileKind, VersionValueType};
 use crate::domain::{render_template, ReleasePlan};
 use anyhow::{Context, Result};
-use serde_json::Value as JsonValue;
+use serde_json::{Number as JsonNumber, Value as JsonValue};
 use std::fs;
 
 pub fn update_all(files: &[VersionFileConfig], plan: &ReleasePlan, dry_run: bool) -> Result<()> {
@@ -28,6 +29,7 @@ pub fn update_all(files: &[VersionFileConfig], plan: &ReleasePlan, dry_run: bool
         match file.kind {
             VersionFileKind::Toml => update_toml(file, &rendered)?,
             VersionFileKind::Json => update_json(file, &rendered)?,
+            VersionFileKind::CargoLockPackage => update_cargo_lock_package(file, &rendered)?,
             VersionFileKind::Text => update_text(file, plan)?,
         }
     }
@@ -42,7 +44,7 @@ pub fn render_value(file: &VersionFileConfig, plan: &ReleasePlan) -> String {
 fn update_toml(file: &VersionFileConfig, value: &str) -> Result<()> {
     let raw = fs::read_to_string(&file.path)?;
     let mut data: toml::Value = toml::from_str(&raw)?;
-    set_toml_value(&mut data, &file.key, value)?;
+    set_toml_value(&mut data, &file.key, value, file.value_type)?;
     fs::write(&file.path, toml::to_string_pretty(&data)?)?;
     Ok(())
 }
@@ -50,12 +52,60 @@ fn update_toml(file: &VersionFileConfig, value: &str) -> Result<()> {
 fn update_json(file: &VersionFileConfig, value: &str) -> Result<()> {
     let raw = fs::read_to_string(&file.path)?;
     let mut data: JsonValue = serde_json::from_str(&raw)?;
-    set_json_value(&mut data, &file.key, value)?;
+    set_json_value(&mut data, &file.key, value, file.value_type)?;
     fs::write(
         &file.path,
         format!("{}\n", serde_json::to_string_pretty(&data)?),
     )?;
     Ok(())
+}
+
+fn update_cargo_lock_package(file: &VersionFileConfig, value: &str) -> Result<()> {
+    if file.package.trim().is_empty() {
+        anyhow::bail!(
+            "cargo-lock-package version file requires package: {}",
+            file.path.display()
+        );
+    }
+
+    let raw = fs::read_to_string(&file.path)?;
+    let mut data: toml::Value = toml::from_str(&raw)?;
+    let packages = data
+        .get_mut("package")
+        .and_then(toml::Value::as_array_mut)
+        .with_context(|| {
+            format!(
+                "{} does not contain Cargo.lock package entries",
+                file.path.display()
+            )
+        })?;
+    let key = if file.key.trim().is_empty() {
+        "version"
+    } else {
+        file.key.as_str()
+    };
+
+    for package in packages {
+        let Some(table) = package.as_table_mut() else {
+            continue;
+        };
+        let is_match = table
+            .get("name")
+            .and_then(toml::Value::as_str)
+            .map(|name| name == file.package)
+            .unwrap_or(false);
+        if is_match {
+            table.insert(key.to_string(), toml::Value::String(value.to_string()));
+            fs::write(&file.path, toml::to_string_pretty(&data)?)?;
+            return Ok(());
+        }
+    }
+
+    anyhow::bail!(
+        "Cargo.lock package `{}` was not found in {}",
+        file.package,
+        file.path.display()
+    )
 }
 
 fn update_text(file: &VersionFileConfig, plan: &ReleasePlan) -> Result<()> {
@@ -82,7 +132,34 @@ fn update_text(file: &VersionFileConfig, plan: &ReleasePlan) -> Result<()> {
     Ok(())
 }
 
-fn set_toml_value(root: &mut toml::Value, dotted_key: &str, value: &str) -> Result<()> {
+fn toml_value(value: &str, value_type: VersionValueType) -> Result<toml::Value> {
+    match value_type {
+        VersionValueType::String => Ok(toml::Value::String(value.to_string())),
+        VersionValueType::Integer => {
+            Ok(toml::Value::Integer(value.parse::<i64>().with_context(
+                || format!("version value `{value}` is not a valid integer"),
+            )?))
+        }
+    }
+}
+
+fn json_value(value: &str, value_type: VersionValueType) -> Result<JsonValue> {
+    match value_type {
+        VersionValueType::String => Ok(JsonValue::String(value.to_string())),
+        VersionValueType::Integer => Ok(JsonValue::Number(JsonNumber::from(
+            value
+                .parse::<i64>()
+                .with_context(|| format!("version value `{value}` is not a valid integer"))?,
+        ))),
+    }
+}
+
+fn set_toml_value(
+    root: &mut toml::Value,
+    dotted_key: &str,
+    value: &str,
+    value_type: VersionValueType,
+) -> Result<()> {
     let parts: Vec<_> = dotted_key.split('.').collect();
     let mut current = root;
     for key in &parts[..parts.len() - 1] {
@@ -94,11 +171,16 @@ fn set_toml_value(root: &mut toml::Value, dotted_key: &str, value: &str) -> Resu
     let slot = current
         .get_mut(*last)
         .with_context(|| format!("missing TOML key: {last}"))?;
-    *slot = toml::Value::String(value.to_string());
+    *slot = toml_value(value, value_type)?;
     Ok(())
 }
 
-fn set_json_value(root: &mut JsonValue, dotted_key: &str, value: &str) -> Result<()> {
+fn set_json_value(
+    root: &mut JsonValue,
+    dotted_key: &str,
+    value: &str,
+    value_type: VersionValueType,
+) -> Result<()> {
     let parts: Vec<_> = dotted_key.split('.').collect();
     let mut current = root;
     for key in &parts[..parts.len() - 1] {
@@ -107,14 +189,14 @@ fn set_json_value(root: &mut JsonValue, dotted_key: &str, value: &str) -> Result
             .with_context(|| format!("missing JSON key: {key}"))?;
     }
     let last = parts.last().context("empty JSON key")?;
-    current[*last] = JsonValue::String(value.to_string());
+    current[*last] = json_value(value, value_type)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Config, VersionFileConfig, VersionFileKind};
+    use crate::config::{Config, VersionFileConfig, VersionFileKind, VersionValueType};
     use crate::domain::build_plan;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -142,6 +224,7 @@ mod tests {
             search: "{current}".to_string(),
             replace: "{tag}".to_string(),
             optional: false,
+            ..VersionFileConfig::default()
         }
     }
 
@@ -178,6 +261,57 @@ mod tests {
             std::fs::read_to_string(&text_path).expect("read text"),
             "v1.2.3\n"
         );
+    }
+
+    #[test]
+    fn updates_json_integer_values() {
+        let dir = temp_dir("json-integer");
+        let json_path = dir.join("tauri.conf.json");
+        std::fs::write(
+            &json_path,
+            "{\"bundle\":{\"android\":{\"versionCode\":100}}}",
+        )
+        .expect("write JSON");
+
+        let file = VersionFileConfig {
+            path: json_path.clone(),
+            kind: VersionFileKind::Json,
+            key: "bundle.android.versionCode".to_string(),
+            value: "{android_version_code}".to_string(),
+            value_type: VersionValueType::Integer,
+            ..VersionFileConfig::default()
+        };
+
+        update_all(&[file], &plan(), false).expect("update integer");
+
+        assert!(std::fs::read_to_string(&json_path)
+            .expect("read JSON")
+            .contains("\"versionCode\": 10203"));
+    }
+
+    #[test]
+    fn updates_cargo_lock_package_version() {
+        let dir = temp_dir("cargo-lock");
+        let lock_path = dir.join("Cargo.lock");
+        std::fs::write(
+            &lock_path,
+            "[[package]]\nname = \"demo\"\nversion = \"0.1.0\"\n\n[[package]]\nname = \"other\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write Cargo.lock");
+
+        let file = VersionFileConfig {
+            path: lock_path.clone(),
+            kind: VersionFileKind::CargoLockPackage,
+            key: "version".to_string(),
+            package: "demo".to_string(),
+            ..VersionFileConfig::default()
+        };
+
+        update_all(&[file], &plan(), false).expect("update Cargo.lock package");
+        let updated = std::fs::read_to_string(&lock_path).expect("read Cargo.lock");
+
+        assert!(updated.contains("name = \"demo\"\nversion = \"1.2.3\""));
+        assert!(updated.contains("name = \"other\"\nversion = \"0.1.0\""));
     }
 
     #[test]

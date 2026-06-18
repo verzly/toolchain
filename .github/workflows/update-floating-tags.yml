@@ -11,6 +11,7 @@ on:
         default: all
         options:
           - all
+          - verzly
           - github-release
           - cargo-release
           - tauri-release
@@ -52,7 +53,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
+  TOOLS: verzly github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   update:
@@ -90,7 +91,7 @@ jobs:
           fi
 
           case "${TARGET}" in
-            all|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
+            all|verzly|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
             *) echo "::error::Unsupported target: ${TARGET}"; exit 1 ;;
           esac
 

@@ -26,7 +26,7 @@ concurrency:
 
 env:
   TOOLCHAIN_REPOSITORY: verzly/toolchain
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
+  TOOLS: verzly github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   preflight:
@@ -184,6 +184,7 @@ jobs:
       fail-fast: false
       matrix:
         tool:
+          - verzly
           - github-release
           - tauri-release
           - rust-cache
@@ -297,6 +298,7 @@ jobs:
       fail-fast: false
       matrix:
         tool:
+          - verzly
           - github-release
           - cargo-release
           - tauri-release

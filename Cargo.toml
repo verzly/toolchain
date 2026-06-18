@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/verzly",
     "crates/github-release",
     "crates/cargo-release",
     "crates/tauri-release",

@@ -1,0 +1,31 @@
+[[bin]]
+name = "verzly"
+path = "src/main.rs"
+
+[dependencies]
+android-signing = { path = "../android-signing" }
+anyhow = "1.0"
+cargo-release = { path = "../cargo-release" }
+github-release = { path = "../github-release" }
+ios-signing = { path = "../ios-signing" }
+repository = { path = "../repository" }
+rust-cache = { path = "../rust-cache" }
+tauri-release = { path = "../tauri-release" }
+
+[dependencies.clap]
+features = ["derive"]
+version = "4.5"
+
+[package]
+description = "Unified entrypoint for the Verzly release and repository toolchain"
+name = "verzly"
+version = "0.4.0"
+
+[package.edition]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.repository]
+workspace = true

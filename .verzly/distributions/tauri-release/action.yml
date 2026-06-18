@@ -258,7 +258,7 @@ runs:
           local candidate_sha=""
           local key=""
 
-          if [ -z "${selector}" ]; then
+          if [ -z "${selector}" ] || [ "${selector}" = "latest" ]; then
             return 0
           fi
 

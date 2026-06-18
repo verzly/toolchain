@@ -139,8 +139,10 @@ pub struct VersionFileConfig {
     pub kind: VersionFileKind,
     pub key: String,
     pub value: String,
+    pub value_type: VersionValueType,
     pub search: String,
     pub replace: String,
+    pub package: String,
     pub optional: bool,
 }
 
@@ -151,8 +153,10 @@ impl VersionFileConfig {
             kind: VersionFileKind::Toml,
             key: "package.version".to_string(),
             value: "{version}".to_string(),
+            value_type: VersionValueType::default(),
             search: String::new(),
             replace: String::new(),
+            package: String::new(),
             optional: false,
         }
     }
@@ -165,8 +169,10 @@ impl Default for VersionFileConfig {
             kind: VersionFileKind::Text,
             key: String::new(),
             value: "{version}".to_string(),
+            value_type: VersionValueType::default(),
             search: String::new(),
             replace: String::new(),
+            package: String::new(),
             optional: false,
         }
     }
@@ -177,8 +183,18 @@ impl Default for VersionFileConfig {
 pub enum VersionFileKind {
     Toml,
     Json,
+    #[serde(alias = "cargo-lock-package")]
+    CargoLockPackage,
     #[default]
     Text,
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum VersionValueType {
+    #[default]
+    String,
+    Integer,
 }
 
 pub fn load(path: &Path, release_target: Option<&str>) -> Result<Config> {

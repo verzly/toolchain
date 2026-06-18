@@ -129,7 +129,19 @@ pub fn build_plan(
 }
 
 pub fn render_template(template: &str, tag: &str, version: &str) -> String {
-    template.replace("{tag}", tag).replace("{version}", version)
+    let android_version_code = android_version_code(version)
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "0".to_string());
+
+    template
+        .replace("{tag}", tag)
+        .replace("{version}", version)
+        .replace("{android_version_code}", &android_version_code)
+}
+
+fn android_version_code(version: &str) -> Option<u64> {
+    let version = Version::parse(version).ok()?;
+    Some(version.major * 10_000 + version.minor * 100 + version.patch)
 }
 
 fn non_empty(value: &str) -> Option<String> {
@@ -207,6 +219,18 @@ mod tests {
         assert!(auto.prerelease);
         assert!(!forced_false.prerelease);
         assert!(forced_true.prerelease);
+    }
+
+    #[test]
+    fn renders_android_version_code_template() {
+        assert_eq!(
+            render_template("{android_version_code}", "v1.2.3", "1.2.3"),
+            "10203"
+        );
+        assert_eq!(
+            render_template("{android_version_code}", "v0.13.0", "0.13.0"),
+            "1300"
+        );
     }
 
     #[test]

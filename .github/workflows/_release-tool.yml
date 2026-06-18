@@ -57,7 +57,7 @@ jobs:
           fi
 
           case "${TOOL}" in
-            github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
+            verzly|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
             *) echo "::error::Unsupported tool: ${TOOL}"; exit 1 ;;
           esac
 

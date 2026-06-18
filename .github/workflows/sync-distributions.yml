@@ -11,6 +11,7 @@ on:
         default: all
         options:
           - all
+          - verzly
           - github-release
           - cargo-release
           - tauri-release
@@ -91,8 +92,8 @@ jobs:
           esac
 
           case "${SELECTED_TOOL}" in
-            all) tools="github-release cargo-release tauri-release rust-cache android-signing ios-signing repository" ;;
-            github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) tools="${SELECTED_TOOL}" ;;
+            all) tools="verzly github-release cargo-release tauri-release rust-cache android-signing ios-signing repository" ;;
+            verzly|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) tools="${SELECTED_TOOL}" ;;
             *) echo "::error::Unsupported tool: ${SELECTED_TOOL}"; exit 1 ;;
           esac
 
