@@ -49,7 +49,7 @@ pub fn render_hk_config(profile: &ProjectProfile) -> String {
         });
         quality_steps.push(Step {
             name: "test-rust".into(),
-            check: profile.command("cargo test --workspace --all-targets"),
+            check: profile.command("cargo nextest run --workspace && cargo test --workspace --doc"),
             fix: None,
             stage: vec![],
             depends: vec!["format-rust".into(), "lint-rust".into()],
@@ -292,5 +292,18 @@ mod tests {
         assert!(config.contains("windows = \"cmd /d /s /c\""));
         assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));
         assert!(!config.contains("  }\n\n}\n\nlocal fullQualitySteps"));
+
+        insta::assert_snapshot!(step_block(&config, "[\"test-rust\"]"), @r###"["test-rust"] {
+    shell = defaultShell
+    depends = List("format-rust", "lint-rust")
+    check = "cd \"workspace/app\" && cargo nextest run --workspace && cargo test --workspace --doc"
+  }"###);
+    }
+
+    fn step_block(config: &str, marker: &str) -> String {
+        let start = config.find(marker).expect("step marker exists");
+        let rest = &config[start..];
+        let end = rest.find("\n  }\n").expect("step terminator exists") + "\n  }".len();
+        rest[..end].to_string()
     }
 }

@@ -31,7 +31,7 @@ local qualitySteps = new Mapping<String, Step> {
   ["test-rust"] {
     shell = defaultShell
     depends = List("format-rust", "lint-rust")
-    check = "cargo test --workspace --all-targets"
+    check = "cargo nextest run --workspace && cargo test --workspace --doc"
   }
 }
 

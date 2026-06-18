@@ -59,6 +59,7 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           cache: true
+
 __REPOSITORY_POLICY_STEP__
       - name: Quality gate
         run: mise exec -- hk check
@@ -358,6 +359,14 @@ mod tests {
         assert!(!files
             .iter()
             .any(|file| file.content.contains("DISTRIBUTION_REPO_TOKEN")));
+    }
+
+    #[test]
+    fn test_workflow_runs_mise_backed_hk_quality_gate() {
+        let workflow = render_test_workflow(&profile_with_config(DataroseConfig::default()));
+
+        assert!(workflow.contains("jdx/mise-action@v4"));
+        assert!(workflow.contains("mise exec -- hk check"));
     }
 
     #[test]
