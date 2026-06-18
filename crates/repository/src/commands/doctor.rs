@@ -66,10 +66,17 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         suggestions
             .push(".editorconfig is missing in the configured quality workspace".to_string());
     }
-    if profile.has_language(&Language::Rust)
-        && !profile.workspace_root.join("rustfmt.toml").is_file()
-    {
-        suggestions.push("rustfmt.toml is missing in the configured quality workspace".to_string());
+    if profile.has_language(&Language::Rust) {
+        if !profile.workspace_root.join("rustfmt.toml").is_file() {
+            suggestions
+                .push("rustfmt.toml is missing in the configured quality workspace".to_string());
+        }
+        if profile.stored_config.quality.rust.manage_clippy_config
+            && !profile.workspace_root.join(".clippy.toml").is_file()
+        {
+            suggestions
+                .push(".clippy.toml is missing in the configured quality workspace".to_string());
+        }
     }
     if profile.has_language(&Language::Js) {
         if !profile.workspace_root.join(".oxfmtrc.json").is_file() {

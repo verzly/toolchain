@@ -32,3 +32,6 @@ workspace = true
 
 [package.repository]
 workspace = true
+
+[lints]
+workspace = true

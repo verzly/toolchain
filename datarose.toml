@@ -6,6 +6,21 @@ version = 1
 workspace = "."
 languages = ["rust"]
 
+[quality.rust]
+manage_cargo_lints = true
+manage_clippy_config = true
+lint_profile = "strict"
+
+[quality.rust.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[quality.rust.lints.clippy]
+all = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
 [release]
 enabled = true
 target_branch = "master"

@@ -32,6 +32,7 @@ Use it from CI as a GitHub Action, or locally as a Rust workspace executable. Co
   - [Root action](#root-action)
   - [Tool actions](#tool-actions)
   - [repository](#repository)
+  - [Rust quality policy](#rust-quality-policy)
   - [datarose.toml schema](#datarosetoml-schema)
   - [github-release](#github-release)
   - [cargo-release](#cargo-release)
@@ -323,7 +324,7 @@ Signing actions have additional inputs and outputs documented in [android-signin
 
 ### repository
 
-`repository` manages repository standards: `datarose.toml`, `hk.pkl`, quality workflows, release target metadata, project inventory, and expected action surfaces.
+`repository` manages repository standards: `datarose.toml`, `hk.pkl`, `Cargo.toml` lint policy, formatter/linter configuration, quality workflows, release target metadata, project inventory, and expected action surfaces.
 
 ```sh
 verzly repository init
@@ -358,6 +359,42 @@ GitHub Action:
   with:
     args: check
 ```
+
+
+### Rust quality policy
+
+Rust quality defaults are repository-managed instead of hand-copied per project. `repository init` and `repository update` can maintain the shared Rust baseline in the configured quality workspace:
+
+```text
+Cargo.toml       workspace lint policy
+.clippy.toml     Clippy threshold/config values
+rustfmt.toml     Rust formatting defaults
+hk.pkl           quality command orchestration
+test.yml         CI quality workflow
+```
+
+The default Cargo lint policy is intentionally small and portable across many repositories. It forbids unsafe code, denies unused `must_use` results, denies the normal Clippy lint set, and blocks obvious development leftovers such as `dbg!`, `todo!`, and `unimplemented!`. Stricter project rules can be added through `datarose.toml` and then applied with `verzly repository update`.
+
+```toml
+[quality.rust]
+manage_cargo_lints = true
+manage_clippy_config = true
+lint_profile = "strict"
+
+[quality.rust.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[quality.rust.lints.clippy]
+all = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+```
+
+For Cargo workspaces, `repository` writes the defaults into `[workspace.lints.*]` and opts member crates into the shared policy with `[lints] workspace = true`. For single-crate projects, it writes `[lints.*]` directly to the project `Cargo.toml`. Existing project-specific lint levels are preserved unless `--force` is used.
+
+`.clippy.toml` is kept focused on Clippy configuration values such as complexity thresholds. The actual lint policy belongs in Cargo lint tables so it can be shared, reviewed, and extended consistently across repositories.
 
 ### datarose.toml schema
 
@@ -906,7 +943,9 @@ cargo nextest run --workspace
 cargo test --workspace --doc
 ```
 
-`cargo-nextest` is the default unit/integration test runner. It runs the existing Rust `#[test]` tests with better CI output and scheduling, while doctests stay on Cargo because nextest does not run doctests. Use `rstest` for parameterized/table-driven tests and `insta` for snapshot assertions when exact diagnostics or generated output should be reviewed.
+The lint policy is defined through repository-managed Cargo lint tables and `.clippy.toml`; the CI command keeps `-D warnings` so warnings remain pull-request failures.
+
+`cargo-nextest` is the default unit/integration test runner. It runs the existing Rust `#[test]` tests with better CI output and scheduling, while doctests stay on Cargo because nextest does not run doctests. CI installs `cargo-nextest` with `taiki-e/install-action@v2` and pins the installed tool as `cargo-nextest@0.9.137`, avoiding the moving `@nextest` alias while keeping CI fast. Use `rstest` for parameterized/table-driven tests and `insta` for snapshot assertions when exact diagnostics or generated output should be reviewed.
 
 Run selected commands from source:
 

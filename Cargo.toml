@@ -19,3 +19,13 @@ repository = "https://github.com/verzly/toolchain"
 [workspace.dependencies]
 insta = "1.47.2"
 rstest = "0.26.1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

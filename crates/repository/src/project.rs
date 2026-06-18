@@ -81,11 +81,49 @@ impl MiseToolRecommendation {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct RustQualityConfig {
+    pub manage_cargo_lints: bool,
+    pub manage_clippy_config: bool,
+    pub lint_profile: String,
+    pub rust_lints: BTreeMap<String, String>,
+    pub clippy_lints: BTreeMap<String, String>,
+}
+
+impl Default for RustQualityConfig {
+    fn default() -> Self {
+        Self {
+            manage_cargo_lints: true,
+            manage_clippy_config: true,
+            lint_profile: "strict".into(),
+            rust_lints: default_rust_lints(),
+            clippy_lints: default_clippy_lints(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct QualityConfig {
     pub workspace: Option<PathBuf>,
     pub languages: Vec<Language>,
     pub js_runner: Option<JsRunner>,
+    pub rust: RustQualityConfig,
+}
+
+fn default_rust_lints() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("unsafe_code".into(), "forbid".into()),
+        ("unused_must_use".into(), "deny".into()),
+    ])
+}
+
+fn default_clippy_lints() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("all".into(), "deny".into()),
+        ("dbg_macro".into(), "deny".into()),
+        ("todo".into(), "deny".into()),
+        ("unimplemented".into(), "deny".into()),
+    ])
 }
 
 #[derive(Clone, Debug)]
@@ -498,6 +536,32 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         out.push_str(&format!("js_runner = \"{}\"\n", runner.as_str()));
     }
 
+    if profile.has_language(&Language::Rust) {
+        out.push_str("\n[quality.rust]\n");
+        out.push_str(&format!(
+            "manage_cargo_lints = {}\n",
+            bool_literal(profile.stored_config.quality.rust.manage_cargo_lints)
+        ));
+        out.push_str(&format!(
+            "manage_clippy_config = {}\n",
+            bool_literal(profile.stored_config.quality.rust.manage_clippy_config)
+        ));
+        out.push_str(&format!(
+            "lint_profile = \"{}\"\n",
+            escape_toml(&profile.stored_config.quality.rust.lint_profile)
+        ));
+
+        out.push_str("\n[quality.rust.lints.rust]\n");
+        for (name, level) in &profile.stored_config.quality.rust.rust_lints {
+            out.push_str(&format!("{} = \"{}\"\n", name, escape_toml(level)));
+        }
+
+        out.push_str("\n[quality.rust.lints.clippy]\n");
+        for (name, level) in &profile.stored_config.quality.rust.clippy_lints {
+            out.push_str(&format!("{} = \"{}\"\n", name, escape_toml(level)));
+        }
+    }
+
     out.push_str("\n[release]\n");
     out.push_str(&format!(
         "enabled = {}\n",
@@ -748,6 +812,13 @@ pub fn read_datarose_config(path: &Path) -> Result<DataroseConfig> {
         let value = value.trim();
         match section.as_str() {
             "quality" | "" => apply_quality_value(&mut config.quality, key, value),
+            "quality.rust" => apply_quality_rust_value(&mut config.quality.rust, key, value),
+            "quality.rust.lints.rust" => {
+                apply_lint_value(&mut config.quality.rust.rust_lints, key, value)
+            }
+            "quality.rust.lints.clippy" => {
+                apply_lint_value(&mut config.quality.rust.clippy_lints, key, value)
+            }
             "release" => apply_release_value(&mut config.release, key, value),
             "rust_cache.cache" => apply_rust_cache_value(&mut config.rust_cache, key, value),
             "rust_cache.cargo" => apply_rust_cache_cargo_value(&mut config.rust_cache, key, value),
@@ -940,6 +1011,29 @@ fn apply_quality_value(config: &mut QualityConfig, key: &str, value: &str) {
                 .collect();
         }
         _ => {}
+    }
+}
+
+fn apply_quality_rust_value(config: &mut RustQualityConfig, key: &str, value: &str) {
+    match key {
+        "manage_cargo_lints" => {
+            config.manage_cargo_lints = parse_bool(value).unwrap_or(config.manage_cargo_lints);
+        }
+        "manage_clippy_config" => {
+            config.manage_clippy_config = parse_bool(value).unwrap_or(config.manage_clippy_config);
+        }
+        "lint_profile" => {
+            if let Some(value) = parse_string(value) {
+                config.lint_profile = value;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn apply_lint_value(lints: &mut BTreeMap<String, String>, key: &str, value: &str) {
+    if let Some(value) = parse_string(value) {
+        lints.insert(key.into(), value);
     }
 }
 
@@ -1324,6 +1418,14 @@ mod tests {
 workspace = "."
 languages = ["rust"]
 
+[quality.rust]
+manage_cargo_lints = true
+manage_clippy_config = false
+lint_profile = "strict"
+
+[quality.rust.lints.clippy]
+unwrap_used = "warn"
+
 [release]
 enabled = true
 source_repository = "verzly/toolchain"
@@ -1341,6 +1443,17 @@ cargo_binary = "repository"
         assert_eq!(profile.languages, vec![Language::Rust]);
         assert!(profile.release_enabled());
         assert_eq!(profile.stored_config.release.targets[0].name, "repository");
+        assert!(!profile.stored_config.quality.rust.manage_clippy_config);
+        assert_eq!(
+            profile
+                .stored_config
+                .quality
+                .rust
+                .clippy_lints
+                .get("unwrap_used")
+                .map(String::as_str),
+            Some("warn")
+        );
     }
 
     #[test]
