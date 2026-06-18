@@ -10,6 +10,11 @@ use std::fs;
 use std::path::Path;
 use toml::{Table, Value};
 
+pub const DATAROSE_SCHEMA_URL: &str =
+    "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json";
+pub const DATAROSE_SCHEMA_DIRECTIVE: &str =
+    "#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json";
+
 pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
     if !path.is_file() {
         return Ok(Vec::new());
@@ -32,8 +37,40 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
     };
 
     let mut issues = Vec::new();
+    validate_schema_directive(&raw, &mut issues);
     validate_root(root, &mut issues);
     Ok(issues)
+}
+
+fn validate_schema_directive(raw: &str, issues: &mut Vec<String>) {
+    let mut seen_config = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed == DATAROSE_SCHEMA_DIRECTIVE {
+            return;
+        }
+        if trimmed.starts_with("#:schema ") {
+            issues.push(format!(
+                "datarose.toml schema directive must be `{DATAROSE_SCHEMA_DIRECTIVE}`; found `{trimmed}`"
+            ));
+            return;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        seen_config = true;
+        break;
+    }
+
+    if seen_config {
+        issues.push(format!(
+            "datarose.toml is missing the schema directive; add `{DATAROSE_SCHEMA_DIRECTIVE}` as the first line"
+        ));
+    }
 }
 
 fn validate_root(root: &Table, issues: &mut Vec<String>) {
@@ -672,7 +709,8 @@ mod tests {
     fn accepts_current_schema_surface() {
         let path = temp_config(
             "valid",
-            r#"version = 1
+            r#"#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
+version = 1
 
 [quality]
 workspace = "."
@@ -742,6 +780,17 @@ nam = "verzly"
         assert!(issues
             .iter()
             .any(|issue| issue.contains("release.targets[0].name")));
+    }
+
+    #[test]
+    fn reports_missing_schema_directive() {
+        let path = temp_config("missing-directive", "version = 1\n");
+
+        let issues = validate_datarose_schema(&path).unwrap();
+
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("missing the schema directive")));
     }
 
     fn temp_config(name: &str, content: &str) -> std::path::PathBuf {

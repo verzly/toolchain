@@ -281,7 +281,6 @@ fn collect_action_surface_issues(profile: &ProjectProfile, issues: &mut Vec<Stri
     }
 
     for path in [
-        ".taplo.toml",
         "action.yml",
         "actions/_shared/install-verzly.sh",
         "actions/android-signing/action.yml",

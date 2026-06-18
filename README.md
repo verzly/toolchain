@@ -363,7 +363,16 @@ GitHub Action:
 
 `datarose.toml` stays TOML. There is no `datarose.json` runtime configuration.
 
-`repository check` now validates the TOML file against a strict schema before relying on its values. It reports unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
+Each `datarose.toml` should be self-describing and point editors to the public schema directly from the file header:
+
+```toml
+#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
+version = 1
+```
+
+No `.taplo.toml`, `.vscode/settings.json`, or repository-local schema mapping is required. TOML tools that support the `#:schema` directive can use the online schema directly, while `verzly repository check` validates the same configuration offline through the executable.
+
+`repository check` validates the TOML file before relying on its values. It reports a missing or wrong schema directive, unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
 
 ```sh
 verzly repository check
@@ -382,7 +391,7 @@ manage_workflowz = true # typo: should be manage_workflows
 nam = "app" # typo: should be name
 ```
 
-The runtime validator is implemented in Rust and parses the actual TOML document. The optional `schemas/datarose.toml.schema.json` file mirrors the TOML contract for editor integrations such as Taplo; it is not a replacement config format and must not be used as `datarose.json`. When a supported config key changes, update the Rust validator and the editor schema together.
+The runtime validator is implemented in Rust and parses the actual TOML document, so CI does not depend on network access to the schema URL. The public `schemas/datarose.toml.schema.json` file exists for editor integrations and review tooling; it is not a replacement config format and must not be used as `datarose.json`. When a supported config key changes, update the Rust validator and the public schema together.
 
 Use `repository` first in downstream projects. It should describe the project layout, release targets, quality rules, cache conventions, and generated workflow expectations before release tooling is wired in.
 
@@ -867,9 +876,8 @@ action.yml                Root setup/run action
 Cargo.toml                Rust workspace
 datarose.toml             Release, quality, cache, and build configuration
 hk.pkl                    Git hook and quality gate configuration
-.taplo.toml              TOML editor schema mapping for datarose.toml
 mise.toml                 Local tool/task configuration
-schemas/                 Public editor schemas for TOML-backed config
+schemas/                 Public online schema for TOML-backed config
 ```
 
 ### Quality checks

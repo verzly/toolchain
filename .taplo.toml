@@ -1,6 +1,0 @@
-[[rule]]
-include = ["datarose.toml", "**/datarose.toml"]
-
-[rule.schema]
-path = "schemas/datarose.toml.schema.json"
-enabled = true

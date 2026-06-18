@@ -2,10 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json",
   "title": "datarose.toml",
-  "description": "JSON Schema representation for the datarose.toml TOML configuration. The project config file remains datarose.toml; this schema is for TOML editors and review tooling.",
+  "description": "JSON Schema representation for datarose.toml. Add a top-of-file `#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json` directive so TOML editors can discover this schema without repository-local config. The project config file remains datarose.toml.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "properties": {
     "version": {
       "type": "integer",
@@ -42,12 +44,25 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["rust", "js", "javascript", "typescript", "vue", "php"]
+            "enum": [
+              "rust",
+              "js",
+              "javascript",
+              "typescript",
+              "vue",
+              "php"
+            ]
           }
         },
         "js_runner": {
           "type": "string",
-          "enum": ["aube", "npm", "pnpm", "yarn", "bun"]
+          "enum": [
+            "aube",
+            "npm",
+            "pnpm",
+            "yarn",
+            "bun"
+          ]
         }
       }
     },
@@ -91,10 +106,15 @@
                 "const": true
               }
             },
-            "required": ["enabled"]
+            "required": [
+              "enabled"
+            ]
           },
           "then": {
-            "required": ["source_repository", "targets"]
+            "required": [
+              "source_repository",
+              "targets"
+            ]
           }
         }
       ]
@@ -102,7 +122,9 @@
     "releaseTarget": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -116,11 +138,18 @@
         },
         "strategy": {
           "type": "string",
-          "enum": ["same-repo", "distribution-repo", "workspace"]
+          "enum": [
+            "same-repo",
+            "distribution-repo",
+            "workspace"
+          ]
         },
         "workflow": {
           "type": "string",
-          "enum": ["custom", "managed"]
+          "enum": [
+            "custom",
+            "managed"
+          ]
         },
         "source_kind": {
           "type": "string"
@@ -302,7 +331,10 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["github", "scoped"]
+          "enum": [
+            "github",
+            "scoped"
+          ]
         },
         "include_scopes": {
           "$ref": "#/$defs/stringArray"
@@ -315,7 +347,9 @@
     "versionFile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "properties": {
         "path": {
           "type": "string",
@@ -323,7 +357,12 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["toml", "json", "cargo-lock-package", "text"]
+          "enum": [
+            "toml",
+            "json",
+            "cargo-lock-package",
+            "text"
+          ]
         },
         "key": {
           "type": "string"
@@ -333,7 +372,10 @@
         },
         "value_type": {
           "type": "string",
-          "enum": ["string", "integer"]
+          "enum": [
+            "string",
+            "integer"
+          ]
         },
         "search": {
           "type": "string"
