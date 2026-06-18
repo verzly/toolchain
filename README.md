@@ -902,8 +902,11 @@ Run workspace checks from the repository root:
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
+cargo nextest run --workspace
+cargo test --workspace --doc
 ```
+
+`cargo-nextest` is the default unit/integration test runner. It runs the existing Rust `#[test]` tests with better CI output and scheduling, while doctests stay on Cargo because nextest does not run doctests. Use `rstest` for parameterized/table-driven tests and `insta` for snapshot assertions when exact diagnostics or generated output should be reviewed.
 
 Run selected commands from source:
 
@@ -920,6 +923,7 @@ Keep the boundary between executable, tools, and actions clear:
 
 - `crates/verzly` is the unified executable and should mostly dispatch.
 - Each tool crate owns its CLI contract, command logic, tests, and reusable `run_from` entrypoint.
+- Prefer `rstest` for case matrices and `insta` for stable snapshots of diagnostics, plans, and generated configuration.
 - Standalone binaries remain compatibility wrappers.
 - GitHub Actions should call the released `verzly` binary, not duplicate tool logic.
 - Repository standards should be enforced through `repository check`, not copied into ad hoc scripts.
@@ -940,7 +944,8 @@ Before opening a PR, run:
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
+cargo nextest run --workspace
+cargo test --workspace --doc
 ```
 
 Do not reintroduce:

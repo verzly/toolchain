@@ -708,6 +708,7 @@ fn type_name(value: &Value) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -756,36 +757,76 @@ frontend_install = "aube install"
         assert!(validate_datarose_schema(&path).unwrap().is_empty());
     }
 
-    #[test]
-    fn reports_unknown_and_missing_keys() {
-        let path = temp_config(
-            "invalid",
-            r#"version = 1
+    #[rstest]
+    #[case::unknown_quality_key(
+        r#"version = 1
 
 [quality]
 langauges = ["rust"]
+"#,
+        "quality.langauges is not a supported datarose.toml key"
+    )]
+    #[case::missing_release_target_name(
+        r#"version = 1
 
 [release]
 enabled = true
+source_repository = "verzly/toolchain"
 
 [[release.targets]]
 nam = "verzly"
 "#,
+        "release.targets[0].nam is not a supported datarose.toml key\nrelease.targets[0].name is required"
+    )]
+    #[case::invalid_types_and_values(
+        r#"version = "1"
+
+[quality]
+languages = ["rust", 42]
+js_runner = "bower"
+
+[release]
+enabled = "yes"
+target_branch = 123
+source_repository = "verzly/toolchain"
+targets = "verzly"
+"#,
+        "datarose.toml.version must be an integer; found string\nquality.languages[1] must be a string; found integer\nquality.js_runner has unsupported value `bower`; expected one of aube, npm, pnpm, yarn, bun\nrelease.enabled must be a boolean; found string\nrelease.target_branch must be a string; found integer\nrelease.targets must be an array of tables; found string"
+    )]
+    fn reports_schema_issues(#[case] content: &str, #[case] expected: &str) {
+        let path = temp_config("invalid", content);
+
+        let issues = validate_datarose_schema(&path).unwrap();
+
+        assert_eq!(issues.join("\n"), expected);
+    }
+
+    #[test]
+    fn snapshots_complex_schema_diagnostics() {
+        let path = temp_config(
+            "snapshot",
+            r#"version = "1"
+
+[quality]
+languages = ["rust", 42]
+js_runner = "bower"
+
+[release]
+enabled = "yes"
+target_branch = 123
+source_repository = "verzly/toolchain"
+targets = "verzly"
+"#,
         );
 
         let issues = validate_datarose_schema(&path).unwrap();
-        assert!(issues
-            .iter()
-            .any(|issue| issue.contains("quality.langauges")));
-        assert!(issues
-            .iter()
-            .any(|issue| issue.contains("release.source_repository")));
-        assert!(issues
-            .iter()
-            .any(|issue| issue.contains("release.targets[0].nam")));
-        assert!(issues
-            .iter()
-            .any(|issue| issue.contains("release.targets[0].name")));
+
+        insta::assert_snapshot!(issues.join("\n"), @"datarose.toml.version must be an integer; found string
+quality.languages[1] must be a string; found integer
+quality.js_runner has unsupported value `bower`; expected one of aube, npm, pnpm, yarn, bun
+release.enabled must be a boolean; found string
+release.target_branch must be a string; found integer
+release.targets must be an array of tables; found string");
     }
 
     #[test]

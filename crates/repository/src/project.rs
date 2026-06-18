@@ -356,7 +356,14 @@ impl ProjectProfile {
                 &self.mise_tools,
                 "rust",
                 "stable",
-                "Rust files were detected; rustfmt, clippy, and cargo test need Rust stable",
+                "Rust files were detected; rustfmt, clippy, nextest, and doctests need Rust stable",
+            );
+            push_missing_tool(
+                &mut recommendations,
+                &self.mise_tools,
+                "cargo:cargo-nextest",
+                "latest",
+                "Rust files were detected; cargo-nextest is the preferred unit and integration test runner",
             );
         }
 
@@ -1377,6 +1384,7 @@ package = "auto"
             .collect::<BTreeSet<_>>();
 
         assert!(tools.contains("rust"));
+        assert!(tools.contains("cargo:cargo-nextest"));
         assert!(tools.contains("aube"));
         assert!(tools.contains("php"));
         assert!(tools.contains("composer"));

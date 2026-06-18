@@ -23,7 +23,9 @@ version = "0.29"
 
 [dev-dependencies]
 assert_cmd = "2.0"
+insta = { workspace = true }
 predicates = "3.1"
+rstest = { workspace = true }
 tempfile = "3.10"
 
 [package]
