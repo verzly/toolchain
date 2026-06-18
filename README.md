@@ -366,13 +366,13 @@ GitHub Action:
 Each `datarose.toml` should be self-describing and point editors to the public schema directly from the file header:
 
 ```toml
-#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
+"$schema" = "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json"
 version = 1
 ```
 
-No `.taplo.toml`, `.vscode/settings.json`, or repository-local schema mapping is required. TOML tools that support the `#:schema` directive can use the online schema directly, while `verzly repository check` validates the same configuration offline through the executable.
+No `.taplo.toml`, `.vscode/settings.json`, or repository-local schema mapping is required. The schema URL lives directly in `datarose.toml` as a valid TOML `"$schema"` key, while `verzly repository check` validates the same configuration offline through the executable.
 
-`repository check` validates the TOML file before relying on its values. It reports a missing or wrong schema directive, unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
+`repository check` validates the TOML file before relying on its values. It reports a missing or wrong `$schema` value, unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
 
 ```sh
 verzly repository check
