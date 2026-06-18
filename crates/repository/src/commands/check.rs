@@ -315,6 +315,7 @@ fn collect_release_workflow_issues(profile: &ProjectProfile, issues: &mut Vec<St
     for path in [
         ".github/workflows/release.yml",
         ".github/workflows/delete-release.yml",
+        ".github/workflows/update-floating-tags.yml",
         ".github/workflows/test.yml",
     ] {
         if !profile.root.join(path).is_file() {
