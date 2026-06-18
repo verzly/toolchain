@@ -85,6 +85,7 @@ fn update_cargo_lock_package(file: &VersionFileConfig, value: &str) -> Result<()
         file.key.as_str()
     };
 
+    let mut updated = false;
     for package in packages {
         let Some(table) = package.as_table_mut() else {
             continue;
@@ -96,16 +97,21 @@ fn update_cargo_lock_package(file: &VersionFileConfig, value: &str) -> Result<()
             .unwrap_or(false);
         if is_match {
             table.insert(key.to_string(), toml::Value::String(value.to_string()));
-            fs::write(&file.path, toml::to_string_pretty(&data)?)?;
-            return Ok(());
+            updated = true;
+            break;
         }
     }
 
-    anyhow::bail!(
-        "Cargo.lock package `{}` was not found in {}",
-        file.package,
-        file.path.display()
-    )
+    if !updated {
+        anyhow::bail!(
+            "Cargo.lock package `{}` was not found in {}",
+            file.package,
+            file.path.display()
+        );
+    }
+
+    fs::write(&file.path, toml::to_string_pretty(&data)?)?;
+    Ok(())
 }
 
 fn update_text(file: &VersionFileConfig, plan: &ReleasePlan) -> Result<()> {

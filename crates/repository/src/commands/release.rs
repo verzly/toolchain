@@ -172,10 +172,7 @@ fn interactive_set(profile: &mut ProjectProfile, index: Option<usize>) -> Result
 
     let name = prompt_default("Name", name_default)?;
     let repository = prompt_default("Publish repository", repository_default)?;
-    let strategy = prompt_default(
-        "Strategy [same-repo|distribution-repo|self-hosted|custom]",
-        strategy_default,
-    )?;
+    let strategy = prompt_default("Strategy [same-repo|self-hosted|custom]", strategy_default)?;
     let workflow = prompt_default("Workflow [managed|preserve|custom]", workflow_default)?;
 
     let args = ReleaseSetArgs {
@@ -234,10 +231,7 @@ fn print_target(target: &ReleaseTarget) {
     println!("  workflow: {}", target.workflow);
     println!("  source kind: {}", empty_as_dash(&target.source_kind));
     println!("  repository: {}", empty_as_dash(&target.repository));
-    println!(
-        "  distribution path: {}",
-        empty_as_dash(&target.distribution_path)
-    );
+    println!("  action surface: {}", action_surface_for_target(target));
     println!("  cargo package: {}", empty_as_dash(&target.cargo_package));
     println!("  cargo binary: {}", empty_as_dash(&target.cargo_binary));
     println!("  version file: {}", empty_as_dash(&target.version_file));
@@ -300,6 +294,14 @@ fn parse_workflow(value: &str) -> Option<crate::cli::ReleaseWorkflowArg> {
         "preserve" => Some(crate::cli::ReleaseWorkflowArg::Preserve),
         "custom" => Some(crate::cli::ReleaseWorkflowArg::Custom),
         _ => None,
+    }
+}
+
+fn action_surface_for_target(target: &ReleaseTarget) -> &str {
+    if target.name == "verzly" {
+        "action.yml, actions/"
+    } else {
+        "-"
     }
 }
 

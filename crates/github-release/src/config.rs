@@ -18,10 +18,10 @@ pub struct Config {
 impl Config {
     /// Returns the view used by prepare/finalize/abort commands in a monorepo release.
     ///
-    /// The regular `[release]` section describes the public distribution release. The optional
-    /// `[source_release]` section describes the source repository branch/tag that is created before
-    /// assets are built. When `[source_release]` is omitted, the public release settings are reused
-    /// for backwards-compatible single-repository projects.
+    /// The regular `[release]` section describes the published GitHub Release. The optional
+    /// `[source_release]` section describes a separate source branch/tag flow for projects that
+    /// still need it. When `[source_release]` is omitted, release settings are reused for
+    /// backwards-compatible single-repository projects.
     pub fn source_view(&self) -> Self {
         let mut config = self.clone();
         if let Some(source_release) = self.source_release.clone() {
@@ -443,7 +443,7 @@ fn default_distribution_notes_body() -> String {
 Source changes for this package can be reviewed from `{previous_source_tag}` to `{source_tag}`:
 {source_compare_url}
 
-The distribution repository contains the public GitHub Action surface and release assets. Source changes and pull requests live in `verzly/toolchain`.
+The GitHub Action surface and executable release assets live in `verzly/toolchain`.
 "#
     .into()
 }

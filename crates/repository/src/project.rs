@@ -105,7 +105,7 @@ impl Default for ReleaseConfig {
             enabled: false,
             target_branch: "master".into(),
             source_repository: String::new(),
-            secret_name: "DISTRIBUTION_REPO_TOKEN".into(),
+            secret_name: String::new(),
             release_all: true,
             manage_cargo_packages: false,
             manage_workflows: false,
@@ -856,9 +856,6 @@ pub fn normalize_release_targets(targets: &mut [ReleaseTarget]) {
             target.source_kind = "cargo-package".into();
         }
 
-        if target.distribution_path.is_empty() && !target.name.is_empty() && !assetless {
-            target.distribution_path = format!(".verzly/distributions/{}", target.name);
-        }
         if !assetless {
             if target.cargo_binary.is_empty() && !target.name.is_empty() {
                 target.cargo_binary = target.name.clone();
@@ -1325,7 +1322,6 @@ source_repository = "verzly/toolchain"
 [[release.targets]]
 name = "repository"
 repository = "verzly/repository"
-distribution_path = ".verzly/distributions/repository"
 cargo_binary = "repository"
 "#,
         )

@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Android release signing keystore helper",
-    after_help = "Read the full README: https://github.com/verzly/android-signing"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -30,12 +30,14 @@ pub enum Commands {
     WriteGithubEnv(WriteGithubEnvArgs),
     #[command(name = "check-env")]
     CheckEnv(CheckEnvArgs),
-    #[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+    #[command(
+        after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing"
+    )]
     Doctor,
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct GenerateArgs {
     #[arg(short, long, default_value = "android-release.jks")]
     pub output: PathBuf,
@@ -81,7 +83,7 @@ pub struct GenerateArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct Base64Args {
     pub path: PathBuf,
 
@@ -90,7 +92,7 @@ pub struct Base64Args {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct FingerprintArgs {
     pub path: PathBuf,
 
@@ -102,7 +104,7 @@ pub struct FingerprintArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct VerifyFingerprintArgs {
     pub path: PathBuf,
 
@@ -117,7 +119,7 @@ pub struct VerifyFingerprintArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct PrintSecretsArgs {
     pub path: PathBuf,
 
@@ -126,7 +128,7 @@ pub struct PrintSecretsArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct WriteGithubEnvArgs {
     pub path: PathBuf,
 
@@ -135,7 +137,7 @@ pub struct WriteGithubEnvArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/android-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#android-signing")]
 pub struct CheckEnvArgs {
     /// Also require ANDROID_SIGNING_CERT_SHA256 for fingerprint verification workflows.
     #[arg(long, default_value_t = false)]

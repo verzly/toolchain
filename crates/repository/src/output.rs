@@ -85,7 +85,7 @@ pub fn print_release_target_table(profile: &ProjectProfile) {
         header_cell("Repo"),
         header_cell("Bin"),
         header_cell("WF"),
-        header_cell("Dist"),
+        header_cell("Action"),
     ]);
     style_compact_columns(&mut table);
     for target in &profile.stored_config.release.targets {
@@ -95,7 +95,7 @@ pub fn print_release_target_table(profile: &ProjectProfile) {
             plain_cell(empty_as_dash(&target.repository), 24),
             plain_cell(empty_as_dash(&target.cargo_binary), 18),
             workflow_cell(&target.workflow),
-            plain_cell(empty_as_dash(&target.distribution_path), 34),
+            plain_cell(action_surface_for_target(target), 34),
         ]);
     }
     println!("{table}");
@@ -224,5 +224,13 @@ mod tests {
     #[test]
     fn compact_text_truncates_with_three_dot_ellipsis() {
         assert_eq!(compact_text("abcdefghijklmnopqrstuvwxyz", 10), "abcdefg...");
+    }
+}
+
+fn action_surface_for_target(target: &crate::project::ReleaseTarget) -> &str {
+    if target.name == "verzly" {
+        "action.yml, actions/"
+    } else {
+        "-"
     }
 }

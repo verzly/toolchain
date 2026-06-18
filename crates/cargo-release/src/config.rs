@@ -454,7 +454,6 @@ release_all = false
 [[release.targets]]
 name = "my-tool"
 repository = "owner/my-tool"
-distribution_path = ".verzly/distributions/my-tool"
 cargo_binary = "my-tool"
 cargo_package = "my-tool"
 cargo_out_dir = "dist/my-tool"

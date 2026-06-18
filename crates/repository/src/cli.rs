@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Manage Datarose repository standards, quality gates, and release targets",
-    after_help = "Read the full README: https://github.com/verzly/repository"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#repository"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -38,7 +38,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct InitArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -85,7 +85,7 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct UpdateArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -120,7 +120,7 @@ pub struct UpdateArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct PlanArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -141,7 +141,7 @@ pub struct PlanArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct ProjectsArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -152,7 +152,7 @@ pub struct ProjectsArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct CheckArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -163,7 +163,7 @@ pub struct CheckArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct ReleaseArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -206,7 +206,7 @@ pub struct ReleaseSetArgs {
     #[arg(long)]
     pub path: PathBuf,
 
-    /// Publish repository, for example verzly/github-release. No default repository is invented.
+    /// Release repository, for example owner/project. No default repository is invented.
     #[arg(long)]
     pub repository: Option<String>,
 
@@ -270,7 +270,7 @@ pub struct ReleaseRemoveArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct DoctorArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,
@@ -281,7 +281,7 @@ pub struct DoctorArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/repository")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#repository")]
 pub struct TuiArgs {
     #[arg(short, long, default_value = ".")]
     pub root: PathBuf,

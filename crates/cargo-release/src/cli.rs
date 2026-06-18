@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Container-aware release builder for Rust executable artifacts",
-    after_help = "Read the full README: https://github.com/verzly/cargo-release"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#cargo-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -32,7 +32,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#cargo-release")]
 pub struct InitArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -42,7 +42,7 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#cargo-release")]
 pub struct CommonArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -53,7 +53,7 @@ pub struct CommonArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/cargo-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#cargo-release")]
 pub struct BuildArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,

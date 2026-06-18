@@ -760,7 +760,7 @@ fn write_generated_notes_file(plan: &ReleasePlan, dry_run: bool) -> Result<PathB
         body.push_str(&format!(
             "Source changes for this release are maintained in `{source_repository}`. Pull request links in \
              these notes intentionally point to that source repository, even when the release itself is \
-             published from a distribution repository.\n"
+             published by a separate release step.\n"
         ));
     }
 

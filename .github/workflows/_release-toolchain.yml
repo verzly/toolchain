@@ -15,16 +15,16 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-toolchain-${{ inputs.version }}
+  group: release-verzly-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Publish toolchain release
+  preflight:
+    name: Preflight
     runs-on: ubuntu-latest
 
     steps:
-      - name: Preflight
+      - name: Validate release inputs
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v${{ inputs.version }}
@@ -40,7 +40,19 @@ jobs:
             echo "::error::Release ${RELEASE_TAG} already exists in ${{ github.repository }}."
             exit 1
           fi
+          if git ls-remote --exit-code --tags "https://github.com/${{ github.repository }}.git" "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${RELEASE_TAG} already exists in ${{ github.repository }}."
+            exit 1
+          fi
 
+  prepare:
+    name: Prepare source
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      release-branch: ${{ steps.prepare.outputs.release_branch }}
+
+    steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -48,17 +60,130 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap github-release
+      - name: Configure Git
         run: |
-          cargo build --release -p github-release
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap Verzly from source
+        run: |
+          cargo build --release -p verzly
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
-      - name: Publish toolchain release
+      - name: Prepare release branch
+        id: prepare
+        run: >-
+          verzly github-release prepare
+          --config datarose.toml
+          --release-target verzly
+          --version "${{ inputs.version }}"
+
+  test:
+    name: Test prepared source
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.release-branch }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets
+
+  build:
+    name: Build release assets
+    needs:
+      - prepare
+      - test
+    uses: ./.github/workflows/_release-build-assets.yml
+    with:
+      version: ${{ inputs.version }}
+      ref: ${{ needs.prepare.outputs.release-branch }}
+      release-target: verzly
+
+  abort:
+    name: Abort release branch
+    needs:
+      - prepare
+      - test
+      - build
+    if: ${{ always() && needs.prepare.result == 'success' && (needs.test.result == 'failure' || needs.test.result == 'cancelled' || needs.build.result == 'failure' || needs.build.result == 'cancelled') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap Verzly from source
+        run: |
+          cargo build --release -p verzly
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Delete prepared release branch
+        run: >-
+          verzly github-release abort
+          --config datarose.toml
+          --release-target verzly
+          --version "${{ inputs.version }}"
+
+  finalize:
+    name: Finalize and publish release
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.release-branch }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Git
+        run: |
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
+
+      - name: Bootstrap Verzly from source
+        run: |
+          cargo build --release -p verzly
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: verzly-*
+          path: dist/verzly
+          merge-multiple: true
+
+      - name: Finalize release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          github-release publish
+          verzly github-release finalize
           --config datarose.toml
-          --release-target toolchain
+          --release-target verzly
           --version "${{ inputs.version }}"
           --prerelease "${{ inputs.prerelease }}"
+          --assets dist/verzly
+          --merge-strategy squash
+          --update-floating-tags
+          --update-latest-tag
+          --update-next-tag

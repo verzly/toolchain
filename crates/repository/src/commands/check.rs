@@ -1,13 +1,10 @@
 use crate::cli::CheckArgs;
-use crate::project::{detect_cargo_packages, ProjectProfile, ReleaseTarget, DEFAULT_CONFIG_FILE};
+use crate::project::{detect_cargo_packages, ProjectProfile, DEFAULT_CONFIG_FILE};
 use crate::release::{STRATEGIES, WORKFLOWS};
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
-
-const REQUIRED_DISTRIBUTION_FILES: &[&str] =
-    &["README.md", "CONTRIBUTING.md", "action.yml", "LICENSE"];
+use std::path::Path;
 
 pub fn run(args: CheckArgs) -> Result<()> {
     let profile = ProjectProfile::detect(
@@ -49,7 +46,7 @@ pub fn collect_config_issues(profile: &ProjectProfile) -> Result<Vec<String>> {
     collect_removed_fields(&text, &mut issues);
     collect_invalid_values(profile, &mut issues)?;
     collect_repository_boundary_issues(profile, &mut issues)?;
-    collect_distribution_template_issues(profile, &mut issues)?;
+    collect_action_surface_issues(profile, &mut issues);
     collect_release_workflow_issues(profile, &mut issues);
 
     Ok(issues)
@@ -74,11 +71,11 @@ fn collect_removed_files(root: &Path, issues: &mut Vec<String>) {
         }
     }
 
-    for path in ["crates/repo-quality", ".verzly/distributions/repo-quality"] {
+    for path in ["crates/repo-quality", ".verzly/distributions"] {
         let full_path = root.join(path);
         if full_path.exists() {
             issues.push(format!(
-                "{} is deprecated; rename it to use `repository`",
+                "{} is deprecated; use the unified root action and `actions/<tool>` subpath actions in this repository",
                 full_path.display()
             ));
         }
@@ -249,7 +246,7 @@ fn collect_repository_boundary_issues(
         let full_path = profile.root.join(path);
         if full_path.exists() {
             issues.push(format!(
-                "{} is not allowed; keep distribution templates in .verzly/distributions and release behavior in Rust tools",
+                "{} is not allowed; keep action surfaces in action.yml or actions/<tool>/action.yml and release behavior in Rust tools",
                 display_path(profile, &full_path)
             ));
         }
@@ -275,188 +272,20 @@ fn collect_repository_boundary_issues(
     Ok(())
 }
 
-fn collect_distribution_template_issues(
-    profile: &ProjectProfile,
-    issues: &mut Vec<String>,
-) -> Result<()> {
-    let distributions_dir = profile.root.join(".verzly/distributions");
-    if !distributions_dir.exists() {
-        if has_distribution_targets(profile) {
-            issues.push(".verzly/distributions is missing".into());
-        }
-        return Ok(());
+fn collect_action_surface_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {
+    if !is_toolchain_repository(profile) {
+        return;
     }
 
-    if !distributions_dir.is_dir() {
-        issues.push(".verzly/distributions exists but is not a directory".into());
-        return Ok(());
-    }
-
-    let referenced_paths = profile
-        .stored_config
-        .release
-        .targets
-        .iter()
-        .filter_map(normalized_distribution_path)
-        .collect::<BTreeSet<_>>();
-
-    for entry in fs::read_dir(&distributions_dir)
-        .with_context(|| format!("failed to read {}", distributions_dir.display()))?
-    {
-        let entry = entry
-            .with_context(|| format!("failed to read entry in {}", distributions_dir.display()))?;
-        let path = entry.path();
-        if !path.is_dir() {
-            issues.push(format!(
-                "{} is not allowed; distribution templates must be directories",
-                display_path(profile, &path)
-            ));
-            continue;
-        }
-
-        let display = display_path(profile, &path);
-        if !referenced_paths.is_empty() && !referenced_paths.contains(&normalize_path(&display)) {
-            issues.push(format!(
-                "distribution template `{display}` is not referenced by any release target"
-            ));
-        }
-        collect_single_distribution_template_issues(profile, &path, issues)?;
-    }
-
-    for target in &profile.stored_config.release.targets {
-        let Some(distribution_path) = normalized_distribution_path(target) else {
-            continue;
-        };
-        let full_path = profile.root.join(&distribution_path);
-        if !full_path.is_dir() {
-            issues.push(format!(
-                "release target `{}` distribution path does not exist: {}",
-                target.name, distribution_path
-            ));
-            continue;
-        }
-        collect_action_readme_contract_issues(profile, target, &full_path, issues)?;
-    }
-
-    Ok(())
-}
-
-fn collect_single_distribution_template_issues(
-    profile: &ProjectProfile,
-    path: &Path,
-    issues: &mut Vec<String>,
-) -> Result<()> {
-    let mut seen = BTreeSet::new();
-
-    for required in REQUIRED_DISTRIBUTION_FILES {
-        let full_path = path.join(required);
-        if !full_path.is_file() {
-            issues.push(format!(
-                "{} is missing required distribution file `{required}`",
-                display_path(profile, path)
-            ));
+    for path in [
+        "action.yml",
+        "actions/_shared/install-verzly.sh",
+        "actions/ios-signing/action.yml",
+    ] {
+        if !profile.root.join(path).is_file() {
+            issues.push(format!("{path} is missing"));
         }
     }
-
-    for entry in fs::read_dir(path).with_context(|| format!("failed to read {}", path.display()))? {
-        let entry = entry.with_context(|| format!("failed to read entry in {}", path.display()))?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-        seen.insert(file_name.clone());
-
-        if !REQUIRED_DISTRIBUTION_FILES.contains(&file_name.as_str()) {
-            issues.push(format!(
-                "{} contains unsupported distribution file `{file_name}`",
-                display_path(profile, path)
-            ));
-        }
-    }
-
-    if seen.contains("AGENTS.md") || seen.contains("CLAUDE.md") {
-        issues.push(format!(
-            "{} must not contain AI instruction files; use the root AGENTS.md and optional root CLAUDE.md only",
-            display_path(profile, path)
-        ));
-    }
-
-    let contributing_path = path.join("CONTRIBUTING.md");
-    if contributing_path.is_file() {
-        let contributing = fs::read_to_string(&contributing_path)
-            .with_context(|| format!("failed to read {}", contributing_path.display()))?;
-        let normalized = contributing.to_lowercase();
-        if !normalized.contains("does not contain the full source code")
-            || !normalized.contains("source-code contributions cannot be accepted directly here")
-        {
-            issues.push(format!(
-                "{} CONTRIBUTING.md should explain that the public repository is a distribution surface without the full source code",
-                display_path(profile, path)
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn collect_action_readme_contract_issues(
-    profile: &ProjectProfile,
-    target: &ReleaseTarget,
-    distribution_path: &Path,
-    issues: &mut Vec<String>,
-) -> Result<()> {
-    let action_path = distribution_path.join("action.yml");
-    let readme_path = distribution_path.join("README.md");
-    if !action_path.is_file() || !readme_path.is_file() {
-        return Ok(());
-    }
-
-    let action = fs::read_to_string(&action_path)
-        .with_context(|| format!("failed to read {}", action_path.display()))?;
-    let readme = fs::read_to_string(&readme_path)
-        .with_context(|| format!("failed to read {}", readme_path.display()))?;
-
-    for input in parse_yaml_section_keys(&action, "inputs") {
-        if !documents_table_item(&readme, &input) {
-            issues.push(format!(
-                "{} README.md does not document action input `{input}`",
-                display_path(profile, distribution_path)
-            ));
-        }
-    }
-
-    for output in parse_yaml_section_keys(&action, "outputs") {
-        if !documents_table_item(&readme, &output) {
-            issues.push(format!(
-                "{} README.md does not document action output `{output}`",
-                display_path(profile, distribution_path)
-            ));
-        }
-    }
-
-    let normalized_readme = readme.to_lowercase();
-    let explains_source_boundary = normalized_readme.contains("source lives in `verzly/toolchain`")
-        || (normalized_readme.contains("source code")
-            && normalized_readme.contains("verzly/toolchain"));
-    if !explains_source_boundary {
-        issues.push(format!(
-            "{} README.md should explain that source lives in verzly/toolchain",
-            display_path(profile, distribution_path)
-        ));
-    }
-
-    if readme.contains("\n## Contributing") || readme.contains("\n## Install") {
-        issues.push(format!(
-            "{} README.md must stay usage-focused; keep contributing and install policy out of the README",
-            display_path(profile, distribution_path)
-        ));
-    }
-
-    if target.repository.trim().is_empty() {
-        issues.push(format!(
-            "release target `{}` has a distribution template but no public repository",
-            target.name
-        ));
-    }
-
-    Ok(())
 }
 
 fn collect_release_workflow_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {
@@ -464,91 +293,29 @@ fn collect_release_workflow_issues(profile: &ProjectProfile, issues: &mut Vec<St
         return;
     }
 
-    let public_targets = profile
-        .stored_config
-        .release
-        .targets
-        .iter()
-        .filter(|target| normalized_distribution_path(target).is_some())
-        .collect::<Vec<_>>();
-
-    let require_public_release_workflows = profile.stored_config.release.manage_workflows
+    let require_toolchain_workflows = profile.stored_config.release.manage_workflows
         || is_toolchain_repository(profile)
-        || public_targets.iter().any(|target| {
-            profile
-                .root
-                .join(format!(".github/workflows/release-{}.yml", target.name))
-                .is_file()
-        });
+        || profile
+            .stored_config
+            .release
+            .targets
+            .iter()
+            .any(|target| target.name == "verzly");
 
-    if require_public_release_workflows {
-        for path in [
-            ".github/workflows/_release-tool.yml",
-            ".github/workflows/_release-build-assets.yml",
-            ".github/workflows/sync-distributions.yml",
-            ".github/workflows/delete-release.yml",
-            ".github/workflows/update-floating-tags.yml",
-        ] {
-            if !profile.root.join(path).is_file() {
-                issues.push(format!("{path} is missing"));
-            }
-        }
+    if !require_toolchain_workflows {
+        return;
     }
 
-    if require_public_release_workflows
-        && profile.stored_config.release.release_all
-        && public_targets.len() > 1
-    {
-        let path = profile.root.join(".github/workflows/release-all.yml");
-        if !path.is_file() {
-            issues.push(".github/workflows/release-all.yml is missing".into());
-        }
-    }
-
-    for target in public_targets {
-        let workflow = format!(".github/workflows/release-{}.yml", target.name);
-        let path = profile.root.join(&workflow);
-        let require_target_workflow =
-            target.workflow == "managed" || is_toolchain_repository(profile) || path.is_file();
-
-        if !require_target_workflow {
-            continue;
-        }
-
-        if !path.is_file() {
-            issues.push(format!(
-                "release target `{}` is missing workflow {workflow}",
-                target.name
-            ));
-            continue;
-        }
-
-        let Ok(content) = fs::read_to_string(&path) else {
-            issues.push(format!("failed to read {workflow}"));
-            continue;
-        };
-        if !content.contains(&format!("tool: {}", target.name)) {
-            issues.push(format!(
-                "{workflow} does not dispatch release target `{}`",
-                target.name
-            ));
-        }
-    }
-
-    if profile
-        .stored_config
-        .release
-        .targets
-        .iter()
-        .any(|target| target.name == "toolchain")
-    {
-        for path in [
-            ".github/workflows/release-toolchain.yml",
-            ".github/workflows/_release-toolchain.yml",
-        ] {
-            if !profile.root.join(path).is_file() {
-                issues.push(format!("{path} is missing"));
-            }
+    for path in [
+        ".github/workflows/_release-build-assets.yml",
+        ".github/workflows/_release-toolchain.yml",
+        ".github/workflows/release-toolchain.yml",
+        ".github/workflows/release-verzly.yml",
+        ".github/workflows/delete-release.yml",
+        ".github/workflows/update-floating-tags.yml",
+    ] {
+        if !profile.root.join(path).is_file() {
+            issues.push(format!("{path} is missing"));
         }
     }
 }
@@ -561,72 +328,9 @@ fn is_toolchain_repository(profile: &ProjectProfile) -> bool {
             .is_file()
 }
 
-fn has_distribution_targets(profile: &ProjectProfile) -> bool {
-    profile
-        .stored_config
-        .release
-        .targets
-        .iter()
-        .any(|target| normalized_distribution_path(target).is_some())
-}
-
-fn normalized_distribution_path(target: &ReleaseTarget) -> Option<String> {
-    let path = target.distribution_path.trim();
-    if path.is_empty() {
-        None
-    } else {
-        Some(normalize_path(path))
-    }
-}
-
-fn parse_yaml_section_keys(text: &str, section: &str) -> Vec<String> {
-    let mut keys = Vec::new();
-    let mut in_section = false;
-
-    for raw_line in text.lines() {
-        let line = raw_line.trim_end();
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
-            continue;
-        }
-
-        if !raw_line.starts_with(' ') && line.ends_with(':') {
-            let name = line.trim_end_matches(':');
-            in_section = name == section;
-            continue;
-        }
-
-        if !in_section {
-            continue;
-        }
-
-        if raw_line.starts_with("  ") && !raw_line.starts_with("    ") {
-            if let Some((key, _)) = line.trim().split_once(':') {
-                if !key.is_empty() {
-                    keys.push(key.trim_matches('"').trim_matches('\'').to_string());
-                }
-            }
-        }
-    }
-
-    keys
-}
-
-fn documents_table_item(readme: &str, name: &str) -> bool {
-    readme.contains(&format!("| `{name}` |"))
-}
-
 fn display_path(profile: &ProjectProfile, path: &Path) -> String {
     path.strip_prefix(&profile.root)
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
-}
-
-fn normalize_path(path: &str) -> String {
-    PathBuf::from(path)
-        .components()
-        .map(|component| component.as_os_str().to_string_lossy().to_string())
-        .filter(|component| component != ".")
-        .collect::<Vec<_>>()
-        .join("/")
 }

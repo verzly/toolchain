@@ -35,11 +35,11 @@ fn plan_prints_release_graph_contract() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Release graph:"))
-        .stdout(predicate::str::contains("- repository"))
-        .stdout(predicate::str::contains("source tag: repository-vX.Y.Z"))
-        .stdout(predicate::str::contains("public repo: verzly/repository"))
+        .stdout(predicate::str::contains("- verzly"))
+        .stdout(predicate::str::contains("source tag: vX.Y.Z"))
+        .stdout(predicate::str::contains("public repo: verzly/toolchain"))
         .stdout(predicate::str::contains(
-            "distribution path: .verzly/distributions/repository",
+            "action surface: action.yml, actions/",
         ));
 }
 
@@ -102,13 +102,9 @@ fn repository_without_subcommand_opens_tui() {
 }
 
 #[test]
-fn check_rejects_unsupported_distribution_files() {
+fn check_rejects_legacy_distribution_directory() {
     let repo = fixture_repo();
-    fs::write(
-        repo.path().join(".verzly/distributions/api/AGENTS.md"),
-        "do not put agent files here\n",
-    )
-    .unwrap();
+    fs::create_dir_all(repo.path().join(".verzly/distributions/api")).unwrap();
 
     let mut cmd = Command::cargo_bin("repository").expect("repository binary");
 
@@ -117,16 +113,12 @@ fn check_rejects_unsupported_distribution_files() {
         .arg(repo.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
-            "contains unsupported distribution file `AGENTS.md`",
-        ))
-        .stderr(predicate::str::contains(
-            "must not contain AI instruction files",
-        ));
+        .stderr(predicate::str::contains(".verzly/distributions"))
+        .stderr(predicate::str::contains("unified root action"));
 }
 
 #[test]
-fn check_allows_custom_distribution_release_without_workflows() {
+fn check_allows_custom_release_without_toolchain_workflows() {
     let repo = fixture_repo();
     fs::remove_dir_all(repo.path().join(".github")).unwrap();
 
@@ -138,86 +130,6 @@ fn check_allows_custom_distribution_release_without_workflows() {
         .assert()
         .success()
         .stdout(predicate::str::contains("datarose configuration is valid."));
-}
-
-#[test]
-fn check_rejects_undocumented_action_inputs() {
-    let repo = fixture_repo();
-    fs::write(
-        repo.path().join(".verzly/distributions/api/README.md"),
-        "# api\n\nSource code lives in `verzly/toolchain`.\n\n| Input | Required |\n| --- | --- |\n| `github-token` | No |\n\n| Output | Value |\n| --- | --- |\n| `bin-path` | path |\n",
-    )
-    .unwrap();
-
-    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
-
-    cmd.arg("check")
-        .arg("--root")
-        .arg(repo.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "README.md does not document action input `args`",
-        ))
-        .stderr(predicate::str::contains(
-            "README.md does not document action output `host-target`",
-        ));
-}
-
-#[test]
-fn check_rejects_missing_distribution_source_boundary() {
-    let repo = fixture_repo();
-    fs::write(
-        repo.path().join(".verzly/distributions/api/README.md"),
-        r#"# api
-
-This repository installs the API binary.
-
-| Input | Required |
-| --- | --- |
-| `github-token` | No |
-| `args` | No |
-
-| Output | Value |
-| --- | --- |
-| `bin-path` | path |
-| `host-target` | host |
-"#,
-    )
-    .unwrap();
-
-    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
-
-    cmd.arg("check")
-        .arg("--root")
-        .arg(repo.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "README.md should explain that source lives in verzly/toolchain",
-        ));
-}
-
-#[test]
-fn check_rejects_distribution_contributing_without_source_boundary() {
-    let repo = fixture_repo();
-    fs::write(
-        repo.path()
-            .join(".verzly/distributions/api/CONTRIBUTING.md"),
-        "# Contributing\n\nOpen pull requests here.\n",
-    )
-    .unwrap();
-
-    let mut cmd = Command::cargo_bin("repository").expect("repository binary");
-
-    cmd.arg("check")
-        .arg("--root")
-        .arg(repo.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "CONTRIBUTING.md should explain that the public repository is a distribution surface",
-        ));
 }
 
 fn workspace_root() -> PathBuf {
@@ -233,7 +145,6 @@ fn fixture_repo() -> TempDir {
     let root = repo.path();
 
     fs::create_dir_all(root.join("packages/api")).unwrap();
-    fs::create_dir_all(root.join(".verzly/distributions/api")).unwrap();
     fs::create_dir_all(root.join(".github/workflows")).unwrap();
 
     fs::write(
@@ -248,19 +159,17 @@ languages = []
 enabled = true
 target_branch = "main"
 source_repository = "acme/platform"
-secret_name = "DISTRIBUTION_REPO_TOKEN"
-release_all = true
+release_all = false
 manage_cargo_packages = false
 manage_workflows = false
 
 [[release.targets]]
 name = "api"
 path = "packages/api"
-strategy = "distribution-repo"
+strategy = "same-repo"
 workflow = "custom"
 source_kind = "custom"
-repository = "acme/api"
-distribution_path = ".verzly/distributions/api"
+repository = "acme/platform"
 version_files = false
 source_tag_prefix = "api-v"
 include_scopes = ["api", "all"]
@@ -269,86 +178,6 @@ include_paths = ["packages/api/"]
 [rust_cache.cache]
 package = "platform"
 "#,
-    )
-    .unwrap();
-
-    fs::write(
-        root.join(".verzly/distributions/api/CONTRIBUTING.md"),
-        "# Contributing\n\nThis repository is a public distribution surface. It does not contain the full source code, so source-code contributions cannot be accepted directly here.\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join(".verzly/distributions/api/LICENSE"),
-        "AGPL-3.0-only\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join(".verzly/distributions/api/action.yml"),
-        r#"name: API
-description: Install API tool.
-
-inputs:
-  github-token:
-    description: Token.
-    required: false
-    default: ""
-  args:
-    description: Arguments.
-    required: false
-    default: "--help"
-
-outputs:
-  bin-path:
-    description: Path.
-    value: ${{ steps.install.outputs.bin-path }}
-  host-target:
-    description: Host.
-    value: ${{ steps.host.outputs.host-target }}
-
-runs:
-  using: composite
-  steps:
-    - shell: bash
-      run: echo ok
-"#,
-    )
-    .unwrap();
-    fs::write(
-        root.join(".verzly/distributions/api/README.md"),
-        r#"# api
-
-Source code lives in `verzly/toolchain`.
-
-| Input | Required |
-| --- | --- |
-| `github-token` | No |
-| `args` | No |
-
-| Output | Value |
-| --- | --- |
-| `bin-path` | path |
-| `host-target` | host |
-"#,
-    )
-    .unwrap();
-
-    for workflow in [
-        "_release-tool.yml",
-        "_release-build-assets.yml",
-        "sync-distributions.yml",
-        "delete-release.yml",
-        "update-floating-tags.yml",
-        "release-all.yml",
-    ] {
-        fs::write(
-            root.join(".github/workflows").join(workflow),
-            "name: Test\n",
-        )
-        .unwrap();
-    }
-    fs::write(
-        root.join(".github/workflows/release-api.yml"),
-        "name: Release API\njobs:\n  release:\n    with:\n      tool: api\n",
     )
     .unwrap();
 

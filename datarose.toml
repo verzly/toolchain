@@ -9,204 +9,49 @@ languages = ["rust"]
 enabled = true
 target_branch = "master"
 source_repository = "verzly/toolchain"
-secret_name = "DISTRIBUTION_REPO_TOKEN"
-release_all = true
-manage_cargo_packages = true
+release_all = false
+manage_cargo_packages = false
 manage_workflows = false
-
 
 [[release.targets]]
 name = "verzly"
-path = "crates/verzly"
-strategy = "self-hosted"
+path = "."
+strategy = "same-repo"
 workflow = "custom"
 source_kind = "cargo-package"
-repository = "verzly/verzly"
-distribution_path = ".verzly/distributions/verzly"
+repository = "verzly/toolchain"
 cargo_binary = "verzly"
 cargo_package = "verzly"
 cargo_out_dir = "dist/verzly"
 cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
 prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/verzly/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "verzly-v"
-generate_notes = false
-include_scopes = ["verzly", "all"]
-include_paths = ["crates/verzly/"]
-
-[[release.targets]]
-name = "github-release"
-path = "crates/github-release"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/github-release"
-distribution_path = ".verzly/distributions/github-release"
-cargo_binary = "github-release"
-cargo_package = "github-release"
-cargo_out_dir = "dist/github-release"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/github-release/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "github-release-v"
-generate_notes = false
-include_scopes = ["github-release", "all"]
-include_paths = ["crates/github-release/"]
-
-[[release.targets]]
-name = "cargo-release"
-path = "crates/cargo-release"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/cargo-release"
-distribution_path = ".verzly/distributions/cargo-release"
-cargo_binary = "cargo-release"
-cargo_package = "cargo-release"
-cargo_out_dir = "dist/cargo-release"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/cargo-release/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "cargo-release-v"
-generate_notes = false
-include_scopes = ["cargo-release", "all"]
-include_paths = ["crates/cargo-release/"]
-
-[[release.targets]]
-name = "tauri-release"
-path = "crates/tauri-release"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/tauri-release"
-distribution_path = ".verzly/distributions/tauri-release"
-cargo_binary = "tauri-release"
-cargo_package = "tauri-release"
-cargo_out_dir = "dist/tauri-release"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/tauri-release/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "tauri-release-v"
-generate_notes = false
-include_scopes = ["tauri-release", "all"]
-include_paths = ["crates/tauri-release/"]
-
-[[release.targets]]
-name = "rust-cache"
-path = "crates/rust-cache"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/rust-cache"
-distribution_path = ".verzly/distributions/rust-cache"
-cargo_binary = "rust-cache"
-cargo_package = "rust-cache"
-cargo_out_dir = "dist/rust-cache"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/rust-cache/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "rust-cache-v"
-generate_notes = false
-include_scopes = ["rust-cache", "all"]
-include_paths = ["crates/rust-cache/"]
-
-[[release.targets]]
-name = "android-signing"
-path = "crates/android-signing"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/android-signing"
-distribution_path = ".verzly/distributions/android-signing"
-cargo_binary = "android-signing"
-cargo_package = "android-signing"
-cargo_out_dir = "dist/android-signing"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/android-signing/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "android-signing-v"
-generate_notes = false
-include_scopes = ["android-signing", "all"]
-include_paths = ["crates/android-signing/"]
-
-[[release.targets]]
-name = "ios-signing"
-path = "crates/ios-signing"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/ios-signing"
-distribution_path = ".verzly/distributions/ios-signing"
-cargo_binary = "ios-signing"
-cargo_package = "ios-signing"
-cargo_out_dir = "dist/ios-signing"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/ios-signing/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "ios-signing-v"
-generate_notes = false
-include_scopes = ["ios-signing", "all"]
-include_paths = ["crates/ios-signing/"]
-
-[[release.targets]]
-name = "repository"
-path = "crates/repository"
-strategy = "self-hosted"
-workflow = "custom"
-source_kind = "cargo-package"
-repository = "verzly/repository"
-distribution_path = ".verzly/distributions/repository"
-cargo_binary = "repository"
-cargo_package = "repository"
-cargo_out_dir = "dist/repository"
-cargo_targets = ["linux-x64", "macos-x64", "macos-arm64", "windows-x64"]
-prepare_commands = ["cargo generate-lockfile"]
-version_file = "crates/repository/Cargo.toml"
-version_key = "package.version"
-version_value = "{version}"
-source_tag_prefix = "repository-v"
-generate_notes = false
-include_scopes = ["repository", "all"]
-include_paths = ["crates/repository/"]
-
-[[release.targets]]
-name = "toolchain"
-path = "."
-strategy = "same-repo"
-workflow = "custom"
-source_kind = "custom"
-repository = "verzly/toolchain"
-source_repository = ""
-distribution_path = ""
-cargo_binary = ""
-cargo_package = ""
-cargo_out_dir = ""
-cargo_targets = []
-prepare_commands = []
-version_files = false
 source_tag_prefix = "v"
-release_name_prefix = "toolchain v"
+release_name_prefix = "Verzly v"
 source_release = false
 generate_notes = true
-floating_tags = false
-latest_tag = false
-next_tag = false
-include_scopes = ["all"]
+floating_tags = true
+latest_tag = true
+next_tag = true
+include_scopes = ["verzly", "toolchain", "all"]
 include_paths = ["."]
+files = [
+  { path = "crates/verzly/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/github-release/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/cargo-release/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/tauri-release/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/rust-cache/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/android-signing/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/ios-signing/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "crates/repository/Cargo.toml", kind = "toml", key = "package.version", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "verzly", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "github-release", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "cargo-release", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "tauri-release", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "rust-cache", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "android-signing", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "ios-signing", value = "{version}" },
+  { path = "Cargo.lock", kind = "cargo-lock-package", package = "repository", value = "{version}" },
+]
 
 [rust_cache.cache]
 dir = ".cache"
