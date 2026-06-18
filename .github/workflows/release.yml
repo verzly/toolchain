@@ -239,6 +239,3 @@ jobs:
           --prerelease "${{ inputs.prerelease }}"
           --assets dist/verzly
           --merge-strategy squash
-          --update-floating-tags
-          --update-latest-tag
-          --update-next-tag

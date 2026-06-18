@@ -374,18 +374,17 @@ verzly github-release delete --version 1.2.3 --config datarose.toml --release-ta
 verzly github-release abort --version 1.2.3 --config datarose.toml --release-target app
 ```
 
-Update floating tags as part of finalization:
+Configured floating tags are updated as part of finalization:
 
 ```sh
 verzly github-release finalize \
   --version 1.2.3 \
   --config datarose.toml \
   --release-target app \
-  --assets dist/release \
-  --update-floating-tags \
-  --update-latest-tag \
-  --update-next-tag
+  --assets dist/release
 ```
+
+The explicit `--update-floating-tags`, `--update-latest-tag`, and `--update-next-tag` flags are escape hatches for one-off overrides. Normal workflows should let `datarose.toml` decide which tag families are managed.
 
 Manage floating tags directly when needed:
 
@@ -768,17 +767,14 @@ separate distribution repository tokens
 separate PATs for the normal release path
 ```
 
-Floating tags are handled by `github-release finalize` during normal releases:
+Floating tags are handled by `github-release finalize` during normal releases according to the release target settings in `datarose.toml`:
 
 ```sh
 verzly github-release finalize \
   --config datarose.toml \
   --release-target verzly \
   --version 1.2.3 \
-  --assets dist/verzly \
-  --update-floating-tags \
-  --update-latest-tag \
-  --update-next-tag
+  --assets dist/verzly
 ```
 
 Manual maintenance is handled by `github-release update-floating-tags`:
@@ -790,6 +786,8 @@ verzly github-release update-floating-tags \
   --all \
   --prune
 ```
+
+Tag maintenance follows the configured release target. If `next_tag = false`, the `next` tag is not created, updated, or deleted by normal finalize, delete, or maintenance runs. The same rule applies to `latest_tag = false` and `floating_tags = false`. Use `--force` only when you intentionally want to override the config for a manual repair.
 
 ### Delete release
 

@@ -116,7 +116,7 @@ impl FloatingTagOptions {
     }
 
     pub fn any(&self) -> bool {
-        self.stable_line_tags || self.latest_tag || self.next_tag || self.prune
+        self.stable_line_tags || self.latest_tag || self.next_tag
     }
 }
 
@@ -259,8 +259,10 @@ pub fn refresh_highest_floating_tags(
             );
         }
 
-        for stale_tag in stale_stable_floating_tags(&tags, &analysis, tag_prefix, tag_suffix) {
-            delete_release_and_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
+        if options.prune {
+            for stale_tag in stale_stable_floating_tags(&tags, &analysis, tag_prefix, tag_suffix) {
+                delete_release_and_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
+            }
         }
 
         for (version, tag) in analysis.highest_minor.values() {
@@ -287,10 +289,6 @@ pub fn refresh_highest_floating_tags(
             delete_release_if_exists(repository, &floating_tag, dry_run)?;
             upsert_tag_ref(repository, &floating_tag, &target_sha, dry_run)?;
         }
-    } else if options.prune {
-        for stale_tag in existing_stable_floating_tags(&tags, tag_prefix, tag_suffix) {
-            delete_release_and_tag_ref_if_exists(repository, &stale_tag, dry_run)?;
-        }
     }
 
     if options.latest_tag {
@@ -302,8 +300,6 @@ pub fn refresh_highest_floating_tags(
                 delete_release_and_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
             }
         }
-    } else if options.prune {
-        delete_release_and_tag_ref_if_exists(repository, latest_tag_name, dry_run)?;
     }
 
     if options.next_tag {
@@ -319,8 +315,6 @@ pub fn refresh_highest_floating_tags(
                 delete_release_and_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
             }
         }
-    } else if options.prune {
-        delete_release_and_tag_ref_if_exists(repository, next_tag_name, dry_run)?;
     }
 
     Ok(())
@@ -1453,6 +1447,18 @@ mod tests {
             normalize_pull_request_links(body, Some("verzly/cargo-release")),
             body
         );
+    }
+
+    #[test]
+    fn floating_tag_options_ignore_prune_when_all_families_are_disabled() {
+        let options = FloatingTagOptions {
+            stable_line_tags: false,
+            latest_tag: false,
+            next_tag: false,
+            prune: true,
+        };
+
+        assert!(!options.any());
     }
 
     #[test]
