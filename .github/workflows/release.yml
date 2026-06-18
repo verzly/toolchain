@@ -1,15 +1,21 @@
-name: Release Toolchain
+name: Release
+run-name: Release Verzly v${{ inputs.version }}
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       version:
+        description: "Version to release, without the leading v. Examples: 1.2.3, 1.2.3-rc.1"
         required: true
-        type: string
       prerelease:
+        description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
         required: false
-        type: string
+        type: choice
         default: auto
+        options:
+          - auto
+          - "true"
+          - "false"
 
 permissions:
   contents: write
@@ -24,6 +30,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Validate release inputs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -102,15 +112,60 @@ jobs:
         run: cargo test --workspace --all-targets
 
   build:
-    name: Build release assets
+    name: Build Verzly for ${{ matrix.target }}
     needs:
       - prepare
       - test
-    uses: ./.github/workflows/_release-build-assets.yml
-    with:
-      version: ${{ inputs.version }}
-      ref: ${{ needs.prepare.outputs.release-branch }}
-      release-target: verzly
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - linux-x64
+          - macos-x64
+          - macos-arm64
+          - windows-x64
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: macos-14
+            target: macos-arm64
+          - os: windows-latest
+            target: windows-x64
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.release-branch }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap Verzly from source
+        shell: bash
+        run: |
+          cargo build --release -p verzly
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Build executable asset
+        shell: bash
+        run: >-
+          verzly cargo-release build
+          --config datarose.toml
+          --release-target verzly
+          --version "${{ inputs.version }}"
+          --target "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: verzly-${{ matrix.target }}
+          path: dist/verzly/**/*
+          if-no-files-found: error
 
   abort:
     name: Abort release branch

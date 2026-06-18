@@ -280,7 +280,13 @@ fn collect_action_surface_issues(profile: &ProjectProfile, issues: &mut Vec<Stri
     for path in [
         "action.yml",
         "actions/_shared/install-verzly.sh",
+        "actions/android-signing/action.yml",
+        "actions/cargo-release/action.yml",
+        "actions/github-release/action.yml",
         "actions/ios-signing/action.yml",
+        "actions/repository/action.yml",
+        "actions/rust-cache/action.yml",
+        "actions/tauri-release/action.yml",
     ] {
         if !profile.root.join(path).is_file() {
             issues.push(format!("{path} is missing"));
@@ -307,12 +313,9 @@ fn collect_release_workflow_issues(profile: &ProjectProfile, issues: &mut Vec<St
     }
 
     for path in [
-        ".github/workflows/_release-build-assets.yml",
-        ".github/workflows/_release-toolchain.yml",
-        ".github/workflows/release-toolchain.yml",
-        ".github/workflows/release-verzly.yml",
+        ".github/workflows/release.yml",
         ".github/workflows/delete-release.yml",
-        ".github/workflows/update-floating-tags.yml",
+        ".github/workflows/test.yml",
     ] {
         if !profile.root.join(path).is_file() {
             issues.push(format!("{path} is missing"));

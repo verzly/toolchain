@@ -531,15 +531,23 @@ jobs:
 
 This repository has one public release target: `verzly`.
 
-The release workflow:
+The visible workflow surface is intentionally small:
+
+```text
+.github/workflows/release.yml          Publishes the Verzly toolchain release.
+.github/workflows/delete-release.yml   Deletes a published release and its tags after confirmation.
+.github/workflows/test.yml             Runs pull request quality checks.
+```
+
+The single public release workflow is `.github/workflows/release.yml`. It:
 
 1. prepares a release branch through `verzly github-release prepare`,
 2. updates workspace crate versions and matching `Cargo.lock` package entries,
 3. runs formatting, Clippy, and tests,
-4. builds `verzly` assets for Linux, macOS, and Windows,
-5. finalizes the release in `verzly/toolchain`, uploads assets, and updates floating tags.
+4. builds one `verzly` executable for Linux x64, macOS x64, macOS arm64, and Windows x64,
+5. finalizes the release in `verzly/toolchain`, uploads assets, and updates floating tags through `github-release`.
 
-The workflow writes only to `verzly/toolchain` through `github.token`. It must not require `DISTRIBUTION_REPO_TOKEN` for the main release path.
+The workflow writes only to `verzly/toolchain` through `github.token`. It must not require `DISTRIBUTION_REPO_TOKEN`, a distribution repository token, or a separate PAT for the main release path. Floating tags are part of `verzly github-release finalize`; there is no separate floating-tag workflow.
 
 ## Repository layout
 
