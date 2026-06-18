@@ -1,5 +1,7 @@
 use crate::cli::CheckArgs;
-use crate::project::{detect_cargo_packages, Language, ProjectProfile, DEFAULT_CONFIG_FILE};
+use crate::project::{
+    detect_cargo_packages, Language, ProjectProfile, QualityConfigPlacement, DEFAULT_CONFIG_FILE,
+};
 use crate::release::{STRATEGIES, WORKFLOWS};
 use crate::standards;
 use anyhow::{bail, Context, Result};
@@ -278,20 +280,11 @@ fn collect_repository_boundary_issues(
 }
 
 fn collect_quality_policy_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {
-    if !profile.has_language(&Language::Rust) {
-        return;
-    }
+    collect_quality_config_file_issues(profile, issues);
 
-    if profile.stored_config.quality.rust.manage_clippy_config
-        && !profile.workspace_root.join(".clippy.toml").is_file()
+    if !profile.has_language(&Language::Rust)
+        || !profile.stored_config.quality.rust.manage_cargo_lints
     {
-        issues.push(
-            ".clippy.toml is missing in the configured quality workspace; run `repository update`"
-                .into(),
-        );
-    }
-
-    if !profile.stored_config.quality.rust.manage_cargo_lints {
         return;
     }
 
@@ -308,6 +301,46 @@ fn collect_quality_policy_issues(profile: &ProjectProfile, issues: &mut Vec<Stri
             issues.push(format!(
                 "{} is missing repository-managed Rust lint defaults; run `repository update`",
                 expected.path.display()
+            ));
+        }
+    }
+}
+
+fn collect_quality_config_file_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {
+    let mut expected = Vec::new();
+    if profile.has_language(&Language::Rust) {
+        expected.push("rustfmt.toml");
+        if profile.stored_config.quality.rust.manage_clippy_config {
+            expected.push(".clippy.toml");
+        }
+    }
+    if profile.has_language(&Language::Js) {
+        expected.extend([".oxfmtrc.json", ".oxlintrc.json", "vitest.config.ts"]);
+    }
+    if profile.has_language(&Language::Php) {
+        expected.extend(["rector.php", "phpunit.xml.dist"]);
+    }
+
+    for file_name in expected {
+        let configured = profile.quality_config_path(file_name);
+        if !configured.is_file() {
+            issues.push(format!(
+                "{} is missing; run `repository update`",
+                display_path(profile, &configured)
+            ));
+        }
+
+        let alternate = match profile.stored_config.quality.configs.placement {
+            QualityConfigPlacement::Root => profile
+                .workspace_root
+                .join(&profile.stored_config.quality.configs.directory)
+                .join(file_name),
+            QualityConfigPlacement::Directory => profile.workspace_root.join(file_name),
+        };
+        if alternate.is_file() && alternate != configured {
+            issues.push(format!(
+                "{} is outside the configured quality config location; run `repository update` to move or remove the stale copy",
+                display_path(profile, &alternate)
             ));
         }
     }

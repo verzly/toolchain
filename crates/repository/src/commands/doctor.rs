@@ -67,31 +67,41 @@ pub fn run(args: DoctorArgs) -> Result<()> {
             .push(".editorconfig is missing in the configured quality workspace".to_string());
     }
     if profile.has_language(&Language::Rust) {
-        if !profile.workspace_root.join("rustfmt.toml").is_file() {
+        if !profile.quality_config_path("rustfmt.toml").is_file() {
             suggestions
                 .push("rustfmt.toml is missing in the configured quality workspace".to_string());
         }
         if profile.stored_config.quality.rust.manage_clippy_config
-            && !profile.workspace_root.join(".clippy.toml").is_file()
+            && !profile.quality_config_path(".clippy.toml").is_file()
         {
             suggestions
                 .push(".clippy.toml is missing in the configured quality workspace".to_string());
         }
     }
     if profile.has_language(&Language::Js) {
-        if !profile.workspace_root.join(".oxfmtrc.json").is_file() {
+        if !profile.quality_config_path(".oxfmtrc.json").is_file() {
             suggestions
                 .push(".oxfmtrc.json is missing in the configured quality workspace".to_string());
         }
-        if !profile.workspace_root.join(".oxlintrc.json").is_file() {
+        if !profile.quality_config_path(".oxlintrc.json").is_file() {
             suggestions
                 .push(".oxlintrc.json is missing in the configured quality workspace".to_string());
         }
+        if !profile.quality_config_path("vitest.config.ts").is_file() {
+            suggestions.push(
+                "vitest.config.ts is missing in the configured quality workspace".to_string(),
+            );
+        }
     }
     if profile.has_language(&Language::Php) {
-        if !profile.workspace_root.join("rector.php").is_file() {
+        if !profile.quality_config_path("rector.php").is_file() {
             suggestions
                 .push("rector.php is missing in the configured quality workspace".to_string());
+        }
+        if !profile.quality_config_path("phpunit.xml.dist").is_file() {
+            suggestions.push(
+                "phpunit.xml.dist is missing in the configured quality workspace".to_string(),
+            );
         }
         if !profile.has_rector {
             suggestions.push(

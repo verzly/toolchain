@@ -30,14 +30,14 @@ pub fn style_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
 
     if profile.has_language(&Language::Rust) {
         files.push(ManagedFile {
-            path: profile.workspace_root.join("rustfmt.toml"),
+            path: profile.quality_config_path("rustfmt.toml"),
             content: rustfmt_config(),
             force,
         });
 
         if profile.stored_config.quality.rust.manage_clippy_config {
             files.push(ManagedFile {
-                path: profile.workspace_root.join(".clippy.toml"),
+                path: profile.quality_config_path(".clippy.toml"),
                 content: clippy_config(),
                 force,
             });
@@ -50,26 +50,99 @@ pub fn style_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
 
     if profile.has_language(&Language::Js) {
         files.push(ManagedFile {
-            path: profile.workspace_root.join(".oxfmtrc.json"),
+            path: profile.quality_config_path(".oxfmtrc.json"),
             content: oxfmt_config(),
             force,
         });
         files.push(ManagedFile {
-            path: profile.workspace_root.join(".oxlintrc.json"),
+            path: profile.quality_config_path(".oxlintrc.json"),
             content: oxlint_config(),
+            force,
+        });
+        files.push(ManagedFile {
+            path: profile.quality_config_path("vitest.config.ts"),
+            content: vitest_config(),
             force,
         });
     }
 
     if profile.has_language(&Language::Php) {
         files.push(ManagedFile {
-            path: profile.workspace_root.join("rector.php"),
+            path: profile.quality_config_path("rector.php"),
             content: rector_config(),
+            force,
+        });
+        files.push(ManagedFile {
+            path: profile.quality_config_path("phpunit.xml.dist"),
+            content: pest_phpunit_config(),
             force,
         });
     }
 
     files
+}
+
+pub fn move_existing_style_configs(
+    profile: &ProjectProfile,
+    files: &[ManagedFile],
+) -> Result<Vec<(PathBuf, PathBuf)>> {
+    let mut moved = Vec::new();
+    let movable_names = [
+        "rustfmt.toml",
+        ".clippy.toml",
+        ".oxfmtrc.json",
+        ".oxlintrc.json",
+        "vitest.config.ts",
+        "rector.php",
+        "phpunit.xml.dist",
+    ];
+
+    for file in files {
+        let Some(name) = file.path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !movable_names.contains(&name) || file.path.exists() {
+            continue;
+        }
+
+        let candidates = [
+            profile.workspace_root.join(name),
+            profile
+                .workspace_root
+                .join(&profile.stored_config.quality.configs.directory)
+                .join(name),
+        ];
+
+        for candidate in candidates {
+            if candidate == file.path || !candidate.is_file() {
+                continue;
+            }
+            if let Some(parent) = file.path.parent() {
+                fs::create_dir_all(parent).with_context(|| {
+                    format!(
+                        "failed to create parent directory for {}",
+                        file.path.display()
+                    )
+                })?;
+            }
+            fs::rename(&candidate, &file.path)
+                .or_else(|_| -> std::io::Result<()> {
+                    fs::copy(&candidate, &file.path)?;
+                    fs::remove_file(&candidate)
+                })
+                .with_context(|| {
+                    format!(
+                        "failed to move {} to {}",
+                        candidate.display(),
+                        file.path.display()
+                    )
+                })?;
+            moved.push((candidate, file.path.clone()));
+            break;
+        }
+    }
+
+    Ok(moved)
 }
 
 pub fn cargo_toml_policy_files(profile: &ProjectProfile, force: bool) -> Vec<ManagedFile> {
@@ -419,6 +492,49 @@ pub fn oxlint_config() -> String {
     .into()
 }
 
+pub fn vitest_config() -> String {
+    r#"import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      reportsDirectory: '.cache/vitest/coverage',
+    },
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.cache/**',
+      '**/target/**',
+      '**/vendor/**',
+    ],
+  },
+});
+"#
+    .into()
+}
+
+pub fn pest_phpunit_config() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php" colors="true" cacheDirectory=".cache/phpunit">
+  <testsuites>
+    <testsuite name="Application">
+      <directory>tests</directory>
+    </testsuite>
+  </testsuites>
+  <source>
+    <include>
+      <directory>src</directory>
+    </include>
+  </source>
+</phpunit>
+"#
+    .into()
+}
+
 pub fn rector_config() -> String {
     r#"<?php
 
@@ -430,8 +546,8 @@ use Rector\Set\ValueObject\LevelSetList;
 
 return RectorConfig::configure()
     ->withPaths([
-        __DIR__ . '/src',
-        __DIR__ . '/tests',
+        getcwd() . '/src',
+        getcwd() . '/tests',
     ])
     ->withPhpSets()
     ->withPreparedSets(

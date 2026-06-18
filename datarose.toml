@@ -6,6 +6,11 @@ version = 1
 workspace = "."
 languages = ["rust"]
 
+[quality.configs]
+directory = "config"
+placement = "directory"
+update_mode = "preserve"
+
 [quality.rust]
 manage_cargo_lints = true
 manage_clippy_config = true

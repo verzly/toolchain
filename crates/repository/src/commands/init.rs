@@ -1,6 +1,6 @@
 use crate::cli::{InitArgs, UpdateArgs};
 use crate::commands::check::collect_config_issues;
-use crate::project::{render_datarose_config, ProjectProfile};
+use crate::project::{render_datarose_config, ProjectProfile, QualityConfigUpdateMode};
 use crate::quality::render_hk_config;
 use crate::shell;
 use crate::standards::{self, ManagedFile, WriteOutcome};
@@ -105,7 +105,12 @@ fn apply(options: ApplyOptions) -> Result<()> {
     ];
 
     if !options.skip_style_configs {
-        managed_files.extend(standards::style_files(&profile, options.force));
+        let style_force = options.force
+            || matches!(
+                profile.stored_config.quality.configs.update_mode,
+                QualityConfigUpdateMode::Replace
+            );
+        managed_files.extend(standards::style_files(&profile, style_force));
     }
     if !options.skip_actions {
         managed_files.push(ManagedFile {
@@ -149,6 +154,12 @@ fn apply(options: ApplyOptions) -> Result<()> {
             shell::run(&profile.root, "mise", ["use", spec.as_str()]).with_context(|| {
                 format!("failed to install {} through mise", recommendation.tool)
             })?;
+        }
+    }
+
+    if !options.skip_style_configs {
+        for (from, to) in standards::move_existing_style_configs(&profile, &managed_files)? {
+            println!("Moved {} to {}", from.display(), to.display());
         }
     }
 

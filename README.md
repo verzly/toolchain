@@ -33,6 +33,7 @@ Use it from CI as a GitHub Action, or locally as a Rust workspace executable. Co
   - [Tool actions](#tool-actions)
   - [repository](#repository)
   - [Rust quality policy](#rust-quality-policy)
+  - [Managed configuration placement](#managed-configuration-placement)
   - [datarose.toml schema](#datarosetoml-schema)
   - [github-release](#github-release)
   - [cargo-release](#cargo-release)
@@ -366,11 +367,16 @@ GitHub Action:
 Rust quality defaults are repository-managed instead of hand-copied per project. `repository init` and `repository update` can maintain the shared Rust baseline in the configured quality workspace:
 
 ```text
-Cargo.toml       workspace lint policy
-.clippy.toml     Clippy threshold/config values
-rustfmt.toml     Rust formatting defaults
-hk.pkl           quality command orchestration
-test.yml         CI quality workflow
+Cargo.toml                 workspace lint policy
+config/.clippy.toml        Clippy threshold/config values
+config/rustfmt.toml        Rust formatting defaults
+config/.oxfmtrc.json       Oxlint/Oxfmt formatter defaults
+config/.oxlintrc.json      Oxlint linter defaults
+config/vitest.config.ts    Vitest defaults
+config/rector.php          Rector defaults
+config/phpunit.xml.dist    Pest/PHPUnit defaults
+hk.pkl                     quality command orchestration
+test.yml                   CI quality workflow
 ```
 
 The default Cargo lint policy is intentionally small and portable across many repositories. It forbids unsafe code, denies unused `must_use` results, denies the normal Clippy lint set, and blocks obvious development leftovers such as `dbg!`, `todo!`, and `unimplemented!`. Stricter project rules can be added through `datarose.toml` and then applied with `verzly repository update`.
@@ -395,6 +401,23 @@ unimplemented = "deny"
 For Cargo workspaces, `repository` writes the defaults into `[workspace.lints.*]` and opts member crates into the shared policy with `[lints] workspace = true`. For single-crate projects, it writes `[lints.*]` directly to the project `Cargo.toml`. Existing project-specific lint levels are preserved unless `--force` is used.
 
 `.clippy.toml` is kept focused on Clippy configuration values such as complexity thresholds. The actual lint policy belongs in Cargo lint tables so it can be shared, reviewed, and extended consistently across repositories.
+
+### Managed configuration placement
+
+Repository-managed tool configs can live either in the workspace root or in a dedicated config directory. The default shared model is config-directory first, so thousands of repositories can carry the same baseline without scattering formatter and linter files across the root.
+
+```toml
+[quality.configs]
+directory = "config"
+placement = "directory"
+update_mode = "preserve"
+```
+
+Set `placement = "root"` and run `verzly repository update` to move supported configs back to the workspace root. Set `directory` to another relative folder, such as `tools/config` or `.config/verzly`, to relocate them again. During update, `repository` moves existing known config files to the configured location when the destination does not already exist, so project-local edits are preserved.
+
+The generated `hk.pkl` commands pass explicit config paths where the underlying tool supports them. Rustfmt receives `--config-path`, Clippy receives `CLIPPY_CONF_DIR`, Oxfmt/Oxlint/Vitest receive `--config`, Rector receives `--config`, and Pest receives `--configuration`. This lets the files move without requiring package scripts or project-specific command glue.
+
+`update_mode = "preserve"` keeps existing project config files in place. New projects receive Verzly defaults, while existing projects can edit, delete, or add local config settings. Use `--force` only when intentionally reapplying the shared baseline.
 
 ### datarose.toml schema
 
