@@ -328,10 +328,6 @@ pub struct FloatingTagsArgs {
     #[arg(long)]
     pub repository: Option<String>,
 
-    /// Run and enable all floating tag families even when they are disabled in the config.
-    #[arg(long, default_value_t = false)]
-    pub force: bool,
-
     /// Delete stale floating tags during a full --all repair.
     #[arg(long, default_value_t = false)]
     pub prune: bool,

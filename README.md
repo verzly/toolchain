@@ -787,7 +787,7 @@ verzly github-release update-floating-tags \
   --prune
 ```
 
-Tag maintenance follows the configured release target. If `next_tag = false`, the `next` tag is not created, updated, or deleted by normal finalize, delete, or maintenance runs. The same rule applies to `latest_tag = false` and `floating_tags = false`. Use `--force` only when you intentionally want to override the config for a manual repair.
+Tag maintenance follows the configured release target. If `next_tag = false`, the `next` tag is not created, updated, deleted, or pruned by finalize, delete, or maintenance runs. The same rule applies to `latest_tag = false` and `floating_tags = false`. To manage a disabled tag family, enable it in `datarose.toml` first.
 
 ### Delete release
 

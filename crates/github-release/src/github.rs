@@ -106,15 +106,6 @@ impl FloatingTagOptions {
         self
     }
 
-    pub fn force_all() -> Self {
-        Self {
-            stable_line_tags: true,
-            latest_tag: true,
-            next_tag: true,
-            prune: false,
-        }
-    }
-
     pub fn any(&self) -> bool {
         self.stable_line_tags || self.latest_tag || self.next_tag
     }

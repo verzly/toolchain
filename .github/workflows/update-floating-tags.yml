@@ -24,11 +24,6 @@ on:
         required: false
         type: boolean
         default: true
-      force:
-        description: "Update all floating tag families even if one is disabled in datarose.toml."
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: "Print the planned GitHub operations without changing tags."
         required: false
@@ -84,7 +79,6 @@ jobs:
           VERSION: ${{ inputs.version }}
           TAG: ${{ inputs.tag }}
           PRUNE: ${{ inputs.prune }}
-          FORCE: ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}
         shell: bash
         run: |
@@ -127,9 +121,6 @@ jobs:
               ;;
           esac
 
-          if [ "${FORCE}" = "true" ]; then
-            command+=(--force)
-          fi
           if [ "${DRY_RUN}" = "true" ]; then
             command+=(--dry-run)
           fi
