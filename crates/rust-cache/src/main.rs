@@ -1,26 +1,5 @@
-//! Application entry point. Keep command dispatch separate from workspace detection and environment planning.
+//! Standalone compatibility entry point for `rust-cache`.
 
-mod cargo_config;
-mod cli;
-mod commands;
-mod config;
-mod env_plan;
-mod generated;
-mod gradle_cache;
-mod workspace;
-
-use anyhow::Result;
-use clap::Parser;
-use cli::{Cli, Commands};
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Init(args) => commands::init::run(args),
-        Commands::Env(args) => commands::env::run(args),
-        Commands::Run(args) => commands::run::run(args),
-        Commands::Clean(args) => commands::clean::run(args),
-        Commands::CleanGenerated(args) => commands::clean_generated::run(args),
-        Commands::Doctor(args) => commands::doctor::run(args),
-    }
+fn main() -> anyhow::Result<()> {
+    rust_cache::run_from(std::env::args_os())
 }

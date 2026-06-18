@@ -3,26 +3,23 @@ name: Release Build Assets
 on:
   workflow_call:
     inputs:
-      tool:
-        required: true
-        type: string
       version:
         required: true
         type: string
       ref:
         required: true
         type: string
-      use_prebuilt_cargo_release:
+      release-target:
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: verzly
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build ${{ inputs.tool }} for ${{ matrix.target }}
+    name: Build Verzly for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,46 +48,23 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap cargo-release from source
-        if: ${{ !inputs.use_prebuilt_cargo_release }}
+      - name: Bootstrap Verzly from source
         shell: bash
         run: |
-          cargo build --release -p cargo-release
+          cargo build --release -p verzly
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
-
-      - uses: actions/download-artifact@v8
-        if: ${{ inputs.use_prebuilt_cargo_release }}
-        with:
-          name: cargo-release-${{ matrix.target }}
-          path: cargo-release-tool
-
-      - name: Add built cargo-release to PATH
-        if: ${{ inputs.use_prebuilt_cargo_release }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/cargo-release-bin"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            tool="$(find cargo-release-tool -type f -name 'cargo-release-v*-${{ matrix.target }}.exe' | sort | tail -n 1)"
-            cp "${tool}" "${RUNNER_TEMP}/cargo-release-bin/cargo-release.exe"
-          else
-            tool="$(find cargo-release-tool -type f -name 'cargo-release-v*-${{ matrix.target }}' | sort | tail -n 1)"
-            cp "${tool}" "${RUNNER_TEMP}/cargo-release-bin/cargo-release"
-            chmod 755 "${RUNNER_TEMP}/cargo-release-bin/cargo-release"
-          fi
-          echo "${RUNNER_TEMP}/cargo-release-bin" >> "${GITHUB_PATH}"
 
       - name: Build executable assets
         shell: bash
         run: >-
-          cargo-release build
+          verzly cargo-release build
           --config datarose.toml
-          --release-target "${{ inputs.tool }}"
+          --release-target "${{ inputs.release-target }}"
           --version "${{ inputs.version }}"
           --target "${{ matrix.target }}"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.tool }}-${{ matrix.target }}
-          path: dist/${{ inputs.tool }}/**/*
+          name: verzly-${{ matrix.target }}
+          path: dist/verzly/**/*
           if-no-files-found: error

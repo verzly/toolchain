@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Release builder for Tauri desktop and mobile artifacts",
-    after_help = "Read the full README: https://github.com/verzly/tauri-release"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#tauri-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -32,7 +32,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#tauri-release")]
 pub struct InitArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -42,14 +42,14 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#tauri-release")]
 pub struct CommonArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/tauri-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#tauri-release")]
 pub struct BuildArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,

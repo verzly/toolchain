@@ -74,7 +74,7 @@ const ACTIONS: &[TuiAction] = &[
         command: TuiCommand::Check,
         slash: "/check",
         title: "Check",
-        summary: "Validate config, distributions, README/action docs, and workflows.",
+        summary: "Validate config, action surfaces, docs, and workflows.",
         plan_cli: "repository check --root .",
         act_cli: "repository check --root .",
         safety: "Read-only.",

@@ -1,9 +1,7 @@
 //! Publishes a GitHub Release without touching local branches.
 //!
-//! This command is designed for distribution repositories whose source code lives
-//! elsewhere. In the Verzly toolchain model, the source monorepo is merged and
-//! tagged first, then this command publishes `vX.Y.Z` to the public repository
-//! using release notes generated from the source tag.
+//! This command creates a GitHub Release without touching local branches. It is useful when
+//! a workflow already prepared, tested, merged, and tagged the source separately.
 
 use crate::cli::PublishArgs;
 use crate::config;

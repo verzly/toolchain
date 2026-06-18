@@ -1,0 +1,28 @@
+name: Release Verzly
+run-name: Release Verzly ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v. Examples: 1.2.3, 1.2.3-rc.1"
+        required: true
+      prerelease:
+        description: "Publish as a prerelease. Leave auto to infer from SemVer prerelease labels."
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - "true"
+          - "false"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/_release-toolchain.yml
+    with:
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}

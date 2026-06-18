@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "iOS release signing secret helper",
-    after_help = "Read the full README: https://github.com/verzly/ios-signing"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -26,12 +26,14 @@ pub enum Commands {
     WriteGithubEnv(WriteGithubEnvArgs),
     #[command(name = "check-env")]
     CheckEnv(CheckEnvArgs),
-    #[command(after_help = "Read the full README: https://github.com/verzly/ios-signing")]
+    #[command(
+        after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing"
+    )]
     Doctor,
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/ios-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing")]
 pub struct Base64Args {
     /// Path to a .p12 certificate or .mobileprovision profile.
     pub path: PathBuf,
@@ -42,7 +44,7 @@ pub struct Base64Args {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/ios-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing")]
 pub struct PrintSecretsArgs {
     /// Path to the exported Apple signing certificate, usually a .p12 file.
     #[arg(long)]
@@ -54,7 +56,7 @@ pub struct PrintSecretsArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/ios-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing")]
 pub struct WriteGithubEnvArgs {
     /// Path to the exported Apple signing certificate, usually a .p12 file.
     #[arg(long)]
@@ -66,7 +68,7 @@ pub struct WriteGithubEnvArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/ios-signing")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#ios-signing")]
 pub struct CheckEnvArgs {
     /// Do not require APPLE_TEAM_ID. Use this only for workflows that inject the team another way.
     #[arg(long, default_value_t = false)]

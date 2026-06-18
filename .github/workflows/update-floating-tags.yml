@@ -1,23 +1,9 @@
 name: Update Floating Tags
-run-name: Update floating tags for ${{ inputs.target }}
+run-name: Update Verzly floating tags
 
 on:
   workflow_dispatch:
     inputs:
-      target:
-        description: "Distribution repository to update, or all."
-        required: true
-        type: choice
-        default: all
-        options:
-          - all
-          - github-release
-          - cargo-release
-          - tauri-release
-          - rust-cache
-          - android-signing
-          - ios-signing
-          - repository
       mode:
         description: "How to choose release tags for moving tag repair."
         required: true
@@ -45,36 +31,33 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: update-floating-tags-${{ inputs.target }}-${{ inputs.mode }}-${{ inputs.version || inputs.tag || 'all' }}
+  group: update-verzly-floating-tags-${{ inputs.mode }}-${{ inputs.version || inputs.tag || 'all' }}
   cancel-in-progress: false
-
-env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   update:
-    name: Update distribution floating tags
+    name: Update Verzly floating tags
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bootstrap github-release
+      - name: Bootstrap Verzly from source
         run: |
-          cargo build --release -p github-release
+          cargo build --release -p verzly
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
       - name: Update enabled floating tags
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
-          TARGET: ${{ inputs.target }}
+          GH_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.mode }}
           VERSION: ${{ inputs.version }}
           TAG: ${{ inputs.tag }}
@@ -84,61 +67,31 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::DISTRIBUTION_REPO_TOKEN is required to update public distribution floating tags."
-            exit 1
-          fi
-
-          case "${TARGET}" in
-            all|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
-            *) echo "::error::Unsupported target: ${TARGET}"; exit 1 ;;
-          esac
-
+          args=(github-release floating-tags --config datarose.toml --release-target verzly)
           case "${MODE}" in
-            all) ;;
+            all) args+=(--all) ;;
             version)
               if [ -z "${VERSION}" ]; then
                 echo "::error::version is required when mode is version."
                 exit 1
               fi
+              args+=(--version "${VERSION#v}")
               ;;
             tag)
               if [ -z "${TAG}" ]; then
                 echo "::error::tag is required when mode is tag."
                 exit 1
               fi
+              args+=(--tag "${TAG}")
               ;;
             *) echo "::error::Unsupported mode: ${MODE}"; exit 1 ;;
           esac
 
-          if [ "${TARGET}" = "all" ]; then
-            selected_tools="${TOOLS}"
-          else
-            selected_tools="${TARGET}"
+          if [ "${DRY_RUN}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          if [ "${PRUNE}" = "true" ]; then
+            args+=(--prune)
           fi
 
-          for tool in ${selected_tools}; do
-            repository="verzly/${tool}"
-            permission="$(gh api "repos/${repository}" --jq '.permissions.push // .permissions.admin // false')"
-            if [ "${permission}" != "true" ]; then
-              echo "::error::DISTRIBUTION_REPO_TOKEN cannot push to ${repository}."
-              exit 1
-            fi
-
-            args=(floating-tags --config datarose.toml --release-target "${tool}")
-            case "${MODE}" in
-              all) args+=(--all) ;;
-              version) args+=(--version "${VERSION#v}") ;;
-              tag) args+=(--tag "${TAG}") ;;
-            esac
-
-            if [ "${DRY_RUN}" = "true" ]; then
-              args+=(--dry-run)
-            fi
-            if [ "${PRUNE}" = "true" ]; then
-              args+=(--prune)
-            fi
-
-            echo "Updating floating tags for ${repository}."
-            github-release "${args[@]}"
-          done
+          verzly "${args[@]}"

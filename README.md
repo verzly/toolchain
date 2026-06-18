@@ -1,87 +1,564 @@
 # Verzly Toolchain
 
-Verzly Toolchain is the private source workspace for the release tools that build Rust executables, prepare Tauri installers, route build caches, generate Android signing material, and publish GitHub Releases.
+`verzly/toolchain` is the single source repository and release surface for the Verzly release, cache, signing, and repository-maintenance tooling.
 
-Public repositories stay intentionally small. Their user-facing `README.md`, `CONTRIBUTING.md`, `action.yml`, and `LICENSE` files are maintained in `.verzly/distributions/<tool>`, then synchronized to `verzly/<tool>` with a maintainer workflow. Source code, tests, release configuration, and release workflows stay here.
+The public contract is intentionally small: one repository, one released executable named `verzly`, and first-class GitHub Actions stored in this same repository. Projects such as Nutrino should consume `verzly/toolchain` directly instead of wiring several separate `verzly/<tool>` distribution repositories together.
 
-- [Overview](#overview)
-  - [Tools](#tools)
-  - [Repository model](#repository-model)
-  - [Distribution templates](#distribution-templates)
-- [Use the workspace](#use-the-workspace)
-  - [Local checks](#local-checks)
-  - [Run a tool locally](#run-a-tool-locally)
-  - [Cache layout](#cache-layout)
-- [Release workflows](#release-workflows)
-  - [Release one public tool](#release-one-public-tool)
-  - [Release all tools](#release-all-tools)
-  - [Delete a release](#delete-a-release)
-  - [Update floating tags](#update-floating-tags)
-  - [Sync distribution repositories](#sync-distribution-repositories)
-- [Release configuration](#release-configuration)
-  - [Source and public tags](#source-and-public-tags)
-  - [Release notes](#release-notes)
-  - [Authentication](#authentication)
-- [Reference](#reference)
-  - [Repository boundaries](#repository-boundaries)
-  - [Public repositories](#public-repositories)
-- [Contributing](#contributing)
+## What it provides
 
-## Overview
+- `verzly`, the unified executable.
+- Subcommands for every public tool: `github-release`, `cargo-release`, `tauri-release`, `rust-cache`, `android-signing`, `ios-signing`, and `repository`.
+- Compatibility command names for existing scripts: `github-release`, `cargo-release`, `tauri-release`, `rust-cache`, `android-signing`, `ios-signing`, and `repository`.
+- A root GitHub Action at `verzly/toolchain@vX` for installing the toolchain and optionally running a command.
+- Tool-specific GitHub Actions under `verzly/toolchain/actions/<tool>@vX`.
 
-### Tools
+There is no `.verzly/distributions/*` release model. There are no separate public distribution repositories to sync, release, or configure in downstream projects.
 
-`github-release` creates release branches, updates configured version files, merges successful source releases, creates tags, publishes GitHub Releases, uploads assets, and aborts failed release branches.
+## Install locally
 
-`cargo-release` builds Rust executable artifacts for configured targets, writes checksums, and produces release manifests. Native builds are preferred; container strategies can be configured where useful.
+Build from source while developing the toolchain:
 
-`tauri-release` prepares Tauri desktop and mobile release artifacts, including installer-oriented output for desktop platforms and mobile package output where the project supports it.
-
-`rust-cache` keeps normal build output under a workspace-local cache. Cargo uses `.cargo/config.toml` directly, while optional environment caches route tools such as Gradle, npm, pnpm, and Yarn into `.cache`. For Tauri Android, it also writes a Gradle init script that moves mobile project build output from `src-tauri/gen/android/**/build` into `.cache/android/builds`.
-
-`android-signing` generates, inspects, verifies, encodes, and exports Android release signing material for local and GitHub Actions builds.
-
-`ios-signing` encodes existing Apple signing certificates and provisioning profiles, prints CI secret names, and validates iOS signing environment variables before release jobs run.
-
-`repository` bootstraps repository-local quality gates for Rust, JavaScript, TypeScript, Vue, and PHP projects. It carries the shared Verzly defaults for `mise`, `hk`, GitHub Actions, `.editorconfig`, Rust formatting, Oxlint, Oxfmt, Vitest, Rector PHP, and Pest PHP.
-
-### Repository model
-
-`verzly/toolchain` owns the source:
-
-```text
-.github/workflows/
-.cargo/config.toml
-.verzly/distributions/
-crates/
-Cargo.toml
-Cargo.lock
-datarose.toml
-datarose.toml
-hk.pkl
-mise.toml
+```sh
+cargo build --release -p verzly
+.cache/rust/packages/toolchain/target/release/verzly --help
 ```
 
-Crate-level README files are intentionally not used. Maintainer documentation lives in this README, [AGENTS.md](AGENTS.md), and [CONTRIBUTING.md](CONTRIBUTING.md). Public user documentation lives in `.verzly/distributions/<tool>/README.md` and is synchronized to the public repositories.
+Run from source without installing:
 
-### Distribution templates
+```sh
+cargo run -p verzly -- repository check
+cargo run -p verzly -- github-release plan --config datarose.toml --release-target verzly --version 1.2.3
+```
 
-Each `.verzly/distributions/<tool>` directory contains exactly:
+Cargo output is routed by `.cargo/config.toml` into `.cache/rust/packages/toolchain/target` so build artifacts stay outside the repository source tree.
+
+## Install in GitHub Actions
+
+Use the root action when a workflow needs the toolchain installed once:
+
+```yaml
+- uses: verzly/toolchain@v1
+```
+
+Install and run a single command:
+
+```yaml
+- uses: verzly/toolchain@v1
+  with:
+    command: verzly repository check
+```
+
+Install once, then run multiple commands:
+
+```yaml
+- uses: verzly/toolchain@v1
+
+- run: verzly rust-cache env >> "$GITHUB_ENV"
+- run: verzly repository check
+- run: verzly github-release plan --config datarose.toml --release-target app --version 1.2.3
+```
+
+Use a specific toolchain version when release workflows must be reproducible:
+
+```yaml
+- uses: verzly/toolchain@v1
+  with:
+    version: v1.2.3
+```
+
+The action downloads the matching `verzly` asset from GitHub Releases and adds it to `PATH`. By default it also creates compatibility shims such as `github-release`, `tauri-release`, and `ios-signing`.
+
+## Unified CLI
+
+All tools are available through the `verzly` executable:
+
+```sh
+verzly github-release --help
+verzly cargo-release --help
+verzly tauri-release --help
+verzly rust-cache --help
+verzly android-signing --help
+verzly ios-signing --help
+verzly repository --help
+```
+
+Short aliases are available for common use:
+
+```sh
+verzly repo check
+verzly cache env
+verzly tauri build --platform linux
+verzly android check-env
+verzly ios check-env
+```
+
+Existing standalone command names remain supported as compatibility entrypoints. They delegate to the same Rust library entrypoints used by `verzly`, so projects can migrate gradually.
+
+## GitHub Actions
+
+Every public tool has a matching action:
 
 ```text
-README.md
-CONTRIBUTING.md
 action.yml
-LICENSE
+actions/github-release/action.yml
+actions/cargo-release/action.yml
+actions/tauri-release/action.yml
+actions/rust-cache/action.yml
+actions/android-signing/action.yml
+actions/ios-signing/action.yml
+actions/repository/action.yml
 ```
 
-These files are the public repository surface for the matching `verzly/<tool>` repository. They are committed here so source changes, action behavior, and public documentation can be updated together before the sync workflow pushes them out.
+The common action inputs are:
 
-## Use the Workspace
+| Input | Default | Description |
+| --- | --- | --- |
+| `version` | `latest` | Verzly release version to install. Accepts `latest`, `v1.2.3`, or `1.2.3`. |
+| `repository` | `verzly/toolchain` | Repository that publishes the `verzly` release assets. |
+| `github-token` | `github.token` | Token used to download release assets and, for release commands, call GitHub. |
+| `install-only` | `false` | Install Verzly without running the tool command. |
+| `args` | `--help` | Arguments passed after the selected tool name. |
+| `working-directory` | `.` | Directory where the command runs. |
+| `install-dir` | runner temp | Directory where the binary and shims are installed. |
+| `create-shims` | `true` | Create compatibility commands next to `verzly`. |
 
-### Local checks
+The common action outputs are:
 
-Run the full local verification loop from the workspace root:
+| Output | Description |
+| --- | --- |
+| `path` | Absolute path to the installed `verzly` executable. |
+| `install-dir` | Directory added to `PATH`. |
+| `version` | Installed Verzly version. |
+| `target` | Resolved release asset target for the current runner. |
+
+Use tool-specific actions when readability matters:
+
+```yaml
+- uses: verzly/toolchain/actions/repository@v1
+  with:
+    args: check
+
+- uses: verzly/toolchain/actions/github-release@v1
+  with:
+    args: plan --config datarose.toml --release-target app --version 1.2.3
+
+- uses: verzly/toolchain/actions/tauri-release@v1
+  with:
+    args: build --config .github/release/app.tauri-release.toml --platform linux
+```
+
+## repository
+
+`repository` manages repository standards: `datarose.toml`, `hk.pkl`, quality workflows, release target metadata, and project inventory checks.
+
+CLI usage:
+
+```sh
+verzly repository init
+verzly repository init --language rust --language js --js-runner pnpm
+verzly repository update
+verzly repository plan
+verzly repository projects
+verzly repository check
+verzly repository doctor
+verzly repository tui
+```
+
+Manage release targets:
+
+```sh
+verzly repository release list
+verzly repository release show app
+verzly repository release set \
+  --name app \
+  --path . \
+  --repository owner/app \
+  --strategy same-repo \
+  --workflow managed \
+  --source-kind tauri-app
+verzly repository release remove app --yes
+```
+
+GitHub Action usage:
+
+```yaml
+- uses: verzly/toolchain/actions/repository@v1
+  with:
+    args: check
+```
+
+Use `repository` first in downstream projects. It should describe the project layout, release targets, quality rules, cache conventions, and generated workflow expectations before release tooling is wired in.
+
+## github-release
+
+`github-release` prepares and finalizes GitHub releases. It updates configured version files, creates release branches, merges release branches, tags source, publishes GitHub Releases, uploads assets, updates floating tags, and can abort failed release branches.
+
+CLI usage:
+
+```sh
+verzly github-release init
+verzly github-release plan --version 1.2.3 --config datarose.toml --release-target app
+verzly github-release prepare --version 1.2.3 --config datarose.toml --release-target app
+verzly github-release finalize --version 1.2.3 --config datarose.toml --release-target app --assets dist/release
+verzly github-release publish --version 1.2.3 --config datarose.toml --release-target app --assets dist/release
+verzly github-release floating-tags --config datarose.toml --release-target app --all --prune
+verzly github-release delete --version 1.2.3 --config datarose.toml --release-target app
+verzly github-release abort --version 1.2.3 --config datarose.toml --release-target app
+```
+
+Batch finalization for a single aggregate release branch with multiple source tags:
+
+```sh
+verzly github-release finalize-batch \
+  --version 1.2.3 \
+  --target-branch master \
+  --release-branch release/all-v1.2.3 \
+  --source-tag app-v1.2.3 \
+  --source-tag cli-v1.2.3
+```
+
+GitHub Action usage:
+
+```yaml
+- uses: verzly/toolchain/actions/github-release@v1
+  with:
+    args: prepare --version 1.2.3 --config datarose.toml --release-target app
+```
+
+`github-release` expects GitHub CLI authentication through `GH_TOKEN`/`GITHUB_TOKEN` in CI. Release workflows in this repository use `github.token`; no separate distribution repository token is required.
+
+## cargo-release
+
+`cargo-release` builds Rust executable release assets for configured targets and writes checksums/manifests next to the generated artifacts.
+
+CLI usage:
+
+```sh
+verzly cargo-release init
+verzly cargo-release plan --config datarose.toml --release-target verzly
+verzly cargo-release build --config datarose.toml --release-target verzly --version 1.2.3
+verzly cargo-release build --config datarose.toml --release-target verzly --version 1.2.3 --target linux-x64
+verzly cargo-release clean --config datarose.toml --release-target verzly
+verzly cargo-release doctor --config datarose.toml --release-target verzly
+```
+
+GitHub Action usage:
+
+```yaml
+- uses: verzly/toolchain/actions/cargo-release@v1
+  with:
+    args: build --config datarose.toml --release-target verzly --version 1.2.3 --target linux-x64
+```
+
+Use this for toolchain-style Rust binaries. Use `tauri-release` for Tauri desktop/mobile app artifacts.
+
+## tauri-release
+
+`tauri-release` builds Tauri desktop and mobile release artifacts from declarative platform configuration.
+
+CLI usage:
+
+```sh
+verzly tauri-release init
+verzly tauri-release plan --config .github/release/app.tauri-release.toml
+verzly tauri-release build --config .github/release/app.tauri-release.toml
+verzly tauri-release build --config .github/release/app.tauri-release.toml --platform linux
+verzly tauri-release build --config .github/release/app.tauri-release.toml --platform android
+verzly tauri-release build --config .github/release/app.tauri-release.toml --platform ios
+verzly tauri-release clean --config .github/release/app.tauri-release.toml
+verzly tauri-release doctor --config .github/release/app.tauri-release.toml
+```
+
+GitHub Action usage:
+
+```yaml
+- uses: verzly/toolchain/actions/tauri-release@v1
+  with:
+    args: build --config .github/release/app.tauri-release.toml --platform linux
+```
+
+Mobile release workflows should gate Android and iOS builds behind the matching signing action output so missing signing secrets skip mobile artifacts instead of failing the whole release.
+
+## rust-cache
+
+`rust-cache` routes generated and build output into a project-local `.cache` tree. It covers Cargo target output, optional Cargo home routing, Gradle cache/build routing, package-manager caches, and configured generated paths.
+
+CLI usage:
+
+```sh
+verzly rust-cache init
+verzly rust-cache env
+verzly rust-cache run -- cargo test --workspace
+verzly rust-cache clean
+verzly rust-cache clean-generated
+verzly rust-cache clean-generated --dry-run
+verzly rust-cache doctor
+```
+
+GitHub Action usage:
+
+```yaml
+- uses: verzly/toolchain/actions/rust-cache@v1
+  with:
+    args: env
+```
+
+Export cache environment variables in workflows:
+
+```yaml
+- name: Export Verzly cache environment
+  run: verzly rust-cache env >> "$GITHUB_ENV"
+```
+
+Run commands through the cache wrapper locally:
+
+```sh
+verzly rust-cache run -- cargo build --workspace
+verzly rust-cache run -- pnpm install
+```
+
+A downstream Tauri project can use this to keep `target`, Gradle output, package manager caches, and generated mobile directories under `.cache` instead of committing or scattering generated files through the project tree.
+
+## android-signing
+
+`android-signing` helps create, encode, inspect, and validate Android release signing material. It is designed so CI can detect whether Android signing is configured and skip Android artifacts when the secrets are intentionally missing.
+
+CLI usage:
+
+```sh
+verzly android-signing doctor
+verzly android-signing generate --output android-release.jks --alias release-key --generate-passwords
+verzly android-signing base64 android-release.jks
+verzly android-signing fingerprint android-release.jks --alias release-key
+verzly android-signing verify-fingerprint android-release.jks --alias release-key --expected-sha256 AA:BB:CC
+verzly android-signing print-secrets android-release.jks --alias release-key
+verzly android-signing write-github-env android-release.jks --alias release-key
+verzly android-signing check-env
+verzly android-signing check-env --require-fingerprint --require ANDROID_KEYSTORE_PATH
+```
+
+Expected environment variables for the standard CI path:
+
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
+Optional fingerprint verification:
+
+```text
+ANDROID_SIGNING_CERT_SHA256
+```
+
+GitHub Action usage:
+
+```yaml
+- id: android-signing
+  uses: verzly/toolchain/actions/android-signing@v1
+  with:
+    optional: "true"
+    run-doctor: "true"
+    check-env: "true"
+  env:
+    ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+    ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+- name: Build Android artifact
+  if: ${{ steps.android-signing.outputs.signing-ready == 'true' }}
+  run: verzly tauri-release build --config .github/release/app.tauri-release.toml --platform android
+```
+
+Action-specific inputs:
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `optional` | `true` | Missing signing variables produce outputs and notices instead of failing. |
+| `run-doctor` | `true` | Run `verzly android-signing doctor` before checking secrets. |
+| `check-env` | `true` | Validate required signing environment variables. |
+| `require-fingerprint` | `false` | Also require `ANDROID_SIGNING_CERT_SHA256`. |
+| `extra-required-env` | empty | Additional env names to require; supports newline, comma, or space separated values. |
+
+Action-specific outputs:
+
+| Output | Description |
+| --- | --- |
+| `signing-ready` | `true`, `false`, or `unknown`. |
+| `missing-secrets` | Comma-separated missing variable names. |
+
+## ios-signing
+
+`ios-signing` validates iOS signing environments and helps encode existing Apple signing files for GitHub Actions secrets. Like Android signing, it supports optional preflight behavior so projects can skip iOS artifacts when signing is not configured.
+
+CLI usage:
+
+```sh
+verzly ios-signing doctor
+verzly ios-signing base64 ios-release.p12
+verzly ios-signing print-secrets --certificate ios-release.p12 --provisioning-profile app.mobileprovision
+verzly ios-signing write-github-env --certificate ios-release.p12 --provisioning-profile app.mobileprovision
+verzly ios-signing check-env
+verzly ios-signing check-env --skip-apple-team-id
+verzly ios-signing check-env --require APPLE_ID
+```
+
+Expected environment variables for the standard CI path:
+
+```text
+IOS_SIGNING_CERTIFICATE_BASE64
+IOS_SIGNING_CERTIFICATE_PASSWORD
+IOS_SIGNING_PROVISIONING_PROFILE_BASE64
+IOS_SIGNING_KEYCHAIN_PASSWORD
+APPLE_TEAM_ID
+```
+
+GitHub Action usage:
+
+```yaml
+- id: ios-signing
+  uses: verzly/toolchain/actions/ios-signing@v1
+  with:
+    optional: "true"
+    run-doctor: "true"
+    check-env: "true"
+  env:
+    IOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.IOS_SIGNING_CERTIFICATE_BASE64 }}
+    IOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
+    IOS_SIGNING_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_SIGNING_PROVISIONING_PROFILE_BASE64 }}
+    IOS_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.IOS_SIGNING_KEYCHAIN_PASSWORD }}
+    APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+- name: Build iOS artifact
+  if: ${{ steps.ios-signing.outputs.signing-ready == 'true' }}
+  run: verzly tauri-release build --config .github/release/app.tauri-release.toml --platform ios
+```
+
+Action-specific inputs:
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `optional` | `true` | Missing signing variables produce outputs and notices instead of failing. |
+| `run-doctor` | `true` | Run `verzly ios-signing doctor` before checking secrets. |
+| `check-env` | `true` | Validate required signing environment variables. |
+| `skip-apple-team-id` | `false` | Do not require `APPLE_TEAM_ID`. |
+| `extra-required-env` | empty | Additional env names to require; supports newline, comma, or space separated values. |
+| `args` | empty | Optional additional `ios-signing` command to run after preflight. |
+| `command` | empty | Deprecated alias for `args`. |
+
+Action-specific outputs:
+
+| Output | Description |
+| --- | --- |
+| `signing-ready` | `true`, `false`, or `unknown`. |
+| `missing-secrets` | Comma-separated missing variable names. |
+
+## Example app release workflow
+
+This is the intended downstream shape for a Tauri app that can publish desktop artifacts and only publish mobile artifacts when signing is configured:
+
+```yaml
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: verzly/toolchain@v1
+
+      - name: Export cache environment
+        run: verzly rust-cache env >> "$GITHUB_ENV"
+
+      - name: Check repository configuration
+        run: verzly repository check
+
+      - name: Prepare release
+        run: verzly github-release prepare --version "${{ inputs.version }}" --config datarose.toml --release-target app
+
+      - id: android-signing
+        uses: verzly/toolchain/actions/android-signing@v1
+        with:
+          optional: "true"
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - id: ios-signing
+        uses: verzly/toolchain/actions/ios-signing@v1
+        with:
+          optional: "true"
+        env:
+          IOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.IOS_SIGNING_CERTIFICATE_BASE64 }}
+          IOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IOS_SIGNING_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_SIGNING_PROVISIONING_PROFILE_BASE64 }}
+          IOS_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.IOS_SIGNING_KEYCHAIN_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build desktop artifacts
+        run: verzly tauri-release build --config .github/release/app.tauri-release.toml --platform linux
+
+      - name: Build Android artifacts
+        if: ${{ steps.android-signing.outputs.signing-ready == 'true' }}
+        run: verzly tauri-release build --config .github/release/app.tauri-release.toml --platform android
+
+      - name: Build iOS artifacts
+        if: ${{ steps.ios-signing.outputs.signing-ready == 'true' }}
+        run: verzly tauri-release build --config .github/release/app.tauri-release.toml --platform ios
+
+      - name: Finalize release
+        run: verzly github-release finalize --version "${{ inputs.version }}" --config datarose.toml --release-target app --assets dist/release
+```
+
+## Release model for this repository
+
+This repository has one public release target: `verzly`.
+
+The release workflow:
+
+1. prepares a release branch through `verzly github-release prepare`,
+2. updates workspace crate versions and matching `Cargo.lock` package entries,
+3. runs formatting, Clippy, and tests,
+4. builds `verzly` assets for Linux, macOS, and Windows,
+5. finalizes the release in `verzly/toolchain`, uploads assets, and updates floating tags.
+
+The workflow writes only to `verzly/toolchain` through `github.token`. It must not require `DISTRIBUTION_REPO_TOKEN` for the main release path.
+
+## Repository layout
+
+```text
+.github/workflows/        Quality and release workflows
+actions/                  Public GitHub Actions stored in this repo
+actions/_shared/          Shared composite-action installer scripts
+crates/verzly/            Unified executable entrypoint
+crates/*/                 Modular tool implementations
+action.yml                Root setup/run action
+Cargo.toml                Rust workspace
+datarose.toml             Release, quality, cache, and build configuration
+hk.pkl                    Git hook and quality gate configuration
+mise.toml                 Local tool/task configuration
+```
+
+## Development
+
+Run workspace checks from the repository root:
 
 ```sh
 cargo fmt --all -- --check
@@ -89,271 +566,44 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
 
-The workspace also includes `hk.pkl` and `mise.toml` as the first self-hosted `repository` result. `mise.toml` pins `hk`, `pkl`, and `rust@stable` for local quality gates. After installing `mise`, run:
+Run the unified executable from source:
 
 ```sh
-mise install
-mise exec -- hk install
-mise exec -- hk check
+cargo run -p verzly -- repository check
+cargo run -p verzly -- github-release plan --config datarose.toml --release-target verzly --version 1.2.3
+cargo run -p verzly -- cargo-release build --config datarose.toml --release-target verzly --version 1.2.3 --target linux-x64 --dry-run
+cargo run -p verzly -- ios-signing check-env --skip-apple-team-id
 ```
 
-GitHub Actions use the same `mise exec -- hk check` gate that `repository` writes into repositories. The workflow cancels older PR runs when a newer push arrives and stops early for WIP commit subjects.
-
-### Run a tool locally
-
-
-`repository` can also initialize monorepo subdirectories. The root `datarose.toml` stores the selected workspace path so future updates do not need it again:
-
-```sh
-cargo run -p repository -- init --workspace workspace/app
-cargo run -p repository -- update
-```
-
-Generated project-local files are intentionally overrideable. `repository update` keeps existing `.editorconfig`, `.oxfmtrc.json`, `.oxlintrc.json`, `rustfmt.toml`, and `rector.php` files unless `--force` is passed.
-
-
-Validate `datarose.toml` without rewriting files:
-
-```sh
-repository check
-repository check --config config/datarose.toml
-```
-
-The check command exits with `1` only when it finds removed, deprecated, or invalid Datarose settings. It is also included in generated `hk` pre-push checks.
-
-Manage release targets from CLI flags or an interactive terminal editor:
-
-```sh
-repository release list
-repository release show repository
-repository release set --path crates/repository --repository verzly/repository --strategy self-hosted --workflow custom
-repository release remove repository
-repository release tui
-```
-
-Release targets are path-first. In monorepos this lets each app, package, crate, or library keep an explicit release target for its own directory instead of relying on implicit `crates/*` or `packages/*` guesses. The release strategy is explicit too: use `same-repo`, `distribution-repo`, `self-hosted`, or `custom`. Workflow handling is explicit with `managed`, `preserve`, or `custom`, so `repository update` only owns release workflows that the config marks as managed. Managed workflow generation is intentionally limited to `same-repo` and `distribution-repo`; self-hosted and custom releases stay under custom workflows.
-
-`datarose.toml` also describes release targets and can manage every Cargo package when `manage_cargo_packages = true`. `repository update` only generates GitHub Actions release workflows for targets marked with `workflow = "managed"`; `workflow = "preserve"` and `workflow = "custom"` are protected from overwrite. This lets repositories share the same `github-release` / `cargo-release` orchestration model where appropriate while keeping self-hosted, same-repo, distribution-repo, and custom release topologies explicit in one root TOML file. Pass `--config path/to/file.toml` when a repository needs a non-default config file; otherwise `repository` reads the root `datarose.toml`.
-
-Use `cargo run -p <crate> -- ...` while developing:
-
-```sh
-cargo run -p github-release -- plan --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p cargo-release -- build --config datarose.toml --release-target cargo-release --version 1.2.3
-cargo run -p tauri-release -- plan --config datarose.toml
-cargo run -p rust-cache -- init
-cargo run -p android-signing -- generate
-cargo run -p ios-signing -- check-env --skip-apple-team-id
-cargo run -p repository -- plan
-```
-
-A tool does not need a public release before you can test it locally. Cargo can run the current source directly:
-
-```sh
-cargo run -p repository -- init --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repository -- update --dry-run --skip-mise-use --skip-hk-install
-cargo run -p repository -- plan
-cargo run -p repository -- doctor
-```
-
-`repository doctor` also reports missing `mise.toml` entries. For Rust repositories it recommends `rust@stable`; for JavaScript and TypeScript repositories it recommends `aube` unless an existing runner such as `pnpm`, `bun`, or `yarn` is already configured, plus Oxlint, Oxfmt, and Vitest; for PHP repositories it recommends `php` together with Rector PHP and Pest PHP setup guidance.
-
-Build and run the local executable when you want to test the exact binary entry point:
-
-```sh
-cargo build -p repository
-.cache/rust/packages/toolchain/target/debug/repository plan
-```
-
-On Windows, run the built executable with `.exe`:
-
-```pwsh
-.\.cache\rust\packages\toolchain\target\debug\repository.exe plan
-```
-
-You can also install the current source into your local Cargo bin directory without a GitHub Release:
-
-```sh
-cargo install --path crates/repository --force
-repository plan
-```
-
-Release workflows build the executables and call the same commands directly. There are no separate orchestration scripts. Every executable and subcommand help output links back to the matching public README, for example `https://github.com/verzly/github-release`.
-
-### Cache layout
-
-Cargo output is routed by the checked-in config:
-
-```toml
-[build]
-target-dir = ".cache/rust/packages/toolchain/target"
-```
-
-The root `datarose.toml` is the policy source for regenerating or repairing cache settings. Normal development should use plain Cargo commands; `rust-cache run` is reserved for tools that need environment variables Cargo cannot read from `.cargo/config.toml`. Use `rust-cache clean-generated --config datarose.toml --dry-run` to audit stale project-tree build output such as `target/`, Tauri `src-tauri/gen/**/build`, `.gradle`, `.cxx`, `DerivedData`, and other mobile generated build directories before deleting them.
-
-## Release Workflows
-
-### Release one public tool
-
-Use the matching workflow when one tool needs a public release:
-
-```text
-.github/workflows/release-github-release.yml
-.github/workflows/release-cargo-release.yml
-.github/workflows/release-tauri-release.yml
-.github/workflows/release-rust-cache.yml
-.github/workflows/release-android-signing.yml
-.github/workflows/release-ios-signing.yml
-.github/workflows/release-repository.yml
-```
-
-The flow is:
-
-```text
-github-release prepare
-cargo fmt / clippy / test
-cargo-release build
-github-release finalize --merge-strategy squash --skip-github-release
-sync released distribution repository
-github-release publish
-```
-
-`prepare` creates a temporary source branch, updates the configured version files, and runs configured prepare commands such as `cargo generate-lockfile` before committing. If tests or builds fail, `abort` removes the branch. If everything succeeds, `finalize` merges to `master` and creates the package-prefixed source tag. The workflow then syncs the matching public distribution repository with a release-specific bump commit before `publish` creates the public release and uploads assets.
-
-Source finalization uses a squash merge by default. The release branch may contain multiple preparation commits, but `master` receives one release commit whose body lists the squashed branch commits. If the release branch has no source diff because the requested version is already present in `master`, finalization skips the squash commit and creates the release tags from the existing `master` commit.
-
-### Release all tools
-
-Use `.github/workflows/release-all.yml` to release every configured public distribution target from `datarose.toml` with one version input.
-
-The generated workflow can run the shared `_release-tool.yml` workflow once per target when release workflow management is enabled. Each target prepares its source release branch, runs the quality gate, builds assets from its `datarose.toml` target, finalizes the package-prefixed source tag, and publishes the public `vX.Y.Z` release.
-
-```text
-release-all.yml
-→ _release-tool.yml for github-release
-→ _release-tool.yml for cargo-release
-→ _release-tool.yml for tauri-release
-→ _release-tool.yml for rust-cache
-→ _release-tool.yml for android-signing
-→ _release-tool.yml for ios-signing
-→ _release-tool.yml for repository
-```
-
-Public repositories receive `vX.Y.Z`; the source repository receives package-prefixed source tags such as `cargo-release-vX.Y.Z`.
-
-Public distribution configs enable moving release tags. After publishing `v1.2.3`, `github-release publish` updates `v1.2` and `v1` in the matching public `verzly/<tool>` repository. It also keeps `latest` on the highest stable release and `next` on the highest preview release. When no preview release exists, `next` points at the same stable release as `latest`.
-
-The public composite actions support those moving refs as action pins. A workflow can use `verzly/<tool>@latest`, `@next`, `@v1`, or `@v1.2`; the action reads the requested ref, resolves it to the concrete version tag on the same commit, and downloads the executable from that release. Executable assets remain attached to immutable `vX.Y.Z` releases instead of duplicated onto moving tags.
-
-### Delete a release
-
-Use `.github/workflows/delete-release.yml` only for release cleanup or rollback. The workflow takes the same version input style as release workflows: enter `X.Y.Z` without the `v` prefix, and confirm with `DELETE X.Y.Z`. It checks repository access before deleting anything, deletes the selected GitHub Release through the GitHub API, and then deletes the matching Git tag explicitly. For `all`, it removes `vX.Y.Z` from `verzly/toolchain`, removes `vX.Y.Z` from every public `verzly/<tool>` repository, and removes every package-prefixed source tag such as `cargo-release-vX.Y.Z` from `verzly/toolchain`.
-
-Public repository cleanup requires `DISTRIBUTION_REPO_TOKEN`; source repository cleanup uses `github.token`.
-
-### Update floating tags
-
-Use `.github/workflows/update-floating-tags.yml` to repair or backfill moving tags in public distribution repositories without publishing a new release. The workflow uses `github-release floating-tags --config datarose.toml --release-target <tool>` and skips targets where all moving tag families are disabled.
-
-Modes:
-
-```text
-all      scan all SemVer tags and repair every enabled moving tag
-version  analyze one version input such as 1.2.3 or 1.3.0-rc.1
-tag      analyze one full tag such as v1.2.3 or v1.3.0-rc.1
-```
-
-The workflow requires `DISTRIBUTION_REPO_TOKEN` because moving tags are written to the public `verzly/<tool>` repositories. The source repository does not update distribution moving tags.
-
-### Sync distribution repositories
-
-Use `.github/workflows/sync-distributions.yml` when public `README.md`, `action.yml`, or `LICENSE` files need to be pushed to the separate `verzly/<tool>` repositories without creating a release.
-
-The workflow reads `.verzly/distributions/<tool>`, clones the matching public repository with `DISTRIBUTION_REPO_TOKEN`, replaces the public surface, and commits with the configured message. Manual runs skip the commit when nothing changed unless `force-commit` is enabled. Release workflows call it with `force-commit: true` and a version-specific bump message before public tags and GitHub Releases are created. The default manual message is:
-
-```text
-chore(distribution): bump public surface
-```
-
-## Release Configuration
-
-### Source and public tags
-
-Each public tool owns:
-
-```text
-datarose.toml
-datarose.toml
-```
-
-`datarose.toml` contains the per-tool `github-release` context. Each `[[release.targets]]` entry controls the source tag prefix, public repository, version file, scoped release notes, and prepare commands for one public distribution. `datarose.toml` also contains the executable artifact build configuration.
-
-For public distribution repositories, `[release]` also enables moving tags:
-
-```toml
-floating_tags = true
-latest_tag = true
-next_tag = true
-```
-
-With `tag_prefix = "v"` and `tag_suffix = ""`, publishing `v1.2.3` updates `v1.2` and `v1`. Stable releases update `latest` to the highest stable `vX.Y.Z`. Preview releases such as `v1.3.0-rc.1` update `next` to the highest preview. If no preview release exists, `next` points to the same commit as `latest`.
-
-Distribution `action.yml` files must resolve moving action refs to the concrete release tag before downloading assets. For example, `@v1.2` should download from the highest `v1.2.Z` release tag on the same commit, while `@latest` and `@next` should download from the stable or preview version tag that shares the moving tag commit.
-
-### Release notes
-
-Public releases can use generated notes, scoped source notes, no notes, or a custom body. Generated and scoped notes normalize pull request URLs so the visible text is `#123` for the current repository or `toolchain#123` for another repository; the full URL stays hidden behind the Markdown link.
-
-Generated notes resolve the previous tag by SemVer within the same tag prefix and suffix, then pass that tag to GitHub as `previous_tag_name`. This keeps `v0.2.0` notes scoped to changes after `v0.1.0` instead of replaying the first release, while ignoring moving tags such as `v0`, `v0.1`, `latest`, and `next`.
-
-The current public tool configs use custom release text that points users back to the exact source comparison in `verzly/toolchain`, for example:
-
-```text
-https://github.com/verzly/toolchain/compare/cargo-release-v0.1.0...cargo-release-v0.2.0
-```
-
-Use Conventional Commit scopes such as `fix(cargo-release): ...` and `chore(all): ...` when a release should include generated or scoped notes.
-
-### Authentication
-
-Source repository operations use `github.token`. Publishing or synchronizing public distribution repositories requires `DISTRIBUTION_REPO_TOKEN` with write access to the relevant `verzly/<tool>` repositories.
-
-Do not fall back from `DISTRIBUTION_REPO_TOKEN` to `github.token` for public repositories. `github.token` is scoped to `verzly/toolchain`.
-
-## Reference
-
-### Repository boundaries
-
-Do not add these inside `verzly/toolchain`:
-
-```text
-distribution/
-scripts/
-crates/<tool>/README.md
-```
-
-Do not add source code, workflows, release config, `Cargo.toml`, `Cargo.lock`, `CHANGELOG.md`, or `VERSION` to public distribution repositories.
-
-### Public repositories
-
-The public repositories are:
-
-```text
-verzly/github-release
-verzly/cargo-release
-verzly/tauri-release
-verzly/rust-cache
-verzly/android-signing
-verzly/ios-signing
-verzly/repository
-```
-
-They are distribution surfaces only. Development happens in `verzly/toolchain`.
+Keep implementation boundaries clear:
+
+- `crates/verzly` is the unified executable and should mostly dispatch.
+- Each tool crate owns its CLI contract, command logic, tests, and reusable `run_from` entrypoint.
+- Standalone binaries remain compatibility wrappers.
+- GitHub Actions should call the released `verzly` binary, not duplicate tool logic.
+
+## Action quality rules
+
+- Do not print secret values.
+- Prefer explicit inputs and documented outputs.
+- Signing checks should support optional mode so release workflows can skip unavailable mobile artifacts.
+- Use `actions/_shared/install-verzly.sh` for installing released assets.
+- Keep action examples copy-pasteable for downstream repositories.
 
 ## Contributing
 
-Contribution and maintainer workflow details live in [CONTRIBUTING.md](CONTRIBUTING.md).
+Source changes, action surfaces, documentation, and releases all live in this repository.
+
+Before opening a PR, run:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-targets
+```
+
+Do not reintroduce `.verzly/distributions`, distribution sync workflows, or release workflows that publish to separate `verzly/<tool>` repositories. Public usage must go through `verzly/toolchain`, either with the root action, subpath actions under `actions/`, or the `verzly` release assets.
 
 ## License
 
-Copyright (C) 2020-present Zoltán Rózsa. Released under the GNU Affero General Public License v3.0 only.
+AGPL-3.0-only.

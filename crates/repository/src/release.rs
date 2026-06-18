@@ -223,12 +223,8 @@ fn detect_cargo_package(path: &Path) -> Result<Option<String>> {
     read_cargo_package_name(&path.join("Cargo.toml"))
 }
 
-fn default_distribution_path(strategy: &str, name: &str) -> String {
-    if strategy == "distribution-repo" {
-        format!(".verzly/distributions/{name}")
-    } else {
-        String::new()
-    }
+fn default_distribution_path(_strategy: &str, _name: &str) -> String {
+    String::new()
 }
 
 fn default_version_file(target_path: &str, source_kind: &str) -> String {

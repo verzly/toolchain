@@ -18,10 +18,10 @@ pub struct Config {
 impl Config {
     /// Returns the view used by prepare/finalize/abort commands in a monorepo release.
     ///
-    /// The regular `[release]` section describes the public distribution release. The optional
-    /// `[source_release]` section describes the source repository branch/tag that is created before
-    /// assets are built. When `[source_release]` is omitted, the public release settings are reused
-    /// for backwards-compatible single-repository projects.
+    /// The regular `[release]` section describes the published GitHub Release. The optional
+    /// `[source_release]` section describes a separate source branch/tag flow for projects that
+    /// still need it. When `[source_release]` is omitted, release settings are reused for
+    /// backwards-compatible single-repository projects.
     pub fn source_view(&self) -> Self {
         let mut config = self.clone();
         if let Some(source_release) = self.source_release.clone() {
@@ -139,8 +139,10 @@ pub struct VersionFileConfig {
     pub kind: VersionFileKind,
     pub key: String,
     pub value: String,
+    pub value_type: VersionValueType,
     pub search: String,
     pub replace: String,
+    pub package: String,
     pub optional: bool,
 }
 
@@ -151,8 +153,10 @@ impl VersionFileConfig {
             kind: VersionFileKind::Toml,
             key: "package.version".to_string(),
             value: "{version}".to_string(),
+            value_type: VersionValueType::default(),
             search: String::new(),
             replace: String::new(),
+            package: String::new(),
             optional: false,
         }
     }
@@ -165,8 +169,10 @@ impl Default for VersionFileConfig {
             kind: VersionFileKind::Text,
             key: String::new(),
             value: "{version}".to_string(),
+            value_type: VersionValueType::default(),
             search: String::new(),
             replace: String::new(),
+            package: String::new(),
             optional: false,
         }
     }
@@ -177,8 +183,18 @@ impl Default for VersionFileConfig {
 pub enum VersionFileKind {
     Toml,
     Json,
+    #[serde(alias = "cargo-lock-package")]
+    CargoLockPackage,
     #[default]
     Text,
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum VersionValueType {
+    #[default]
+    String,
+    Integer,
 }
 
 pub fn load(path: &Path, release_target: Option<&str>) -> Result<Config> {
@@ -427,7 +443,7 @@ fn default_distribution_notes_body() -> String {
 Source changes for this package can be reviewed from `{previous_source_tag}` to `{source_tag}`:
 {source_compare_url}
 
-The distribution repository contains the public GitHub Action surface and release assets. Source changes and pull requests live in `verzly/toolchain`.
+The GitHub Action surface and executable release assets live in `verzly/toolchain`.
 "#
     .into()
 }

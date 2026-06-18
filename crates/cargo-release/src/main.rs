@@ -1,26 +1,5 @@
-//! Application entry point. Dispatch only; target planning, process execution, and artifact collection live in separate modules.
+//! Standalone compatibility entry point for `cargo-release`.
 
-mod artifacts;
-mod checksums;
-mod cli;
-mod commands;
-mod config;
-mod container;
-mod manifest;
-mod process;
-
-use crate::cli::{Cli, Commands};
-use anyhow::Result;
-use clap::Parser;
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Init(args) => commands::init::run(args),
-        Commands::Plan(args) => commands::plan::run(args),
-        Commands::Build(args) => commands::build::run(args),
-        Commands::Clean(args) => commands::clean::run(args),
-        Commands::Doctor(args) => commands::doctor::run(args),
-    }
+fn main() -> anyhow::Result<()> {
+    cargo_release::run_from(std::env::args_os())
 }

@@ -60,14 +60,19 @@ fn print_release_target_plan(target: &crate::project::ReleaseTarget) {
     );
     println!("  public repo: {}", empty_as_dash(&target.repository));
     println!("  public tag: vX.Y.Z");
-    println!(
-        "  distribution path: {}",
-        empty_as_dash(&target.distribution_path)
-    );
+    println!("  action surface: {}", action_surface_display(target));
     println!("  executable: {}", empty_as_dash(&target.cargo_binary));
     println!("  version file: {}", empty_as_dash(&target.version_file));
     println!("  strategy: {}", empty_as_dash(&target.strategy));
     println!("  workflow: {}", empty_as_dash(&target.workflow));
+}
+
+fn action_surface_display(target: &crate::project::ReleaseTarget) -> &str {
+    if target.name == "verzly" {
+        "action.yml, actions/"
+    } else {
+        "-"
+    }
 }
 
 fn empty_as_dash(value: &str) -> &str {

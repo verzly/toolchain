@@ -1,0 +1,156 @@
+name: Verzly Android Signing
+description: Install Verzly and validate Android signing configuration for GitHub release workflows.
+author: Verzly
+
+inputs:
+  version:
+    description: Verzly release version to install. Use latest, v1.2.3, or 1.2.3.
+    required: false
+    default: latest
+  repository:
+    description: Repository that publishes Verzly release assets.
+    required: false
+    default: verzly/toolchain
+  github-token:
+    description: Token used to download release assets.
+    required: false
+    default: ""
+  optional:
+    description: When true, missing signing secrets produce outputs and notices instead of failing the job.
+    required: false
+    default: "true"
+  run-doctor:
+    description: Run `verzly android-signing doctor` before checking secrets.
+    required: false
+    default: "true"
+  check-env:
+    description: Validate required Android signing environment variables.
+    required: false
+    default: "true"
+  require-fingerprint:
+    description: Also require ANDROID_SIGNING_CERT_SHA256 during the environment check.
+    required: false
+    default: "false"
+  extra-required-env:
+    description: Additional environment variable names to require. Supports newline, comma, or space separated values.
+    required: false
+    default: ""
+  args:
+    description: Optional additional android-signing command to run after preflight, without the leading `verzly android-signing`.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory used when running the optional command.
+    required: false
+    default: .
+  install-dir:
+    description: Directory where the executable and compatibility shims are installed.
+    required: false
+    default: ""
+
+outputs:
+  signing-ready:
+    description: true when all required signing variables are present, false when missing, or unknown when checks are skipped.
+    value: ${{ steps.check.outputs.signing-ready }}
+  missing-secrets:
+    description: Comma-separated list of missing required signing variables.
+    value: ${{ steps.check.outputs.missing-secrets }}
+  path:
+    description: Absolute path to the installed verzly executable.
+    value: ${{ steps.install.outputs.path }}
+  install-dir:
+    description: Directory added to PATH.
+    value: ${{ steps.install.outputs.install-dir }}
+  version:
+    description: Installed Verzly version.
+    value: ${{ steps.install.outputs.version }}
+  target:
+    description: Resolved release asset target for the current runner.
+    value: ${{ steps.install.outputs.target }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Verzly
+      id: install
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs['github-token'] != '' && inputs['github-token'] || github.token }}
+        VERZLY_VERSION: ${{ inputs.version }}
+        VERZLY_REPOSITORY: ${{ inputs.repository }}
+        VERZLY_INSTALL_DIR: ${{ inputs['install-dir'] }}
+        VERZLY_CREATE_SHIMS: "true"
+      run: ${{ github.action_path }}/../_shared/install-verzly.sh
+
+    - name: Inspect Android signing tools
+      if: ${{ inputs['run-doctor'] == 'true' }}
+      shell: bash
+      run: verzly android-signing doctor
+
+    - name: Check Android signing environment
+      id: check
+      shell: bash
+      env:
+        INPUT_CHECK_ENV: ${{ inputs['check-env'] }}
+        INPUT_OPTIONAL: ${{ inputs.optional }}
+        INPUT_REQUIRE_FINGERPRINT: ${{ inputs['require-fingerprint'] }}
+        INPUT_EXTRA_REQUIRED_ENV: ${{ inputs['extra-required-env'] }}
+      run: |
+        set -euo pipefail
+
+        if [ "${INPUT_CHECK_ENV}" != "true" ]; then
+          {
+            echo "signing-ready=unknown"
+            echo "missing-secrets="
+          } >> "${GITHUB_OUTPUT}"
+          echo "::notice::Android signing environment check was skipped."
+          exit 0
+        fi
+
+        args=(android-signing check-env)
+        if [ "${INPUT_REQUIRE_FINGERPRINT}" = "true" ]; then
+          args+=(--require-fingerprint)
+        fi
+
+        normalized_extra="$(printf '%s\n' "${INPUT_EXTRA_REQUIRED_ENV}" | tr ', ' '\n\n' | sed '/^$/d')"
+        while IFS= read -r name; do
+          [ -z "${name}" ] && continue
+          args+=(--require "${name}")
+        done <<< "${normalized_extra}"
+
+        set +e
+        output="$(verzly "${args[@]}" 2>&1)"
+        status=$?
+        set -e
+
+        printf '%s\n' "${output}"
+
+        missing="$(printf '%s\n' "${output}" | awk -F': ' '$2 == "missing" { print $1 }' | paste -sd, -)"
+        if [ -z "${missing}" ] && [ "${status}" -eq 0 ]; then
+          ready="true"
+        else
+          ready="false"
+        fi
+
+        {
+          echo "signing-ready=${ready}"
+          echo "missing-secrets=${missing}"
+        } >> "${GITHUB_OUTPUT}"
+
+        if [ "${ready}" = "false" ]; then
+          if [ "${INPUT_OPTIONAL}" = "true" ]; then
+            echo "::notice::Android signing is not configured; missing: ${missing:-unknown}. The workflow may skip Android release artifacts."
+            exit 0
+          fi
+          echo "::error::Android signing is not configured; missing: ${missing:-unknown}."
+          if [ "${status}" -eq 0 ]; then
+            exit 1
+          fi
+          exit "${status}"
+        fi
+
+    - name: Run additional Android signing command
+      if: ${{ inputs.args != '' }}
+      shell: bash
+      working-directory: ${{ inputs['working-directory'] }}
+      run: verzly android-signing ${{ inputs.args }}

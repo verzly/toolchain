@@ -1,0 +1,73 @@
+name: Verzly Cargo Release
+description: Install Verzly and run cargo-release commands from the unified toolchain.
+author: Verzly
+
+inputs:
+  version:
+    description: Verzly release version to install. Use latest, v1.2.3, or 1.2.3.
+    required: false
+    default: latest
+  repository:
+    description: Repository that publishes Verzly release assets.
+    required: false
+    default: verzly/toolchain
+  github-token:
+    description: Token used to download release assets and exposed as GH_TOKEN for commands that call GitHub.
+    required: false
+    default: ""
+  install-only:
+    description: Install Verzly and add it to PATH without running cargo-release.
+    required: false
+    default: "false"
+  args:
+    description: Arguments passed after `verzly cargo-release` when install-only is false.
+    required: false
+    default: "--help"
+  working-directory:
+    description: Directory where the command should run.
+    required: false
+    default: .
+  install-dir:
+    description: Directory where the executable and compatibility shims are installed.
+    required: false
+    default: ""
+  create-shims:
+    description: Create compatibility commands such as github-release, tauri-release, and ios-signing.
+    required: false
+    default: "true"
+
+outputs:
+  path:
+    description: Absolute path to the installed verzly executable.
+    value: ${{ steps.install.outputs.path }}
+  install-dir:
+    description: Directory added to PATH.
+    value: ${{ steps.install.outputs.install-dir }}
+  version:
+    description: Installed Verzly version.
+    value: ${{ steps.install.outputs.version }}
+  target:
+    description: Resolved release asset target for the current runner.
+    value: ${{ steps.install.outputs.target }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Verzly
+      id: install
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs['github-token'] != '' && inputs['github-token'] || github.token }}
+        VERZLY_VERSION: ${{ inputs.version }}
+        VERZLY_REPOSITORY: ${{ inputs.repository }}
+        VERZLY_INSTALL_DIR: ${{ inputs['install-dir'] }}
+        VERZLY_CREATE_SHIMS: ${{ inputs['create-shims'] }}
+      run: ${{ github.action_path }}/../_shared/install-verzly.sh
+
+    - name: Run Cargo Release
+      if: ${{ inputs['install-only'] != 'true' }}
+      shell: bash
+      working-directory: ${{ inputs['working-directory'] }}
+      env:
+        GH_TOKEN: ${{ inputs['github-token'] != '' && inputs['github-token'] || github.token }}
+      run: verzly cargo-release ${{ inputs.args }}

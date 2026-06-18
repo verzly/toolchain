@@ -4,8 +4,8 @@ use crate::project::{ProjectProfile, ReleaseTarget};
 use crate::standards::ManagedFile;
 use std::path::PathBuf;
 
-const REUSABLE_RELEASE_WORKFLOW: &str = "_release-tool.yml";
-const REUSABLE_RELEASE_WORKFLOW_PATH: &str = ".github/workflows/_release-tool.yml";
+const REUSABLE_RELEASE_WORKFLOW: &str = "_release-target.yml";
+const REUSABLE_RELEASE_WORKFLOW_PATH: &str = ".github/workflows/_release-target.yml";
 
 pub fn render_test_workflow(profile: &ProjectProfile) -> String {
     let repository_policy_step = if profile.root.join("crates/repository/Cargo.toml").is_file() {
@@ -71,34 +71,30 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
         return Vec::new();
     }
 
-    let mut files = Vec::new();
     let managed_targets = profile
         .stored_config
         .release
         .targets
         .iter()
-        .filter(|target| {
-            target.workflow == "managed"
-                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
-        })
+        .filter(|target| target.workflow == "managed" && target.strategy == "same-repo")
         .collect::<Vec<_>>();
 
     if managed_targets.is_empty() {
-        return files;
+        return Vec::new();
     }
 
-    files.push(ManagedFile {
+    let mut files = vec![ManagedFile {
         path: profile.root.join(REUSABLE_RELEASE_WORKFLOW_PATH),
         content: render_reusable_release_workflow(profile),
         force,
-    });
+    }];
 
     for target in &managed_targets {
         files.push(ManagedFile {
             path: profile
                 .root
                 .join(format!(".github/workflows/release-{}.yml", target.name)),
-            content: render_release_target_workflow(profile, target),
+            content: render_release_target_workflow(target),
             force,
         });
     }
@@ -114,9 +110,8 @@ pub fn release_workflow_files(profile: &ProjectProfile, force: bool) -> Vec<Mana
     files
 }
 
-fn render_release_target_workflow(profile: &ProjectProfile, target: &ReleaseTarget) -> String {
+fn render_release_target_workflow(target: &ReleaseTarget) -> String {
     let title = title_case(&target.name);
-    let secret_name = &profile.stored_config.release.secret_name;
     format!(
         r#"name: Release {title}
 run-name: Release {tool} ${{{{ inputs.version }}}}
@@ -147,21 +142,16 @@ jobs:
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      distribution-path: {distribution_path}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{{{ secrets.{secret_name} }}}}
 "#,
         title = title,
         tool = target.name,
-        distribution_path = target.distribution_path,
-        secret_name = secret_name,
         reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
     )
 }
 
 fn render_reusable_release_workflow(profile: &ProjectProfile) -> String {
     let target_branch = &profile.stored_config.release.target_branch;
-    r#"name: Release Tool
+    r#"name: Release Target
 
 on:
   workflow_call:
@@ -176,13 +166,6 @@ on:
         required: false
         type: string
         default: auto
-      distribution-path:
-        required: false
-        type: string
-        default: ""
-    secrets:
-      DISTRIBUTION_REPO_TOKEN:
-        required: false
 
 permissions:
   contents: write
@@ -192,159 +175,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
-    name: Prepare release
+  release:
+    name: Release ${{ inputs.tool }}
     runs-on: ubuntu-latest
-    outputs:
-      release_branch: ${{ steps.prepare.outputs.release_branch }}
 
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ github.token }}
 
-      - uses: jdx/mise-action@v4
-        with:
-          cache: true
+      - uses: verzly/toolchain@v1
 
       - name: Configure Git
         run: |
-          git config user.name "datarose-release-bot"
-          git config user.email "release-bot@datarose.dev"
+          git config user.name "verzly-release-bot"
+          git config user.email "release-bot@verzly.dev"
 
-      - name: Build github-release
-        run: cargo build --release -p github-release
-
-      - name: Prepare source release
-        id: prepare
+      - name: Prepare release
         run: >-
-          ./.cache/rust/packages/toolchain/target/release/github-release prepare
+          verzly github-release prepare
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
 
-  quality:
-    name: Quality gate
-    needs: prepare
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.prepare.outputs.release_branch }}
-          fetch-depth: 0
-
-      - uses: jdx/mise-action@v4
-        with:
-          cache: true
-
       - name: Quality gate
         run: mise exec -- hk check
 
-  build:
-    name: Build assets
-    needs:
-      - prepare
-      - quality
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.prepare.outputs.release_branch }}
-          fetch-depth: 0
-
-      - uses: jdx/mise-action@v4
-        with:
-          cache: true
-
-      - name: Build cargo-release
-        run: cargo build --release -p cargo-release
-
-      - name: Build release assets
+      - name: Build assets
         run: >-
-          ./.cache/rust/packages/toolchain/target/release/cargo-release build
+          verzly cargo-release build
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --output dist/release
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.tool }}-release-assets
-          path: dist/release
-          if-no-files-found: error
-
-  abort:
-    name: Abort failed release
-    needs:
-      - prepare
-      - quality
-      - build
-    if: ${{ always() && needs.prepare.result == 'success' && (needs.quality.result != 'success' || needs.build.result != 'success') }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - uses: jdx/mise-action@v4
-        with:
-          cache: true
-
-      - name: Build github-release
-        run: cargo build --release -p github-release
-
-      - name: Abort source release
-        run: >-
-          ./.cache/rust/packages/toolchain/target/release/github-release abort
-          --config datarose.toml
-          --release-target "${{ inputs.tool }}"
-          --version "${{ inputs.version }}"
-
-  finalize:
-    name: Finalize release
-    needs:
-      - prepare
-      - build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: __TARGET_BRANCH__
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.tool }}-release-assets
-          path: dist/release
-
-      - uses: jdx/mise-action@v4
-        with:
-          cache: true
-
-      - name: Build github-release
-        run: cargo build --release -p github-release
-
-      - name: Finalize source release
-        run: >-
-          ./.cache/rust/packages/toolchain/target/release/github-release finalize
-          --config datarose.toml
-          --release-target "${{ inputs.tool }}"
-          --version "${{ inputs.version }}"
-          --assets dist/release
-
-      - name: Publish public release
+      - name: Finalize release
         env:
-          GH_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
-          ./.cache/rust/packages/toolchain/target/release/github-release publish
+          verzly github-release finalize
           --config datarose.toml
           --release-target "${{ inputs.tool }}"
           --version "${{ inputs.version }}"
           --assets dist/release
+          --prerelease "${{ inputs.prerelease }}"
+          --target-branch __TARGET_BRANCH__
 "#
     .replace("__TARGET_BRANCH__", target_branch)
 }
@@ -355,10 +231,7 @@ fn render_release_all_workflow(profile: &ProjectProfile) -> String {
         .release
         .targets
         .iter()
-        .filter(|target| {
-            target.workflow == "managed"
-                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
-        })
+        .filter(|target| target.workflow == "managed" && target.strategy == "same-repo")
         .map(|target| target.name.as_str())
         .collect::<Vec<_>>()
         .join(", ");
@@ -407,13 +280,9 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
         .release
         .targets
         .iter()
-        .filter(|target| {
-            target.workflow == "managed"
-                && matches!(target.strategy.as_str(), "same-repo" | "distribution-repo")
-        })
+        .filter(|target| target.workflow == "managed" && target.strategy == "same-repo")
     {
         let job = target.name.replace('-', "_");
-        let secret_name = &profile.stored_config.release.secret_name;
         out.push_str(&format!(
             r#"
   {job}:
@@ -424,14 +293,9 @@ fn render_release_all_jobs(profile: &ProjectProfile, tools: &str) -> String {
       tool: {tool}
       version: ${{{{ inputs.version }}}}
       prerelease: ${{{{ inputs.prerelease }}}}
-      distribution-path: {distribution_path}
-    secrets:
-      DISTRIBUTION_REPO_TOKEN: ${{{{ secrets.{secret_name} }}}}
 "#,
             job = job,
             tool = target.name,
-            distribution_path = target.distribution_path,
-            secret_name = secret_name,
             reusable_workflow = REUSABLE_RELEASE_WORKFLOW,
         ));
     }
@@ -471,7 +335,7 @@ mod tests {
         config.release.enabled = true;
         config.release.manage_workflows = true;
         config.release.targets = vec![
-            managed_target("api", "distribution-repo"),
+            managed_target("api", "same-repo"),
             managed_target("web", "same-repo"),
             custom_target("ops"),
         ];
@@ -483,7 +347,7 @@ mod tests {
             .map(|file| file.path.to_string_lossy().replace('\\', "/"))
             .collect::<Vec<_>>();
 
-        assert!(paths.contains(&"/repo/.github/workflows/_release-tool.yml".into()));
+        assert!(paths.contains(&"/repo/.github/workflows/_release-target.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-api.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-web.yml".into()));
         assert!(paths.contains(&"/repo/.github/workflows/release-all.yml".into()));
@@ -491,7 +355,7 @@ mod tests {
         assert!(!files
             .iter()
             .any(|file| file.content.contains("_release-datarose-tool.yml")));
-        assert!(files
+        assert!(!files
             .iter()
             .any(|file| file.content.contains("DISTRIBUTION_REPO_TOKEN")));
     }
@@ -501,7 +365,7 @@ mod tests {
         let mut config = DataroseConfig::default();
         config.release.enabled = true;
         config.release.manage_workflows = false;
-        config.release.targets = vec![managed_target("api", "distribution-repo")];
+        config.release.targets = vec![managed_target("api", "same-repo")];
         let profile = profile_with_config(config);
 
         assert!(release_workflow_files(&profile, false).is_empty());
@@ -513,7 +377,6 @@ mod tests {
             path: format!("packages/{name}"),
             strategy: strategy.into(),
             workflow: "managed".into(),
-            distribution_path: format!(".verzly/distributions/{name}"),
             repository: format!("verzly/{name}"),
             ..ReleaseTarget::default()
         }

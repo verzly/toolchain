@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Reusable GitHub release branch and publishing orchestrator",
-    after_help = "Read the full README: https://github.com/verzly/github-release"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#github-release"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -41,7 +41,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct InitArgs {
     /// Config path to create.
     #[arg(short, long, default_value = "datarose.toml")]
@@ -53,7 +53,7 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug, Clone)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct PlanArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -77,7 +77,7 @@ pub struct PlanArgs {
 }
 
 #[derive(Args, Debug, Clone)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct PrepareArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -117,7 +117,7 @@ pub struct PrepareArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct FinalizeArgs {
     /// Version to release. Use the same value that was passed to prepare.
     #[arg(short, long)]
@@ -159,7 +159,7 @@ pub struct FinalizeArgs {
     #[arg(long, value_enum, default_value_t = MergeStrategy::Squash)]
     pub merge_strategy: MergeStrategy,
 
-    /// Do not create a GitHub Release. Useful for source monorepo tags that are followed by a public distribution release.
+    /// Do not create a GitHub Release. Useful when another publishing step will create it later.
     #[arg(long, default_value_t = false)]
     pub skip_github_release: bool,
 
@@ -185,7 +185,7 @@ pub struct FinalizeArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct FinalizeBatchArgs {
     /// Version to release. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -217,7 +217,7 @@ pub struct FinalizeBatchArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct PublishArgs {
     /// Version to publish. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -265,7 +265,7 @@ pub struct PublishArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct DeleteArgs {
     /// Version to delete. Use SemVer such as 1.2.3 or 1.2.3-rc.1.
     #[arg(short, long)]
@@ -301,7 +301,7 @@ pub struct DeleteArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct FloatingTagsArgs {
     /// Config path.
     #[arg(short, long, default_value = "datarose.toml")]
@@ -341,7 +341,7 @@ pub struct FloatingTagsArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/github-release")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#github-release")]
 pub struct AbortArgs {
     /// Version to release. Used to resolve the default release branch.
     #[arg(short, long)]

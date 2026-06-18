@@ -1,5 +1,5 @@
 name: Delete Release
-run-name: Delete release ${{ inputs.version }} from ${{ inputs.target }}
+run-name: Delete Verzly release ${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -7,21 +7,6 @@ on:
       version:
         description: "Version to delete without the v prefix. Example: 1.2.3."
         required: true
-      target:
-        description: "Release target to delete. All deletes public tool releases and package-prefixed source tags."
-        required: true
-        type: choice
-        default: all
-        options:
-          - all
-          - toolchain
-          - github-release
-          - cargo-release
-          - tauri-release
-          - rust-cache
-          - android-signing
-          - ios-signing
-          - repository
       confirm:
         description: "Type DELETE X.Y.Z to confirm destructive release and tag deletion."
         required: true
@@ -30,11 +15,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: delete-release-${{ inputs.target }}-${{ inputs.version }}
+  group: delete-verzly-release-${{ inputs.version }}
   cancel-in-progress: false
-
-env:
-  TOOLS: github-release cargo-release tauri-release rust-cache android-signing ios-signing repository
 
 jobs:
   delete:
@@ -55,23 +37,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [ "${REF_NAME}" != "master" ]; then
             echo "::error::Delete Release must be run from master. Current ref: ${REF_NAME}"
             exit 1
           fi
 
-      - name: Bootstrap github-release
+      - name: Bootstrap Verzly from source
         run: |
-          cargo build --release -p github-release
+          cargo build --release -p verzly
           echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
 
-      - name: Delete selected release surfaces
+      - name: Delete Verzly release
         env:
-          SOURCE_TOKEN: ${{ github.token }}
-          DISTRIBUTION_TOKEN: ${{ secrets.DISTRIBUTION_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version }}
-          TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm }}
         shell: bash
         run: |
@@ -88,46 +67,12 @@ jobs:
           fi
 
           expected_confirmation="DELETE ${version}"
-
           if [ "${CONFIRM}" != "${expected_confirmation}" ]; then
             echo "::error::Confirmation mismatch. Type '${expected_confirmation}' to delete release and tag data."
             exit 1
           fi
 
-          case "${TARGET}" in
-            all|toolchain|github-release|cargo-release|tauri-release|rust-cache|android-signing|ios-signing|repository) ;;
-            *) echo "::error::Unsupported delete target: ${TARGET}"; exit 1 ;;
-          esac
-
-          if [ "${TARGET}" != "toolchain" ] && [ -z "${DISTRIBUTION_TOKEN:-}" ]; then
-            echo "::error::DISTRIBUTION_REPO_TOKEN is required to delete public distribution releases and tags."
-            exit 1
-          fi
-
-          selected_tools=()
-          for tool in ${TOOLS}; do
-            if [ "${TARGET}" = "all" ] || [ "${TARGET}" = "${tool}" ]; then
-              selected_tools+=("${tool}")
-            fi
-          done
-
-          if [ "${TARGET}" = "all" ] || [ "${TARGET}" = "toolchain" ]; then
-            GH_TOKEN="${SOURCE_TOKEN}" github-release delete \
-              --config datarose.toml \
-              --release-target toolchain \
-              --version "${version}"
-          fi
-
-          for tool in "${selected_tools[@]}"; do
-            GH_TOKEN="${DISTRIBUTION_TOKEN}" github-release delete \
-              --config datarose.toml \
-              --release-target "${tool}" \
-              --version "${version}" \
-              --skip-source
-
-            GH_TOKEN="${SOURCE_TOKEN}" github-release delete \
-              --config datarose.toml \
-              --release-target "${tool}" \
-              --version "${version}" \
-              --skip-target
-          done
+          verzly github-release delete \
+            --config datarose.toml \
+            --release-target verzly \
+            --version "${version}"

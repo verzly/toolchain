@@ -171,8 +171,8 @@ fn print_release_commands(profile: &ProjectProfile, targets: &[&ReleaseTarget], 
             value_cell(format!("v{version}"), 42),
         ]);
         target_table.add_row([
-            key_cell("distribution"),
-            value_cell(empty_as_dash(&target.distribution_path), 42),
+            key_cell("action surface"),
+            value_cell(action_surface_for_target(target), 42),
         ]);
         target_table.add_row([
             key_cell("executable"),
@@ -267,5 +267,13 @@ fn source_tag_for_version(prefix: &str, version: &str) -> String {
         format!("v{version}")
     } else {
         format!("{prefix}{version}")
+    }
+}
+
+fn action_surface_for_target(target: &crate::project::ReleaseTarget) -> &str {
+    if target.name == "verzly" {
+        "action.yml, actions/"
+    } else {
+        "-"
     }
 }

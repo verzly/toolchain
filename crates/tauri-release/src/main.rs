@@ -1,26 +1,5 @@
-//! Application entry point. Platform-specific build details live outside the dispatch layer.
+//! Standalone compatibility entry point for `tauri-release`.
 
-mod artifacts;
-mod checksums;
-mod cli;
-mod commands;
-mod config;
-mod container;
-mod manifest;
-mod process;
-
-use crate::cli::{Cli, Commands};
-use anyhow::Result;
-use clap::Parser;
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Init(args) => commands::init::run(args),
-        Commands::Plan(args) => commands::plan::run(args),
-        Commands::Build(args) => commands::build::run(args),
-        Commands::Clean(args) => commands::clean::run(args),
-        Commands::Doctor(args) => commands::doctor::run(args),
-    }
+fn main() -> anyhow::Result<()> {
+    tauri_release::run_from(std::env::args_os())
 }

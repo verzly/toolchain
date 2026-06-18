@@ -10,7 +10,7 @@ use std::path::PathBuf;
     author,
     version,
     about = "Project-local cache routing helper for Rust and Tauri workspaces",
-    after_help = "Read the full README: https://github.com/verzly/rust-cache"
+    after_help = "Read the full README: https://github.com/verzly/toolchain#rust-cache"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -29,7 +29,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#rust-cache")]
 pub struct InitArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -39,14 +39,14 @@ pub struct InitArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#rust-cache")]
 pub struct CommonArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#rust-cache")]
 pub struct CleanGeneratedArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
@@ -57,7 +57,7 @@ pub struct CleanGeneratedArgs {
 }
 
 #[derive(Args, Debug)]
-#[command(after_help = "Read the full README: https://github.com/verzly/rust-cache")]
+#[command(after_help = "Read the full README: https://github.com/verzly/toolchain#rust-cache")]
 pub struct RunArgs {
     #[arg(short, long, default_value = "datarose.toml")]
     pub config: PathBuf,
