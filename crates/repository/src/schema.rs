@@ -10,9 +10,20 @@ use std::fs;
 use std::path::Path;
 use toml::{Table, Value};
 
-pub const DATAROSE_SCHEMA_URL: &str =
-    "https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json";
 pub const DATAROSE_SCHEMA_DIRECTIVE: &str = "#:schema";
+pub const DATAROSE_SCHEMA_PATH: &str = "schemas/datarose.toml.schema.json";
+
+pub fn datarose_schema_url() -> String {
+    datarose_schema_url_for_version(env!("CARGO_PKG_VERSION"))
+}
+
+pub fn datarose_schema_url_for_version(version: &str) -> String {
+    format!("https://raw.githubusercontent.com/verzly/toolchain/v{version}/{DATAROSE_SCHEMA_PATH}")
+}
+
+pub fn datarose_schema_directive_line() -> String {
+    format!("{DATAROSE_SCHEMA_DIRECTIVE} {}", datarose_schema_url())
+}
 
 pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
     if !path.is_file() {
@@ -38,7 +49,7 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
 }
 
 fn validate_schema_reference(raw: &str, issues: &mut Vec<String>) {
-    let expected = format!("{DATAROSE_SCHEMA_DIRECTIVE} {DATAROSE_SCHEMA_URL}");
+    let expected = datarose_schema_directive_line();
     let first_content_line = raw.lines().map(str::trim).find(|line| !line.is_empty());
 
     match first_content_line {
@@ -685,10 +696,10 @@ mod tests {
 
     #[test]
     fn accepts_current_schema_surface() {
-        let path = temp_config(
-            "valid",
-            r#"#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
-version = 1
+        let content = format!(
+            "{}\n{}",
+            datarose_schema_directive_line(),
+            r#"version = 1
 
 [quality]
 workspace = "."
@@ -724,6 +735,7 @@ root = "."
 frontend_install = "aube install"
 "#,
         );
+        let path = temp_config("valid", &content);
 
         assert!(validate_datarose_schema(&path).unwrap().is_empty());
     }

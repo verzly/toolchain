@@ -4,6 +4,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
+fn schema_directive_line() -> String {
+    format!(
+        "#:schema https://raw.githubusercontent.com/verzly/toolchain/v{}/schemas/datarose.toml.schema.json",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
 #[test]
 fn help_lists_repository_tui() {
     let mut cmd = Command::cargo_bin("repository").expect("repository binary");
@@ -149,8 +156,10 @@ fn fixture_repo() -> TempDir {
 
     fs::write(
         root.join("datarose.toml"),
-        r#"#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
-version = 1
+        format!(
+            "{}\n{}",
+            schema_directive_line(),
+            r#"version = 1
 
 [quality]
 workspace = "."
@@ -179,6 +188,7 @@ include_paths = ["packages/api/"]
 [rust_cache.cache]
 package = "platform"
 "#,
+        ),
     )
     .unwrap();
 

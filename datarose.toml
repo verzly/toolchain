@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
+#:schema https://raw.githubusercontent.com/verzly/toolchain/v0.4.0/schemas/datarose.toml.schema.json
 # Managed by repository. Project-specific overrides are allowed.
 version = 1
 
@@ -52,6 +52,9 @@ files = [
   { path = "Cargo.lock", kind = "cargo-lock-package", package = "android-signing", value = "{version}" },
   { path = "Cargo.lock", kind = "cargo-lock-package", package = "ios-signing", value = "{version}" },
   { path = "Cargo.lock", kind = "cargo-lock-package", package = "repository", value = "{version}" },
+  { path = "datarose.toml", kind = "text", search = "https://raw.githubusercontent.com/verzly/toolchain/v0.4.0/schemas/datarose.toml.schema.json", replace = "https://raw.githubusercontent.com/verzly/toolchain/v{version}/schemas/datarose.toml.schema.json" },
+  { path = "README.md", kind = "text", search = "https://raw.githubusercontent.com/verzly/toolchain/v0.4.0/schemas/datarose.toml.schema.json", replace = "https://raw.githubusercontent.com/verzly/toolchain/v{version}/schemas/datarose.toml.schema.json" },
+  { path = "schemas/datarose.toml.schema.json", kind = "text", search = "https://raw.githubusercontent.com/verzly/toolchain/v0.4.0/schemas/datarose.toml.schema.json", replace = "https://raw.githubusercontent.com/verzly/toolchain/v{version}/schemas/datarose.toml.schema.json" },
 ]
 
 [rust_cache.cache]

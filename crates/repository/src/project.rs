@@ -1,7 +1,7 @@
 //! Project detection and datarose.toml parsing for quality profiles.
 
 use crate::cli::{JsRunnerArg, LanguageArg};
-use crate::schema::{DATAROSE_SCHEMA_DIRECTIVE, DATAROSE_SCHEMA_URL};
+use crate::schema::datarose_schema_directive_line;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -478,10 +478,7 @@ pub fn render_datarose_config(profile: &ProjectProfile) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     let mut out = String::new();
-    out.push_str(&format!(
-        "{} {}\n",
-        DATAROSE_SCHEMA_DIRECTIVE, DATAROSE_SCHEMA_URL
-    ));
+    out.push_str(&format!("{}\n", datarose_schema_directive_line()));
     out.push_str("# Managed by repository. Project-specific overrides are allowed.\n");
     out.push_str("version = 1\n\n");
     out.push_str("[quality]\n");
