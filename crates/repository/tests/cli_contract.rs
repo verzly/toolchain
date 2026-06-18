@@ -149,7 +149,8 @@ fn fixture_repo() -> TempDir {
 
     fs::write(
         root.join("datarose.toml"),
-        r#"version = 1
+        r#"#:schema https://raw.githubusercontent.com/verzly/toolchain/master/schemas/datarose.toml.schema.json
+version = 1
 
 [quality]
 workspace = "."
