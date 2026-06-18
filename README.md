@@ -32,6 +32,7 @@ Use it from CI as a GitHub Action, or locally as a Rust workspace executable. Co
   - [Root action](#root-action)
   - [Tool actions](#tool-actions)
   - [repository](#repository)
+  - [datarose.toml schema](#datarosetoml-schema)
   - [github-release](#github-release)
   - [cargo-release](#cargo-release)
   - [tauri-release](#tauri-release)
@@ -357,6 +358,55 @@ GitHub Action:
   with:
     args: check
 ```
+
+### datarose.toml schema
+
+`datarose.toml` stays TOML. There is no `datarose.json` runtime configuration.
+
+`verzly` validates an existing `datarose.toml` before dispatching any subcommand. This validation is built into the executable, runs offline, and does not depend on VS Code, Taplo, `.taplo.toml`, network access, or the public schema URL.
+
+The preflight validation runs for commands such as:
+
+```sh
+verzly github-release prepare --config datarose.toml --release-target app --version 1.2.3
+verzly cargo-release build --config datarose.toml --release-target app --target linux-x64
+verzly tauri-release build --config datarose.toml --release-target app --platform android
+verzly rust-cache env --config datarose.toml
+verzly repository check
+```
+
+If no `datarose.toml` exists, `verzly` allows the command to run. This keeps the executable usable outside Verzly-managed repositories. If a `datarose.toml` exists, it must pass the embedded schema validator before the selected tool runs.
+
+The validator catches TOML syntax errors, unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
+
+Examples of errors the validator catches:
+
+```toml
+[quality]
+langauges = ["rust"] # typo: should be languages
+
+[release]
+manage_workflowz = true # typo: should be manage_workflows
+
+[[release.targets]]
+nam = "app" # typo: should be name
+```
+
+`datarose.toml` may include a leading schema directive for humans and optional editor tooling, but this directive is not required by runtime validation:
+
+```toml
+#:schema https://raw.githubusercontent.com/verzly/toolchain/v0.4.0/schemas/datarose.toml.schema.json
+version = 1
+```
+
+The toolchain repository itself may use the local schema file while developing the schema:
+
+```toml
+#:schema ./schemas/datarose.toml.schema.json
+version = 1
+```
+
+Runtime validation is implemented in Rust and parses the actual TOML document. It does not fetch the schema URL and does not require the directive to exist. The public `schemas/datarose.toml.schema.json` file is a mirrored public contract for review and optional editor integrations. When a supported config key changes, update the embedded Rust validator and the public schema together.
 
 Use `repository` first in downstream projects. It should describe the project layout, release targets, quality rules, cache conventions, and generated workflow expectations before release tooling is wired in.
 
@@ -842,6 +892,7 @@ Cargo.toml                Rust workspace
 datarose.toml             Release, quality, cache, and build configuration
 hk.pkl                    Git hook and quality gate configuration
 mise.toml                 Local tool/task configuration
+schemas/                 Public online schema for TOML-backed config
 ```
 
 ### Quality checks

@@ -4,6 +4,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
+fn schema_directive_line() -> String {
+    match env!("VERZLY_SCHEMA_REF") {
+        "local" => "#:schema ./schemas/datarose.toml.schema.json".to_string(),
+        reference => format!(
+            "#:schema https://raw.githubusercontent.com/verzly/toolchain/{reference}/schemas/datarose.toml.schema.json"
+        ),
+    }
+}
+
 #[test]
 fn help_lists_repository_tui() {
     let mut cmd = Command::cargo_bin("repository").expect("repository binary");
@@ -149,7 +158,10 @@ fn fixture_repo() -> TempDir {
 
     fs::write(
         root.join("datarose.toml"),
-        r#"version = 1
+        format!(
+            "{}\n{}",
+            schema_directive_line(),
+            r#"version = 1
 
 [quality]
 workspace = "."
@@ -178,6 +190,7 @@ include_paths = ["packages/api/"]
 [rust_cache.cache]
 package = "platform"
 "#,
+        ),
     )
     .unwrap();
 

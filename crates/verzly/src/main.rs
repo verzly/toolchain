@@ -1,8 +1,9 @@
 //! Unified Verzly Toolchain entry point.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "verzly")]
@@ -73,20 +74,33 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::GithubRelease(args) => {
+            validate_datarose_before_tool_run(&args)?;
             github_release::run_from(with_tool_name("github-release", args))
         }
         Commands::CargoRelease(args) => {
+            validate_datarose_before_tool_run(&args)?;
             cargo_release::run_from(with_tool_name("cargo-release", args))
         }
         Commands::TauriRelease(args) => {
+            validate_datarose_before_tool_run(&args)?;
             tauri_release::run_from(with_tool_name("tauri-release", args))
         }
-        Commands::RustCache(args) => rust_cache::run_from(with_tool_name("rust-cache", args)),
+        Commands::RustCache(args) => {
+            validate_datarose_before_tool_run(&args)?;
+            rust_cache::run_from(with_tool_name("rust-cache", args))
+        }
         Commands::AndroidSigning(args) => {
+            validate_datarose_before_tool_run(&args)?;
             android_signing::run_from(with_tool_name("android-signing", args))
         }
-        Commands::IosSigning(args) => ios_signing::run_from(with_tool_name("ios-signing", args)),
-        Commands::Repository(args) => repository::run_from(with_tool_name("repository", args)),
+        Commands::IosSigning(args) => {
+            validate_datarose_before_tool_run(&args)?;
+            ios_signing::run_from(with_tool_name("ios-signing", args))
+        }
+        Commands::Repository(args) => {
+            validate_datarose_before_tool_run(&args)?;
+            repository::run_from(with_tool_name("repository", args))
+        }
     }
 }
 
@@ -95,4 +109,62 @@ fn with_tool_name(tool: &'static str, args: PassthroughArgs) -> Vec<OsString> {
     forwarded.push(OsString::from(tool));
     forwarded.extend(args.args);
     forwarded
+}
+
+fn validate_datarose_before_tool_run(args: &PassthroughArgs) -> Result<()> {
+    let config_path = datarose_config_path_from_args(args)
+        .with_context(|| "failed to resolve datarose.toml validation path")?;
+    repository::validate_datarose_for_tool_run(&config_path)
+}
+
+fn datarose_config_path_from_args(args: &PassthroughArgs) -> Result<PathBuf> {
+    let root = option_value(&args.args, "--root")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let root = absolutize(root)?;
+
+    if let Some(config) = option_value(&args.args, "--config") {
+        let path = PathBuf::from(config);
+        if path.file_name().and_then(|name| name.to_str()) == Some("datarose.toml") {
+            return Ok(if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            });
+        }
+    }
+
+    Ok(root.join("datarose.toml"))
+}
+
+fn option_value(args: &[OsString], name: &str) -> Option<OsString> {
+    let mut index = 0;
+    while index < args.len() {
+        let Some(value) = args[index].to_str() else {
+            index += 1;
+            continue;
+        };
+
+        if value == name {
+            return args.get(index + 1).cloned();
+        }
+
+        if let Some((key, inline_value)) = value.split_once('=') {
+            if key == name {
+                return Some(OsString::from(inline_value));
+            }
+        }
+
+        index += 1;
+    }
+
+    None
+}
+
+fn absolutize(path: PathBuf) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(std::env::current_dir()?.join(path))
+    }
 }

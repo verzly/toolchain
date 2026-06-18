@@ -42,6 +42,9 @@ pub fn collect_config_issues(profile: &ProjectProfile) -> Result<Vec<String>> {
     let text = fs::read_to_string(&profile.config_path)
         .with_context(|| format!("failed to read {}", profile.config_path.display()))?;
 
+    issues.extend(crate::schema::validate_datarose_schema(
+        &profile.config_path,
+    )?);
     collect_removed_files(&profile.root, &mut issues);
     collect_removed_fields(&text, &mut issues);
     collect_invalid_values(profile, &mut issues)?;
@@ -287,6 +290,7 @@ fn collect_action_surface_issues(profile: &ProjectProfile, issues: &mut Vec<Stri
         "actions/repository/action.yml",
         "actions/rust-cache/action.yml",
         "actions/tauri-release/action.yml",
+        "schemas/datarose.toml.schema.json",
     ] {
         if !profile.root.join(path).is_file() {
             issues.push(format!("{path} is missing"));
