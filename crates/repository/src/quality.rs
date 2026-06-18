@@ -302,11 +302,15 @@ mod tests {
         let config = render_hk_config(&profile);
 
         assert!(config.contains("[\"format-rust\"]"));
-        assert!(config
-            .contains("cd \\\"workspace/app\\\" && oxfmt --config config/.oxfmtrc.json --check ."));
-        assert!(config
-            .contains("cd \\\"workspace/app\\\" && vitest run --config config/vitest.config.ts"));
-        assert!(config.contains("composer exec rector -- --config config/rector.php --dry-run"));
+        assert!(config.contains(
+            "cd \\\"workspace/app\\\" && oxfmt --config \\\"config/.oxfmtrc.json\\\" --check ."
+        ));
+        assert!(config.contains(
+            "cd \\\"workspace/app\\\" && vitest run --config \\\"config/vitest.config.ts\\\""
+        ));
+        assert!(
+            config.contains("composer exec rector -- --config \\\"config/rector.php\\\" --dry-run")
+        );
         assert!(config.contains("[\"pre-push\"]"));
         assert!(config.contains("windows = \"cmd /d /s /c\""));
         assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));
