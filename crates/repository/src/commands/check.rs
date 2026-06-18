@@ -1,6 +1,7 @@
 use crate::cli::CheckArgs;
-use crate::project::{detect_cargo_packages, ProjectProfile, DEFAULT_CONFIG_FILE};
+use crate::project::{detect_cargo_packages, Language, ProjectProfile, DEFAULT_CONFIG_FILE};
 use crate::release::{STRATEGIES, WORKFLOWS};
+use crate::standards;
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
 use std::fs;
@@ -49,6 +50,7 @@ pub fn collect_config_issues(profile: &ProjectProfile) -> Result<Vec<String>> {
     collect_removed_fields(&text, &mut issues);
     collect_invalid_values(profile, &mut issues)?;
     collect_repository_boundary_issues(profile, &mut issues)?;
+    collect_quality_policy_issues(profile, &mut issues);
     collect_action_surface_issues(profile, &mut issues);
     collect_release_workflow_issues(profile, &mut issues);
 
@@ -273,6 +275,42 @@ fn collect_repository_boundary_issues(
     }
 
     Ok(())
+}
+
+fn collect_quality_policy_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {
+    if !profile.has_language(&Language::Rust) {
+        return;
+    }
+
+    if profile.stored_config.quality.rust.manage_clippy_config
+        && !profile.workspace_root.join(".clippy.toml").is_file()
+    {
+        issues.push(
+            ".clippy.toml is missing in the configured quality workspace; run `repository update`"
+                .into(),
+        );
+    }
+
+    if !profile.stored_config.quality.rust.manage_cargo_lints {
+        return;
+    }
+
+    for expected in standards::cargo_toml_policy_files(profile, false) {
+        let Ok(current) = fs::read_to_string(&expected.path) else {
+            issues.push(format!(
+                "{} is missing; run `repository update`",
+                expected.path.display()
+            ));
+            continue;
+        };
+
+        if current != expected.content {
+            issues.push(format!(
+                "{} is missing repository-managed Rust lint defaults; run `repository update`",
+                expected.path.display()
+            ));
+        }
+    }
 }
 
 fn collect_action_surface_issues(profile: &ProjectProfile, issues: &mut Vec<String>) {

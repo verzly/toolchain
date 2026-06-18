@@ -102,7 +102,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: taiki-e/install-action@nextest
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.137
 
       - name: Check formatting
         run: cargo fmt --all -- --check

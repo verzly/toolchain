@@ -122,7 +122,7 @@ fn validate_quality(table: &Table, issues: &mut Vec<String>) {
     validate_unknown_keys(
         table,
         "quality",
-        &["workspace", "languages", "js_runner"],
+        &["workspace", "languages", "js_runner", "rust"],
         issues,
     );
     expect_string(table, "workspace", "quality.workspace", issues);
@@ -143,6 +143,71 @@ fn validate_quality(table: &Table, issues: &mut Vec<String>) {
             issues.push(format!(
                 "quality.js_runner has unsupported value `{runner}`; expected one of aube, npm, pnpm, yarn, bun"
             ));
+        }
+    }
+    if let Some(rust) = table_field(table, "rust", "quality.rust", issues) {
+        validate_quality_rust(rust, issues);
+    }
+}
+
+fn validate_quality_rust(table: &Table, issues: &mut Vec<String>) {
+    validate_unknown_keys(
+        table,
+        "quality.rust",
+        &[
+            "manage_cargo_lints",
+            "manage_clippy_config",
+            "lint_profile",
+            "lints",
+        ],
+        issues,
+    );
+    expect_bool(
+        table,
+        "manage_cargo_lints",
+        "quality.rust.manage_cargo_lints",
+        issues,
+    );
+    expect_bool(
+        table,
+        "manage_clippy_config",
+        "quality.rust.manage_clippy_config",
+        issues,
+    );
+    if let Some(profile) = expect_string(table, "lint_profile", "quality.rust.lint_profile", issues)
+    {
+        if !matches!(profile.as_str(), "strict" | "relaxed") {
+            issues.push(format!(
+                "quality.rust.lint_profile has unsupported value `{profile}`; expected one of strict, relaxed"
+            ));
+        }
+    }
+    if let Some(lints) = table_field(table, "lints", "quality.rust.lints", issues) {
+        validate_quality_rust_lints(lints, issues);
+    }
+}
+
+fn validate_quality_rust_lints(table: &Table, issues: &mut Vec<String>) {
+    validate_unknown_keys(table, "quality.rust.lints", &["rust", "clippy"], issues);
+    if let Some(rust) = table_field(table, "rust", "quality.rust.lints.rust", issues) {
+        validate_lint_levels(rust, "quality.rust.lints.rust", issues);
+    }
+    if let Some(clippy) = table_field(table, "clippy", "quality.rust.lints.clippy", issues) {
+        validate_lint_levels(clippy, "quality.rust.lints.clippy", issues);
+    }
+}
+
+fn validate_lint_levels(table: &Table, path: &str, issues: &mut Vec<String>) {
+    for (key, value) in table {
+        match value.as_str() {
+            Some("allow" | "warn" | "deny" | "forbid") => {}
+            Some(level) => issues.push(format!(
+                "{path}.{key} has unsupported lint level `{level}`; expected one of allow, warn, deny, forbid"
+            )),
+            None => issues.push(format!(
+                "{path}.{key} must be a string lint level; found {}",
+                type_name(value)
+            )),
         }
     }
 }
@@ -723,6 +788,18 @@ workspace = "."
 languages = ["rust", "js"]
 js_runner = "pnpm"
 
+[quality.rust]
+manage_cargo_lints = true
+manage_clippy_config = true
+lint_profile = "strict"
+
+[quality.rust.lints.rust]
+unsafe_code = "forbid"
+
+[quality.rust.lints.clippy]
+all = "deny"
+unwrap_used = "warn"
+
 [release]
 enabled = true
 target_branch = "master"
@@ -792,6 +869,24 @@ source_repository = "verzly/toolchain"
 targets = "verzly"
 "#,
         "datarose.toml.version must be an integer; found string\nquality.languages[1] must be a string; found integer\nquality.js_runner has unsupported value `bower`; expected one of aube, npm, pnpm, yarn, bun\nrelease.enabled must be a boolean; found string\nrelease.target_branch must be a string; found integer\nrelease.targets must be an array of tables; found string"
+     )]
+    #[case::invalid_rust_quality_policy(
+        r#"version = 1
+
+[quality]
+languages = ["rust"]
+
+[quality.rust]
+manage_cargo_lints = "yes"
+manage_clippy_config = true
+lint_profile = "max"
+
+[quality.rust.lints.clippy]
+unwrap_used = "sometimes"
+"#,
+        "quality.rust.manage_cargo_lints must be a boolean; found string
+quality.rust.lint_profile has unsupported value `max`; expected one of strict, relaxed
+quality.rust.lints.clippy.unwrap_used has unsupported lint level `sometimes`; expected one of allow, warn, deny, forbid"
     )]
     fn reports_schema_issues(#[case] content: &str, #[case] expected: &str) {
         let path = temp_config("invalid", content);

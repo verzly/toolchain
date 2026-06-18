@@ -2,4 +2,4 @@
 hk = "latest"
 pkl = "latest"
 rust = "stable"
-"cargo:cargo-nextest" = "latest"
+"cargo:cargo-nextest" = "0.9.137"
