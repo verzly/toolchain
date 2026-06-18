@@ -9,6 +9,7 @@ mod output;
 mod project;
 mod quality;
 mod release;
+mod schema;
 mod shell;
 mod standards;
 mod workflow;

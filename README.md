@@ -32,6 +32,7 @@ Use it from CI as a GitHub Action, or locally as a Rust workspace executable. Co
   - [Root action](#root-action)
   - [Tool actions](#tool-actions)
   - [repository](#repository)
+  - [datarose.toml schema](#datarosetoml-schema)
   - [github-release](#github-release)
   - [cargo-release](#cargo-release)
   - [tauri-release](#tauri-release)
@@ -357,6 +358,31 @@ GitHub Action:
   with:
     args: check
 ```
+
+### datarose.toml schema
+
+`datarose.toml` stays TOML. There is no `datarose.json` runtime configuration.
+
+`repository check` now validates the TOML file against a strict schema before relying on its values. It reports unknown sections, unknown keys, wrong value types, unsupported enum values, invalid arrays, and required release fields that are missing. This prevents typos from being silently ignored in workflow or release configuration.
+
+```sh
+verzly repository check
+```
+
+Examples of errors the validator catches:
+
+```toml
+[quality]
+langauges = ["rust"] # typo: should be languages
+
+[release]
+manage_workflowz = true # typo: should be manage_workflows
+
+[[release.targets]]
+nam = "app" # typo: should be name
+```
+
+The runtime validator is implemented in Rust and parses the actual TOML document. The optional `schemas/datarose.toml.schema.json` file mirrors the TOML contract for editor integrations such as Taplo; it is not a replacement config format and must not be used as `datarose.json`. When a supported config key changes, update the Rust validator and the editor schema together.
 
 Use `repository` first in downstream projects. It should describe the project layout, release targets, quality rules, cache conventions, and generated workflow expectations before release tooling is wired in.
 
@@ -841,7 +867,9 @@ action.yml                Root setup/run action
 Cargo.toml                Rust workspace
 datarose.toml             Release, quality, cache, and build configuration
 hk.pkl                    Git hook and quality gate configuration
+.taplo.toml              TOML editor schema mapping for datarose.toml
 mise.toml                 Local tool/task configuration
+schemas/                 Public editor schemas for TOML-backed config
 ```
 
 ### Quality checks
