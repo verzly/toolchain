@@ -44,6 +44,7 @@ Use it from CI as a GitHub Action, or locally as a Rust workspace executable. Co
   - [Release assets](#release-assets)
   - [Tokens and permissions](#tokens-and-permissions)
   - [Delete release](#delete-release)
+  - [Floating tag maintenance](#floating-tag-maintenance)
 - [Development](#development)
   - [Repository layout](#repository-layout)
   - [Quality checks](#quality-checks)
@@ -373,23 +374,22 @@ verzly github-release delete --version 1.2.3 --config datarose.toml --release-ta
 verzly github-release abort --version 1.2.3 --config datarose.toml --release-target app
 ```
 
-Update floating tags as part of finalization:
+Configured floating tags are updated as part of finalization:
 
 ```sh
 verzly github-release finalize \
   --version 1.2.3 \
   --config datarose.toml \
   --release-target app \
-  --assets dist/release \
-  --update-floating-tags \
-  --update-latest-tag \
-  --update-next-tag
+  --assets dist/release
 ```
+
+The explicit `--update-floating-tags`, `--update-latest-tag`, and `--update-next-tag` flags are escape hatches for one-off overrides. Normal workflows should let `datarose.toml` decide which tag families are managed.
 
 Manage floating tags directly when needed:
 
 ```sh
-verzly github-release floating-tags --config datarose.toml --release-target app --all --prune
+verzly github-release update-floating-tags --config datarose.toml --release-target app --all --prune
 ```
 
 GitHub Action:
@@ -714,9 +714,10 @@ This section describes how `verzly/toolchain` releases itself. Consuming project
 The visible workflow surface is intentionally small:
 
 ```text
-.github/workflows/release.yml          Publishes the Verzly toolchain release.
-.github/workflows/delete-release.yml   Deletes a published release and its tags after confirmation.
-.github/workflows/test.yml             Runs pull request quality checks.
+.github/workflows/release.yml                 Publishes the Verzly toolchain release.
+.github/workflows/delete-release.yml          Deletes a published release and its tags after confirmation.
+.github/workflows/update-floating-tags.yml    Reconciles moving tags after manual tag edits.
+.github/workflows/test.yml                    Runs pull request quality checks.
 ```
 
 The release workflow:
@@ -766,18 +767,27 @@ separate distribution repository tokens
 separate PATs for the normal release path
 ```
 
-Floating tags are handled by `github-release finalize`:
+Floating tags are handled by `github-release finalize` during normal releases according to the release target settings in `datarose.toml`:
 
 ```sh
 verzly github-release finalize \
   --config datarose.toml \
   --release-target verzly \
   --version 1.2.3 \
-  --assets dist/verzly \
-  --update-floating-tags \
-  --update-latest-tag \
-  --update-next-tag
+  --assets dist/verzly
 ```
+
+Manual maintenance is handled by `github-release update-floating-tags`:
+
+```sh
+verzly github-release update-floating-tags \
+  --config datarose.toml \
+  --release-target verzly \
+  --all \
+  --prune
+```
+
+Tag maintenance follows the configured release target. If `next_tag = false`, the `next` tag is not created, updated, deleted, or pruned by finalize, delete, or maintenance runs. The same rule applies to `latest_tag = false` and `floating_tags = false`. To manage a disabled tag family, enable it in `datarose.toml` first.
 
 ### Delete release
 
@@ -789,6 +799,31 @@ verzly github-release delete \
   --release-target verzly \
   --version 1.2.3
 ```
+
+The delete command removes the configured release/tag surface and repairs configured floating tags from the remaining release tags.
+
+### Floating tag maintenance
+
+`github-release` owns moving tag reconciliation. Normal releases update floating tags from `finalize`, and `Delete Release` repairs them after deleting a version.
+
+Use `Update Floating Tags` when tags were changed outside the normal release workflow, for example after manually deleting `v1.2.3` from GitHub or pushing a historical tag. The workflow runs the same command locally:
+
+```sh
+verzly github-release update-floating-tags \
+  --config datarose.toml \
+  --release-target verzly \
+  --all \
+  --prune
+```
+
+For a single newly added tag, use either the version or full tag form:
+
+```sh
+verzly github-release update-floating-tags --config datarose.toml --release-target verzly --version 1.2.3
+verzly github-release update-floating-tags --config datarose.toml --release-target verzly --tag v1.2.3
+```
+
+`--all --prune` recalculates `vX`, `vX.Y`, `latest`, and `next` from the release tags that still exist, and removes stale moving tags that no longer have a matching release line.
 
 ## Development
 

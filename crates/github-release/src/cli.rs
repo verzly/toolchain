@@ -35,6 +35,7 @@ pub enum Commands {
     #[command(alias = "rollback")]
     Delete(DeleteArgs),
     /// Create or refresh moving tags for published releases.
+    #[command(visible_alias = "update-floating-tags")]
     FloatingTags(FloatingTagsArgs),
     /// Delete a temporary release branch after a failed build.
     Abort(AbortArgs),
@@ -327,10 +328,6 @@ pub struct FloatingTagsArgs {
     #[arg(long)]
     pub repository: Option<String>,
 
-    /// Run and enable all floating tag families even when they are disabled in the config.
-    #[arg(long, default_value_t = false)]
-    pub force: bool,
-
     /// Delete stale floating tags during a full --all repair.
     #[arg(long, default_value_t = false)]
     pub prune: bool,
@@ -506,6 +503,24 @@ mod tests {
         assert!(args.all);
         assert!(args.prune);
         assert!(args.dry_run);
+    }
+
+    #[test]
+    fn parses_update_floating_tags_alias() {
+        let cli = Cli::parse_from([
+            "github-release",
+            "update-floating-tags",
+            "--config",
+            "release.toml",
+            "--all",
+        ]);
+
+        let Commands::FloatingTags(args) = cli.command else {
+            panic!("expected floating-tags command");
+        };
+
+        assert_eq!(args.config, PathBuf::from("release.toml"));
+        assert!(args.all);
     }
 
     #[test]

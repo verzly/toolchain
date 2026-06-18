@@ -1,0 +1,128 @@
+name: Update Floating Tags
+run-name: Update Verzly floating tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Repair mode. Use all after manual tag edits, version after adding one release tag, or tag for an explicit full tag."
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - version
+          - tag
+      version:
+        description: "Version without the v prefix. Required when mode is version. Example: 1.2.3."
+        required: false
+      tag:
+        description: "Full tag name. Required when mode is tag. Example: v1.2.3."
+        required: false
+      prune:
+        description: "Delete stale floating tags while running mode=all."
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: "Print the planned GitHub operations without changing tags."
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+  delete:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-verzly-floating-tags-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Reconcile floating tags
+    if: ${{ github.event_name != 'delete' || github.event.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap Verzly from source
+        run: |
+          cargo build --release -p verzly
+          echo "${{ github.workspace }}/.cache/rust/packages/toolchain/target/release" >> "${GITHUB_PATH}"
+
+      - name: Repair floating tags after tag push or delete
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          verzly github-release update-floating-tags
+          --config datarose.toml
+          --release-target verzly
+          --all
+          --prune
+
+      - name: Repair floating tags manually
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
+          PRUNE: ${{ inputs.prune }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          command=(
+            verzly github-release update-floating-tags
+            --config datarose.toml
+            --release-target verzly
+          )
+
+          case "${MODE}" in
+            all)
+              command+=(--all)
+              if [ "${PRUNE}" = "true" ]; then
+                command+=(--prune)
+              fi
+              ;;
+            version)
+              if [ -z "${VERSION}" ]; then
+                echo "::error::version is required when mode is version."
+                exit 1
+              fi
+              if [[ "${VERSION}" == v* ]]; then
+                echo "::error::Version must be provided without the v prefix. Use '${VERSION#v}' instead of '${VERSION}'."
+                exit 1
+              fi
+              command+=(--version "${VERSION}")
+              ;;
+            tag)
+              if [ -z "${TAG}" ]; then
+                echo "::error::tag is required when mode is tag."
+                exit 1
+              fi
+              command+=(--tag "${TAG}")
+              ;;
+            *)
+              echo "::error::Unsupported mode: ${MODE}"
+              exit 1
+              ;;
+          esac
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            command+=(--dry-run)
+          fi
+
+          "${command[@]}"

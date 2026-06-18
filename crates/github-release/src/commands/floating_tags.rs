@@ -17,19 +17,11 @@ pub fn run(args: FloatingTagsArgs) -> Result<()> {
     }
 
     let config = config::load(&args.config, args.release_target.as_deref())?;
-    let options = if args.force {
-        FloatingTagOptions::force_all()
-    } else {
-        FloatingTagOptions {
-            stable_line_tags: config.release.floating_tags,
-            latest_tag: config.release.latest_tag,
-            next_tag: config.release.next_tag,
-            prune: args.prune,
-        }
-    };
     let options = FloatingTagOptions {
+        stable_line_tags: config.release.floating_tags,
+        latest_tag: config.release.latest_tag,
+        next_tag: config.release.next_tag,
         prune: args.prune,
-        ..options
     };
 
     if !options.any() {
