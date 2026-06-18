@@ -154,6 +154,8 @@ jobs:
 
       - name: Build executable asset
         shell: bash
+        env:
+          VERZLY_SCHEMA_REF: v${{ inputs.version }}
         run: >-
           verzly cargo-release build
           --config datarose.toml

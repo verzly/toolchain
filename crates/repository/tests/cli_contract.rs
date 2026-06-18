@@ -5,10 +5,12 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 fn schema_directive_line() -> String {
-    format!(
-        "#:schema https://raw.githubusercontent.com/verzly/toolchain/v{}/schemas/datarose.toml.schema.json",
-        env!("CARGO_PKG_VERSION")
-    )
+    match env!("VERZLY_SCHEMA_REF") {
+        "local" => "#:schema ./schemas/datarose.toml.schema.json".to_string(),
+        reference => format!(
+            "#:schema https://raw.githubusercontent.com/verzly/toolchain/{reference}/schemas/datarose.toml.schema.json"
+        ),
+    }
 }
 
 #[test]

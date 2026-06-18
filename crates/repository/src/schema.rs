@@ -13,12 +13,25 @@ use toml::{Table, Value};
 pub const DATAROSE_SCHEMA_DIRECTIVE: &str = "#:schema";
 pub const DATAROSE_SCHEMA_PATH: &str = "schemas/datarose.toml.schema.json";
 
-pub fn datarose_schema_url() -> String {
-    datarose_schema_url_for_version(env!("CARGO_PKG_VERSION"))
+/// The schema reference is owned by the executable build.
+///
+/// Source builds default to `local`, while release builds set `VERZLY_SCHEMA_REF=vX.Y.Z`
+/// before compiling the distributable executable. This lets development configs point at the
+/// checked-out schema file without leaking that behavior into published releases.
+pub fn datarose_schema_ref() -> &'static str {
+    env!("VERZLY_SCHEMA_REF")
 }
 
-pub fn datarose_schema_url_for_version(version: &str) -> String {
-    format!("https://raw.githubusercontent.com/verzly/toolchain/v{version}/{DATAROSE_SCHEMA_PATH}")
+pub fn datarose_schema_url() -> String {
+    datarose_schema_url_for_ref(datarose_schema_ref())
+}
+
+pub fn datarose_schema_url_for_ref(reference: &str) -> String {
+    if reference == "local" {
+        return format!("./{DATAROSE_SCHEMA_PATH}");
+    }
+
+    format!("https://raw.githubusercontent.com/verzly/toolchain/{reference}/{DATAROSE_SCHEMA_PATH}")
 }
 
 pub fn datarose_schema_directive_line() -> String {
@@ -43,25 +56,28 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
     };
 
     let mut issues = Vec::new();
-    validate_schema_reference(&raw, &mut issues);
     validate_root(&root, &mut issues);
     Ok(issues)
 }
-
-fn validate_schema_reference(raw: &str, issues: &mut Vec<String>) {
-    let expected = datarose_schema_directive_line();
-    let first_content_line = raw.lines().map(str::trim).find(|line| !line.is_empty());
-
-    match first_content_line {
-        Some(line) if line == expected => {}
-        Some(line) if line.starts_with(DATAROSE_SCHEMA_DIRECTIVE) => issues.push(format!(
-            "datarose.toml schema directive must be `{expected}`; found `{line}`"
-        )),
-        _ => issues.push(format!(
-            "datarose.toml schema directive is missing; add `{expected}` as the first line"
-        )),
+/// Validate a repository datarose.toml file before any unified `verzly` command runs.
+///
+/// Missing config files are allowed so tools can still run outside a Verzly-managed repository.
+/// Existing config files are always validated with the embedded Rust schema validator, without
+/// network access and without relying on editor-specific TOML schema mapping files.
+pub fn validate_datarose_for_tool_run(path: &Path) -> Result<()> {
+    let issues = validate_datarose_schema(path)?;
+    if issues.is_empty() {
+        return Ok(());
     }
+
+    let mut message = String::from("datarose.toml validation failed before running the command:");
+    for issue in issues {
+        message.push_str("\n- ");
+        message.push_str(&issue);
+    }
+    anyhow::bail!(message);
 }
+
 fn validate_root(root: &Table, issues: &mut Vec<String>) {
     validate_unknown_keys(
         root,
