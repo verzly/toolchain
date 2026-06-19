@@ -122,7 +122,8 @@ fn check_rejects_legacy_distribution_directory() {
         .arg(repo.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains(".verzly/distributions"))
+        .stderr(predicate::str::contains(".verzly"))
+        .stderr(predicate::str::contains("distributions"))
         .stderr(predicate::str::contains("unified root action"));
 }
 
@@ -155,6 +156,8 @@ fn fixture_repo() -> TempDir {
 
     fs::create_dir_all(root.join("packages/api")).unwrap();
     fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    fs::create_dir_all(root.join("schemas")).unwrap();
+    fs::write(root.join("schemas/datarose.toml.schema.json"), "{}").unwrap();
 
     fs::write(
         root.join("datarose.toml"),

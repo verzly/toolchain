@@ -28,8 +28,8 @@ where
     run(Cli::parse_from(args))
 }
 
-/// Validate an existing datarose.toml file with the same embedded schema used by
-/// `repository check`. Missing files are ignored so `verzly` can run outside a managed repo.
+/// Validate an existing datarose.toml file with the same directive and embedded schema checks used
+/// by `repository check`. Missing files are ignored so `verzly` can run outside a managed repo.
 pub fn validate_datarose_for_tool_run(path: &Path) -> Result<()> {
     schema::validate_datarose_for_tool_run(path)
 }
