@@ -12,6 +12,8 @@ use toml::{Table, Value};
 
 pub const DATAROSE_SCHEMA_DIRECTIVE: &str = "#:schema";
 pub const DATAROSE_SCHEMA_PATH: &str = "schemas/datarose.toml.schema.json";
+const DATAROSE_SCHEMA_URL_PREFIX: &str = "https://raw.githubusercontent.com/verzly/toolchain/";
+const DEFAULT_CONFIG_NAME: &str = "datarose.toml";
 
 /// The schema reference is owned by the executable build.
 ///
@@ -45,25 +47,28 @@ pub fn validate_datarose_schema(path: &Path) -> Result<Vec<String>> {
 
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut issues = Vec::new();
+    validate_schema_directive(path, &raw, &mut issues);
+
     let root = match raw.parse::<Table>() {
         Ok(root) => root,
         Err(error) => {
-            return Ok(vec![format!(
+            issues.push(format!(
                 "{} has invalid TOML syntax: {error}",
                 path.display()
-            )]);
+            ));
+            return Ok(issues);
         }
     };
 
-    let mut issues = Vec::new();
     validate_root(&root, &mut issues);
     Ok(issues)
 }
 /// Validate a repository datarose.toml file before any unified `verzly` command runs.
 ///
 /// Missing config files are allowed so tools can still run outside a Verzly-managed repository.
-/// Existing config files are always validated with the embedded Rust schema validator, without
-/// network access and without relying on editor-specific TOML schema mapping files.
+/// Existing config files must declare a supported schema directive and are always validated with
+/// the embedded Rust schema validator, without network access or editor-specific TOML mapping.
 pub fn validate_datarose_for_tool_run(path: &Path) -> Result<()> {
     let issues = validate_datarose_schema(path)?;
     if issues.is_empty() {
@@ -115,6 +120,132 @@ fn validate_root(root: &Table, issues: &mut Vec<String>) {
     }
     if let Some(table) = table_field(root, "tauri_release", "datarose.toml.tauri_release", issues) {
         validate_tauri_release(table, issues);
+    }
+}
+
+fn validate_schema_directive(path: &Path, raw: &str, issues: &mut Vec<String>) {
+    let Some((_, line)) = raw
+        .lines()
+        .enumerate()
+        .find(|(_, line)| !line.trim().is_empty())
+    else {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} is missing a leading `{DATAROSE_SCHEMA_DIRECTIVE}` directive"
+        ));
+        return;
+    };
+
+    let line = line.trim();
+    let Some(reference) = line.strip_prefix(DATAROSE_SCHEMA_DIRECTIVE) else {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} is missing a leading `{DATAROSE_SCHEMA_DIRECTIVE}` directive; add `{}` as the first non-empty line",
+            datarose_schema_directive_line()
+        ));
+        return;
+    };
+    if !reference.is_empty() && !reference.starts_with(char::is_whitespace) {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} has an invalid `{DATAROSE_SCHEMA_DIRECTIVE}` directive; add a whitespace before the schema reference"
+        ));
+        return;
+    }
+
+    let Some(reference) = reference.split_whitespace().next() else {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive is missing a schema reference"
+        ));
+        return;
+    };
+
+    if reference.starts_with(DATAROSE_SCHEMA_URL_PREFIX) {
+        validate_online_schema_reference(reference, issues);
+    } else if reference.contains("://") {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive must use a Verzly toolchain schema URL or a local relative path; found `{reference}`"
+        ));
+    } else {
+        validate_local_schema_reference(path, reference, issues);
+    }
+}
+
+fn validate_online_schema_reference(reference: &str, issues: &mut Vec<String>) {
+    let Some(rest) = reference.strip_prefix(DATAROSE_SCHEMA_URL_PREFIX) else {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive must use `{DATAROSE_SCHEMA_URL_PREFIX}{{ref}}/{DATAROSE_SCHEMA_PATH}`; found `{reference}`"
+        ));
+        return;
+    };
+    let suffix = format!("/{DATAROSE_SCHEMA_PATH}");
+    let Some(schema_ref) = rest.strip_suffix(&suffix) else {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive must use `{DATAROSE_SCHEMA_URL_PREFIX}{{ref}}/{DATAROSE_SCHEMA_PATH}`; found `{reference}`"
+        ));
+        return;
+    };
+    if schema_ref.is_empty() {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive is missing the Verzly toolchain ref"
+        ));
+        return;
+    }
+    if schema_ref == "local" {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive uses reserved schema ref `local` in an HTTPS URL; use `{}` for this executable",
+            datarose_schema_directive_line()
+        ));
+        return;
+    }
+
+    let expected = datarose_schema_ref();
+    if schema_ref != expected {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive uses schema ref `{schema_ref}`, but this executable expects `{expected}`"
+        ));
+    }
+}
+
+fn validate_local_schema_reference(path: &Path, reference: &str, issues: &mut Vec<String>) {
+    let schema_path = Path::new(reference);
+    if schema_path.is_absolute() {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive local path must be relative; found `{reference}`"
+        ));
+        return;
+    }
+
+    let root = path.parent().unwrap_or_else(|| Path::new("."));
+    let expected_root = match root.canonicalize() {
+        Ok(path) => path,
+        Err(error) => {
+            issues.push(format!(
+                "failed to resolve {} parent directory for schema validation: {error}",
+                path.display()
+            ));
+            return;
+        }
+    };
+    let schema_path = root.join(schema_path);
+    if !schema_path.is_file() {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive points to `{reference}`, but {} does not exist",
+            schema_path.display()
+        ));
+        return;
+    }
+    let resolved_schema_path = match schema_path.canonicalize() {
+        Ok(path) => path,
+        Err(error) => {
+            issues.push(format!(
+                "failed to resolve {} for schema validation: {error}",
+                schema_path.display()
+            ));
+            return;
+        }
+    };
+    if !resolved_schema_path.starts_with(&expected_root) {
+        issues.push(format!(
+            "{DEFAULT_CONFIG_NAME} schema directive local path must stay under the repository root; found `{reference}`"
+        ));
     }
 }
 
@@ -923,7 +1054,7 @@ quality.rust.lint_profile has unsupported value `max`; expected one of strict, r
 quality.rust.lints.clippy.unwrap_used has unsupported lint level `sometimes`; expected one of allow, warn, deny, forbid"
     )]
     fn reports_schema_issues(#[case] content: &str, #[case] expected: &str) {
-        let path = temp_config("invalid", content);
+        let path = temp_config("invalid", &with_schema(content));
 
         let issues = validate_datarose_schema(&path).unwrap();
 
@@ -934,7 +1065,8 @@ quality.rust.lints.clippy.unwrap_used has unsupported lint level `sometimes`; ex
     fn snapshots_complex_schema_diagnostics() {
         let path = temp_config(
             "snapshot",
-            r#"version = "1"
+            &with_schema(
+                r#"version = "1"
 
 [quality]
 languages = ["rust", 42]
@@ -946,6 +1078,7 @@ target_branch = 123
 source_repository = "verzly/toolchain"
 targets = "verzly"
 "#,
+            ),
         );
 
         let issues = validate_datarose_schema(&path).unwrap();
@@ -961,20 +1094,113 @@ release.targets must be an array of tables; found string
     }
 
     #[test]
-    fn allows_missing_schema_reference_for_runtime_validation() {
+    fn reports_missing_schema_reference_for_runtime_validation() {
         let path = temp_config("missing-directive", "version = 1\n");
 
         let issues = validate_datarose_schema(&path).unwrap();
 
-        assert!(issues.is_empty());
+        assert_eq!(
+            issues,
+            vec![format!(
+                "datarose.toml is missing a leading `#:schema` directive; add `{}` as the first non-empty line",
+                datarose_schema_directive_line()
+            )]
+        );
+    }
+
+    #[test]
+    fn reports_missing_local_schema_file() {
+        let path = temp_config_without_schema_file(
+            "missing-local-schema",
+            "#:schema ./schemas/datarose.toml.schema.json\nversion = 1\n",
+        );
+
+        let issues = validate_datarose_schema(&path).unwrap();
+
+        assert_eq!(
+            issues,
+            vec![format!(
+                "datarose.toml schema directive points to `./schemas/datarose.toml.schema.json`, but {} does not exist",
+                path.parent()
+                    .unwrap()
+                    .join(format!("./{DATAROSE_SCHEMA_PATH}"))
+                    .display()
+            )]
+        );
+    }
+
+    #[test]
+    fn reports_mismatched_online_schema_ref() {
+        let expected = datarose_schema_ref();
+        let mismatched = if expected == "v0.0.0-test" {
+            "v0.0.1-test"
+        } else {
+            "v0.0.0-test"
+        };
+        let path = temp_config(
+            "mismatched-online-schema",
+            &format!(
+                "#:schema https://raw.githubusercontent.com/verzly/toolchain/{mismatched}/schemas/datarose.toml.schema.json\nversion = 1\n"
+            ),
+        );
+
+        let issues = validate_datarose_schema(&path).unwrap();
+
+        assert_eq!(
+            issues,
+            vec![format!(
+                "datarose.toml schema directive uses schema ref `{mismatched}`, but this executable expects `{expected}`"
+            )]
+        );
+    }
+
+    #[test]
+    fn reports_non_toolchain_schema_url() {
+        let path = temp_config(
+            "other-schema-url",
+            "#:schema https://example.com/datarose.toml.schema.json\nversion = 1\n",
+        );
+
+        let issues = validate_datarose_schema(&path).unwrap();
+
+        assert_eq!(
+            issues,
+            vec![
+                "datarose.toml schema directive must use a Verzly toolchain schema URL or a local relative path; found `https://example.com/datarose.toml.schema.json`"
+                    .to_string()
+            ]
+        );
+    }
+
+    fn with_schema(content: &str) -> String {
+        format!("{}\n{content}", datarose_schema_directive_line())
     }
 
     fn temp_config(name: &str, content: &str) -> std::path::PathBuf {
+        temp_config_with_schema_file(name, content, true)
+    }
+
+    fn temp_config_without_schema_file(name: &str, content: &str) -> std::path::PathBuf {
+        temp_config_with_schema_file(name, content, false)
+    }
+
+    fn temp_config_with_schema_file(
+        name: &str,
+        content: &str,
+        create_schema_file: bool,
+    ) -> std::path::PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("datarose-schema-{name}-{unique}.toml"));
+        let root = std::env::temp_dir().join(format!("datarose-schema-{name}-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        if create_schema_file {
+            let schema_path = root.join(DATAROSE_SCHEMA_PATH);
+            fs::create_dir_all(schema_path.parent().unwrap()).unwrap();
+            fs::write(schema_path, "{}").unwrap();
+        }
+        let path = root.join(DEFAULT_CONFIG_NAME);
         fs::write(&path, content).unwrap();
         path
     }

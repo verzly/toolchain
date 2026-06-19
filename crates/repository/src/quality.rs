@@ -316,11 +316,13 @@ mod tests {
         assert!(!config.contains("  }\n\n}\n\nlocal qualitySteps"));
         assert!(!config.contains("  }\n\n}\n\nlocal fullQualitySteps"));
 
-        insta::assert_snapshot!(step_block(&config, "[\"test-rust\"]"), @r###"["test-rust"] {
+        insta::assert_snapshot!(step_block(&config, "[\"test-rust\"]"), @r###"
+["test-rust"] {
     shell = defaultShell
     depends = List("format-rust", "lint-rust")
     check = "cd \"workspace/app\" && cargo nextest run --workspace && cargo test --workspace --doc"
-  }"###);
+  }
+"###);
     }
 
     fn step_block(config: &str, marker: &str) -> String {
